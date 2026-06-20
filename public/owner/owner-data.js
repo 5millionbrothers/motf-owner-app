@@ -254,6 +254,11 @@
     ["회원", "연락처", "학교/소속", "상태", "관리"].forEach((label, index) => {
       if (userHeaders[index]) userHeaders[index].textContent = label;
     });
+    const directoryTables = document.querySelectorAll("#panel-master-partners .master-admin-table");
+    const partnerHeaders = directoryTables[1]?.querySelectorAll("thead th") || [];
+    ["파트너사명", "업종/상태", "사업자 정보", "등록 상품", "심사 및 공개 관리"].forEach((label, index) => {
+      if (partnerHeaders[index]) partnerHeaders[index].textContent = label;
+    });
 
     const [profileResult, businessResult, offeringResult] = await Promise.all([
       client().from("profiles")
