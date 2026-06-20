@@ -47,6 +47,31 @@
   text-align: center;
 }
 
+.motf-photo-upload-preview {
+  display: none;
+  margin-top: 12px;
+}
+
+.motf-photo-upload-preview.active {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.motf-photo-upload-preview img {
+  width: 120px;
+  height: 82px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.motf-photo-upload-preview span {
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 @media (max-width: 720px) {
   .motf-business-fields {
     grid-template-columns: 1fr;

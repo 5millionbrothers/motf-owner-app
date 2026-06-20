@@ -65,6 +65,91 @@
     return fields;
   }
 
+  function updatePhotoPreview(url = window.motfGetCurrentPhotoUrl?.()) {
+    const preview = document.getElementById("motfPhotoUploadPreview");
+    if (!preview) return;
+    if (!url) {
+      preview.classList.remove("active");
+      preview.innerHTML = "";
+      return;
+    }
+    preview.classList.add("active");
+    preview.innerHTML = `<img src="${escapeHtml(url)}" alt="등록된 사진"><span>현재 등록된 사진</span>`;
+  }
+
+  window.motfRefreshPhotoPreview = updatePhotoPreview;
+
+  function bindPhotoUpload() {
+    const input = document.getElementById("motfPhotoUploadInput");
+    if (!input || input.dataset.storageBound) return;
+    input.dataset.storageBound = "true";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      const business = window.motfCurrentBusiness;
+      const profile = window.motfCurrentProfile;
+      const target = window.motfGetCurrentPhotoTarget?.();
+      if (!file || !business || !profile || !target) return;
+      if (!file.type.startsWith("image/")) {
+        alert("이미지 파일만 업로드할 수 있습니다.");
+        input.value = "";
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert("사진은 한 장당 5MB 이하만 업로드할 수 있습니다.");
+        input.value = "";
+        return;
+      }
+
+      input.disabled = true;
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const objectPath = `${profile.id}/${business.id}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await client().storage
+        .from("catalog-images")
+        .upload(objectPath, file, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) {
+        console.error(uploadError);
+        input.disabled = false;
+        input.value = "";
+        alert("사진을 업로드하지 못했습니다.");
+        return;
+      }
+
+      const { data: publicData } = client().storage
+        .from("catalog-images")
+        .getPublicUrl(objectPath);
+      const publicUrl = publicData.publicUrl;
+      let saveError = null;
+
+      if (target.type === "business") {
+        const result = await client().from("businesses")
+          .update({ cover_image_url: publicUrl, updated_at: new Date().toISOString() })
+          .eq("id", business.id)
+          .select(businessSelect)
+          .single();
+        saveError = result.error;
+        if (!saveError) window.motfCurrentBusiness = result.data;
+      } else {
+        window.motfSetCurrentPhotoUrl?.(publicUrl);
+        const result = await client().rpc("save_business_offerings", {
+          target_business_id: business.id,
+          items: window.motfReadOfferingsFromDashboard?.() || [],
+        });
+        saveError = result.error;
+      }
+
+      input.disabled = false;
+      input.value = "";
+      if (saveError) {
+        console.error(saveError);
+        alert("사진 주소를 업장 정보에 저장하지 못했습니다.");
+        return;
+      }
+      updatePhotoPreview(publicUrl);
+      alert("사진이 저장되었습니다. 이용자 화면에도 반영됩니다.");
+    });
+  }
+
   window.loadMotfPartnerBusiness = function loadMotfPartnerBusiness(business) {
     if (!business) return;
     ensurePartnerFields();
@@ -81,12 +166,17 @@
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    bindPhotoUpload();
+    updatePhotoPreview(business.cover_image_url || null);
     client().from("offerings")
-      .select("id, name, price, sort_order")
+      .select("id, name, description, price, max_people, unit, category, image_url, sort_order")
       .eq("business_id", business.id)
       .order("sort_order")
       .then(({ data, error }) => {
-        if (!error && data?.length) window.motfApplyOfferingsToDashboard?.(data);
+        if (!error && data?.length) {
+          window.motfApplyOfferingsToDashboard?.(data);
+          updatePhotoPreview();
+        }
       });
   };
 
