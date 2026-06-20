@@ -4,6 +4,7 @@
   const originalRenderOrders = window.renderOrders;
   const originalRenderMasterOrders = window.renderMasterOrders;
   const originalSendChatMessage = window.sendChatMessage;
+  const originalRenderMasterCases = window.renderMasterCases;
 
   const businessSelect = [
     "id",
@@ -580,6 +581,9 @@
       .eq("business_id", business.id)
       .order("last_message_at", { ascending: false });
     if (error) return console.error(error);
+    await Promise.all((data || []).map((conversation) => client().rpc("mark_conversation_read", {
+      target_conversation_id: conversation.id,
+    })));
     const chats = (data || []).map((conversation) => {
       const messages = mapMessages(conversation.messages);
       const userLabel = conversation.group_name
@@ -699,6 +703,48 @@
     messageArea.scrollTop = messageArea.scrollHeight;
   };
 
+  window.loadMotfAdminSupportCases = async function loadMotfAdminSupportCases() {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const { data, error } = await client().from("support_cases")
+      .select("id, case_type, title, body, status, created_at, reporter:profiles!support_cases_reporter_id_fkey(full_name, email), businesses(business_name)")
+      .order("created_at", { ascending: false });
+    if (error) return console.error(error);
+    const typeText = { inquiry: "문의", dispute: "분쟁" };
+    const statusText = { received: "접수", processing: "처리 중", resolved: "완료" };
+    masterExtendedData.cases = (data || []).map((item) => ({
+      id: item.id,
+      type: typeText[item.case_type] || item.case_type,
+      reporter: escapeHtml(item.reporter?.full_name || item.reporter?.email || "이용자"),
+      partner: escapeHtml(item.businesses?.business_name || "플랫폼 문의"),
+      title: escapeHtml(item.title),
+      detail: escapeHtml(item.body),
+      date: new Date(item.created_at).toLocaleDateString("ko-KR"),
+      status: statusText[item.status] || item.status,
+    }));
+    window.renderMasterCases();
+  };
+
+  window.renderMasterCases = function renderDatabaseMasterCases() {
+    if (window.motfCurrentProfile?.role !== "admin") return originalRenderMasterCases?.();
+    return originalRenderMasterCases?.();
+  };
+
+  window.updateMasterCaseStatus = async function updateDatabaseMasterCaseStatus(id, statusLabel) {
+    if (window.motfCurrentProfile?.role !== "admin") return;
+    const statusMap = { "접수": "received", "처리 중": "processing", "완료": "resolved" };
+    const { error } = await client().rpc("review_support_case", {
+      target_case_id: id,
+      new_status: statusMap[statusLabel] || statusLabel,
+      note: null,
+    });
+    if (error) {
+      console.error(error);
+      alert(`문의 상태를 변경하지 못했습니다.\n${error.message}`);
+      return;
+    }
+    await window.loadMotfAdminSupportCases();
+  };
+
   function scheduleChatReload() {
     window.clearTimeout(chatReloadTimer);
     chatReloadTimer = window.setTimeout(() => {
@@ -712,6 +758,7 @@
     client().channel("owner-chat-updates")
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, scheduleChatReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, scheduleChatReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_cases" }, () => window.loadMotfAdminSupportCases?.())
       .subscribe();
   }, 0);
 })();
