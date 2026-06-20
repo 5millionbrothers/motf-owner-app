@@ -2317,6 +2317,7 @@
           initAdminMasterDashboard();
           window.loadMotfAdminDirectory?.();
           window.loadMotfAdminTransactions?.();
+          window.loadMotfAdminChats?.();
           return;
         }
 
@@ -2350,6 +2351,7 @@
         initDashboard();
         window.loadMotfPartnerBusiness?.(business, window.motfCurrentProfile);
         window.loadMotfPartnerTransactions?.(business);
+        window.loadMotfPartnerChats?.(business);
       }
 
       window.handleLogin = async function(event) {
@@ -2436,6 +2438,6 @@
       }, 0);
     })();
   </script>
-  <script src="owner-data.js?v=20260621-data5"></script>
+  <script src="owner-data.js?v=20260621-chat1"></script>
 </body>
 </html>

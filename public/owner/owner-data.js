@@ -3,6 +3,7 @@
   const originalRefreshMasterDataDisplays = window.refreshMasterDataDisplays;
   const originalRenderOrders = window.renderOrders;
   const originalRenderMasterOrders = window.renderMasterOrders;
+  const originalSendChatMessage = window.sendChatMessage;
 
   const businessSelect = [
     "id",
@@ -555,4 +556,162 @@
     else await window.loadMotfPartnerTransactions();
     alert("요청 상태가 변경되었습니다.");
   };
+
+  let adminChatBusinesses = [];
+  let adminChatConversations = [];
+  let chatReloadTimer = 0;
+
+  function mapMessages(messages = []) {
+    return [...messages]
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .map((message) => ({
+        id: message.id,
+        type: message.sender_role === "user" ? "in" : "out",
+        role: message.sender_role,
+        text: message.body,
+        createdAt: message.created_at,
+      }));
+  }
+
+  window.loadMotfPartnerChats = async function loadMotfPartnerChats(business = window.motfCurrentBusiness) {
+    if (!client() || !business) return;
+    const { data, error } = await client().from("conversations")
+      .select("id, customer_name, group_name, last_message_at, messages(id, sender_role, body, created_at)")
+      .eq("business_id", business.id)
+      .order("last_message_at", { ascending: false });
+    if (error) return console.error(error);
+    const chats = (data || []).map((conversation) => {
+      const messages = mapMessages(conversation.messages);
+      const userLabel = conversation.group_name
+        ? `${conversation.customer_name} (${conversation.group_name})`
+        : conversation.customer_name;
+      return {
+        conversationId: conversation.id,
+        user: userLabel,
+        status: "대화 중",
+        preview: messages.at(-1)?.text || "새 대화가 시작되었습니다.",
+        messages,
+      };
+    });
+    mockData[currentOwnerType].chats = chats;
+    currentSelectedChatUser = chats[0]?.user || "";
+    window.renderChatList?.();
+    window.renderChatMessages?.();
+  };
+
+  window.sendChatMessage = async function sendDatabaseChatMessage() {
+    if (!window.motfCurrentBusiness) return originalSendChatMessage?.();
+    const input = document.getElementById("chatMessageInput");
+    const text = input?.value.trim();
+    if (!text) return;
+    const chat = mockData[currentOwnerType].chats.find((item) => item.user === currentSelectedChatUser);
+    if (!chat?.conversationId) return originalSendChatMessage?.();
+    input.disabled = true;
+    const { error } = await client().rpc("send_chat_message", {
+      target_conversation_id: chat.conversationId,
+      message_body: text,
+    });
+    input.disabled = false;
+    if (error) {
+      console.error(error);
+      alert(`메시지를 보내지 못했습니다.\n${error.message}`);
+      return;
+    }
+    input.value = "";
+    await window.loadMotfPartnerChats();
+    currentSelectedChatUser = chat.user;
+    window.renderChatList?.();
+    window.renderChatMessages?.();
+  };
+
+  window.loadMotfAdminChats = async function loadMotfAdminChats() {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const [businessResult, conversationResult] = await Promise.all([
+      client().from("businesses").select("id, business_name, business_type, representative_name").order("business_name"),
+      client().from("conversations")
+        .select("id, business_id, customer_name, group_name, last_message_at, messages(id, sender_role, body, created_at)")
+        .order("last_message_at", { ascending: false }),
+    ]);
+    if (businessResult.error || conversationResult.error) return console.error(businessResult.error || conversationResult.error);
+    adminChatBusinesses = businessResult.data || [];
+    adminChatConversations = (conversationResult.data || []).map((conversation) => ({
+      ...conversation,
+      messages: mapMessages(conversation.messages),
+    }));
+    if (!adminChatBusinesses.some((item) => item.id === masterSelectedChatPartner)) {
+      masterSelectedChatPartner = adminChatBusinesses.find((item) => adminChatConversations.some((chat) => chat.business_id === item.id))?.id
+        || adminChatBusinesses[0]?.id
+        || "";
+    }
+    window.renderMasterChatMonitor();
+  };
+
+  window.renderMasterChatMonitor = function renderDatabaseMasterChatMonitor() {
+    if (window.motfCurrentProfile?.role !== "admin") return;
+    const partnerList = document.getElementById("masterChatPartnerList");
+    const userList = document.getElementById("masterChatUserList");
+    const messageArea = document.getElementById("masterChatMessageArea");
+    const title = document.getElementById("masterChatPartnerTitle");
+    if (!partnerList || !userList || !messageArea || !title) return;
+
+    partnerList.innerHTML = "";
+    adminChatBusinesses.forEach((business) => {
+      const count = adminChatConversations.filter((chat) => chat.business_id === business.id).length;
+      const button = document.createElement("button");
+      button.className = `master-list-item ${masterSelectedChatPartner === business.id ? "active" : ""}`;
+      button.innerHTML = `<strong>${escapeHtml(business.business_name)}</strong><small>이용자 대화 ${count}건</small>`;
+      button.onclick = () => {
+        masterSelectedChatPartner = business.id;
+        masterSelectedChatUser = "";
+        window.renderMasterChatMonitor();
+      };
+      partnerList.appendChild(button);
+    });
+
+    const business = adminChatBusinesses.find((item) => item.id === masterSelectedChatPartner);
+    const conversations = adminChatConversations.filter((chat) => chat.business_id === masterSelectedChatPartner);
+    if (!conversations.some((chat) => chat.id === masterSelectedChatUser)) masterSelectedChatUser = conversations[0]?.id || "";
+    title.innerText = business ? `${business.business_name} 사장님 채팅` : "파트너를 선택해 주세요";
+    userList.innerHTML = "";
+    conversations.forEach((conversation) => {
+      const preview = conversation.messages.at(-1)?.text || "새 대화";
+      const userLabel = conversation.group_name ? `${conversation.customer_name} (${conversation.group_name})` : conversation.customer_name;
+      const button = document.createElement("button");
+      button.className = `master-list-item ${masterSelectedChatUser === conversation.id ? "active" : ""}`;
+      button.innerHTML = `<strong>${escapeHtml(userLabel)}</strong><small>${escapeHtml(preview)}</small>`;
+      button.onclick = () => {
+        masterSelectedChatUser = conversation.id;
+        window.renderMasterChatMonitor();
+      };
+      userList.appendChild(button);
+    });
+
+    const conversation = conversations.find((chat) => chat.id === masterSelectedChatUser);
+    if (!conversation) {
+      messageArea.innerHTML = '<p style="color:var(--muted);">저장된 대화가 없습니다.</p>';
+      return;
+    }
+    messageArea.innerHTML = conversation.messages.map((message) => {
+      const incoming = message.role === "user";
+      const sender = incoming ? conversation.customer_name : message.role === "admin" ? "모티프 운영팀" : `${business?.business_name || "업장"} 사장님`;
+      return `<div style="align-self:${incoming ? "flex-start" : "flex-end"};max-width:72%;"><div class="admin-chat-meta">${escapeHtml(sender)}</div><div class="chat-bubble ${incoming ? "received" : "sent"}" style="max-width:100%;">${escapeHtml(message.text)}</div></div>`;
+    }).join("");
+    messageArea.scrollTop = messageArea.scrollHeight;
+  };
+
+  function scheduleChatReload() {
+    window.clearTimeout(chatReloadTimer);
+    chatReloadTimer = window.setTimeout(() => {
+      if (window.motfCurrentProfile?.role === "admin") window.loadMotfAdminChats();
+      else if (window.motfCurrentBusiness) window.loadMotfPartnerChats();
+    }, 250);
+  }
+
+  window.setTimeout(() => {
+    if (!client()) return;
+    client().channel("owner-chat-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, scheduleChatReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, scheduleChatReload)
+      .subscribe();
+  }, 0);
 })();
