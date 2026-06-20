@@ -1,6 +1,8 @@
 (function connectOwnerDirectoryData() {
   const originalSaveMypageData = window.saveMypageData;
   const originalRefreshMasterDataDisplays = window.refreshMasterDataDisplays;
+  const originalRenderOrders = window.renderOrders;
+  const originalRenderMasterOrders = window.renderMasterOrders;
 
   const businessSelect = [
     "id",
@@ -429,5 +431,128 @@
       window.setTimeout(window.loadMotfAdminDirectory, 0);
     }
     return result;
+  };
+
+  let partnerTransactions = [];
+  let adminTransactions = [];
+  const transactionStatus = {
+    pending: "확정 대기",
+    confirmed: "확정",
+    rejected: "거절",
+    cancelled: "취소",
+    completed: "완료",
+  };
+
+  function activePartnerOrderStatus() {
+    const button = document.querySelector("#panel-orders .tab-btn.active");
+    const source = button?.getAttribute("onclick") || "pending";
+    if (source.includes("confirm")) return "confirmed";
+    if (source.includes("past")) return "completed";
+    if (source.includes("reject")) return "rejected";
+    return "pending";
+  }
+
+  function transactionCard(item, admin = false) {
+    const pending = item.status === "pending";
+    const actions = pending ? `
+      <div class="item-actions">
+        <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
+        <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
+      </div>
+    ` : `<span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${transactionStatus[item.status] || item.status}</span>`;
+    return `
+      <div class="item-card">
+        <div style="flex:1;">
+          <div style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:5px;">${escapeHtml(item.businessName)}</div>
+          <h4>${escapeHtml(item.customerName)}</h4>
+          <p>${escapeHtml(item.date)} · ${escapeHtml(item.target)} · ${Number(item.amount).toLocaleString()}원</p>
+          ${item.rejectReason ? `<p style="color:#b91c1c;">거절 사유: ${escapeHtml(item.rejectReason)}</p>` : ""}
+        </div>
+        ${actions}
+      </div>
+    `;
+  }
+
+  window.loadMotfPartnerTransactions = async function loadMotfPartnerTransactions(business = window.motfCurrentBusiness) {
+    if (!client() || !business) return;
+    const table = business.business_type === "market" ? "market_orders" : "reservations";
+    const fields = business.business_type === "market"
+      ? "id, customer_name, pickup_time, total_amount, status, reject_reason, created_at, market_order_items(item_name, quantity)"
+      : "id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason";
+    const { data, error } = await client().from(table).select(fields).eq("business_id", business.id).order("created_at", { ascending: false });
+    if (error) return console.error(error);
+    partnerTransactions = (data || []).map((item) => ({
+      kind: business.business_type === "market" ? "market" : "stay",
+      id: item.id,
+      businessName: business.business_name,
+      customerName: item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name,
+      date: business.business_type === "market" ? String(item.pickup_time || "").slice(0, 5) : item.event_date,
+      target: business.business_type === "market"
+        ? (item.market_order_items || []).map((row) => `${row.item_name} ${row.quantity}개`).join(", ")
+        : item.offering_name,
+      amount: item.total_amount,
+      status: item.status,
+      rejectReason: item.reject_reason,
+    }));
+    window.renderOrders();
+  };
+
+  window.renderOrders = function renderDatabaseOrders() {
+    if (!window.motfCurrentBusiness) return originalRenderOrders?.();
+    const area = document.getElementById("orderListArea");
+    if (!area) return;
+    const rows = partnerTransactions.filter((item) => item.status === activePartnerOrderStatus());
+    area.innerHTML = rows.length
+      ? rows.map((item) => transactionCard(item)).join("")
+      : '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 실제 요청이 없습니다.</p>';
+  };
+
+  window.loadMotfAdminTransactions = async function loadMotfAdminTransactions() {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const [businessResult, reservationResult, orderResult] = await Promise.all([
+      client().from("businesses").select("id, business_name, business_type"),
+      client().from("reservations").select("id, business_id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, created_at").order("created_at", { ascending: false }),
+      client().from("market_orders").select("id, business_id, customer_name, pickup_time, total_amount, status, reject_reason, created_at, market_order_items(item_name, quantity)").order("created_at", { ascending: false }),
+    ]);
+    if (businessResult.error || reservationResult.error || orderResult.error) return console.error(businessResult.error || reservationResult.error || orderResult.error);
+    const businesses = businessResult.data || [];
+    const nameOf = (id) => businesses.find((item) => item.id === id)?.business_name || "업장";
+    adminTransactions = [
+      ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
+      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:String(item.pickup_time || "").slice(0,5), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
+    ];
+    const filter = document.getElementById("masterOrderPartnerFilter");
+    if (filter) filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
+    window.renderMasterOrders();
+  };
+
+  window.renderMasterOrders = function renderDatabaseMasterOrders() {
+    if (window.motfCurrentProfile?.role !== "admin") return originalRenderMasterOrders?.();
+    const area = document.getElementById("masterOrderListArea");
+    if (!area) return;
+    const businessFilter = document.getElementById("masterOrderPartnerFilter")?.value || "all";
+    const rawStatus = document.getElementById("masterOrderStatusFilter")?.value || "all";
+    const statusMap = { confirm:"confirmed", past:"completed", reject:"rejected" };
+    const statusFilter = statusMap[rawStatus] || rawStatus;
+    const rows = adminTransactions.filter((item) => (businessFilter === "all" || item.businessId === businessFilter) && (statusFilter === "all" || item.status === statusFilter));
+    area.innerHTML = rows.length ? rows.map((item) => transactionCard(item, true)).join("") : '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 실제 요청이 없습니다.</p>';
+  };
+
+  window.motfProcessTransaction = async function motfProcessTransaction(kind, id, status) {
+    let reason = null;
+    if (status === "rejected") {
+      reason = prompt("거절 사유를 입력해주세요.")?.trim();
+      if (!reason) return;
+    }
+    if (!confirm(status === "confirmed" ? "이 요청을 확정할까요?" : "이 요청을 거절할까요?")) return;
+    const functionName = kind === "market" ? "set_market_order_status" : "set_reservation_status";
+    const args = kind === "market"
+      ? { target_order_id:id, new_status:status, reason }
+      : { target_reservation_id:id, new_status:status, reason };
+    const { error } = await client().rpc(functionName, args);
+    if (error) return alert("요청 상태를 변경하지 못했습니다.");
+    if (window.motfCurrentProfile?.role === "admin") await window.loadMotfAdminTransactions();
+    else await window.loadMotfPartnerTransactions();
+    alert("요청 상태가 변경되었습니다.");
   };
 })();

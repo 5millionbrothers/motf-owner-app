@@ -2316,6 +2316,7 @@
           currentOwnerType = 'admin';
           initAdminMasterDashboard();
           window.loadMotfAdminDirectory?.();
+          window.loadMotfAdminTransactions?.();
           return;
         }
 
@@ -2348,6 +2349,7 @@
         document.getElementById('topbar-admin-logout-btn').style.display = 'none';
         initDashboard();
         window.loadMotfPartnerBusiness?.(business, window.motfCurrentProfile);
+        window.loadMotfPartnerTransactions?.(business);
       }
 
       window.handleLogin = async function(event) {
@@ -2434,6 +2436,6 @@
       }, 0);
     })();
   </script>
-  <script src="owner-data.js?v=20260621-data4"></script>
+  <script src="owner-data.js?v=20260621-data5"></script>
 </body>
 </html>
