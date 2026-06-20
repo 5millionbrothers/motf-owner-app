@@ -12,6 +12,9 @@
     "business_number",
     "address",
     "description",
+    "region",
+    "cover_image_url",
+    "facilities",
     "approval_status",
     "rejection_reason",
   ].join(", ");
@@ -51,6 +54,9 @@
       <label>사업자등록번호
         <input id="motfBusinessNumber" maxlength="30" />
       </label>
+      <label>지역
+        <input id="motfBusinessRegion" maxlength="50" placeholder="예: 가평" />
+      </label>
       <label class="motf-field-wide">업장 주소
         <input id="motfBusinessAddress" maxlength="250" autocomplete="street-address" />
       </label>
@@ -67,6 +73,7 @@
       motfRepresentativeName: business.representative_name,
       motfBusinessPhone: business.phone,
       motfBusinessNumber: business.business_number,
+      motfBusinessRegion: business.region,
       motfBusinessAddress: business.address,
       editDescInput: business.description,
     };
@@ -74,6 +81,13 @@
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    client().from("offerings")
+      .select("id, name, price, sort_order")
+      .eq("business_id", business.id)
+      .order("sort_order")
+      .then(({ data, error }) => {
+        if (!error && data?.length) window.motfApplyOfferingsToDashboard?.(data);
+      });
   };
 
   window.saveMypageData = async function saveMypageDataToDatabase() {
@@ -87,8 +101,10 @@
       representative_name: document.getElementById("motfRepresentativeName")?.value.trim(),
       phone: document.getElementById("motfBusinessPhone")?.value.trim() || null,
       business_number: document.getElementById("motfBusinessNumber")?.value.trim() || null,
+      region: document.getElementById("motfBusinessRegion")?.value.trim() || null,
       address: document.getElementById("motfBusinessAddress")?.value.trim() || null,
       description: document.getElementById("editDescInput")?.value.trim() || null,
+      facilities: window.motfReadFacilitiesFromDashboard?.() || [],
       updated_at: new Date().toISOString(),
     };
 
@@ -104,12 +120,18 @@
       saveButton.textContent = "저장 중...";
     }
 
-    const { data, error } = await client()
-      .from("businesses")
-      .update(payload)
-      .eq("id", business.id)
-      .select(businessSelect)
-      .single();
+    const offeringItems = window.motfReadOfferingsFromDashboard?.() || [];
+    const [{ data, error }, offeringResult] = await Promise.all([
+      client().from("businesses")
+        .update(payload)
+        .eq("id", business.id)
+        .select(businessSelect)
+        .single(),
+      client().rpc("save_business_offerings", {
+        target_business_id: business.id,
+        items: offeringItems,
+      }),
+    ]);
 
     if (saveButton) {
       saveButton.disabled = false;
@@ -117,15 +139,15 @@
       window.lucide?.createIcons();
     }
 
-    if (error) {
-      console.error(error);
+    if (error || offeringResult.error) {
+      console.error(error || offeringResult.error);
       alert("업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
       return;
     }
 
     window.motfCurrentBusiness = data;
     window.motfApplyBusinessToDashboard?.(data);
-    alert("업장 기본정보가 저장되었습니다.");
+    alert("업장 기본정보와 객실·상품이 저장되었습니다.");
   };
 
   function statusLabel(status) {
@@ -149,7 +171,7 @@
     return `<button class="primary-btn motf-admin-mini-btn" onclick="motfSetAccountStatus('${profile.id}', 'approved', 'user')">이용 재개</button>`;
   }
 
-  function partnerAction(profile) {
+  function partnerStatusAction(profile) {
     if (profile.status === "pending") {
       return `
         <div class="motf-admin-action-group">
@@ -162,6 +184,22 @@
       return `<button class="motf-reject-action-btn motf-admin-mini-btn" onclick="motfSetAccountStatus('${profile.id}', 'suspended', 'partner')">입점 정지</button>`;
     }
     return `<button class="primary-btn motf-admin-mini-btn" onclick="motfSetAccountStatus('${profile.id}', 'approved', 'partner')">입점 재개</button>`;
+  }
+
+  function partnerAction(profile, business, offerings) {
+    const statusAction = partnerStatusAction(profile);
+    if (!business) return statusAction;
+    const businessOfferings = offerings.filter((item) => item.business_id === business.id);
+    if (!businessOfferings.length) return statusAction;
+    const hasActive = businessOfferings.some((item) => item.is_active);
+    return `
+      <div class="motf-admin-action-group">
+        ${statusAction}
+        <button class="secondary-btn motf-admin-mini-btn" onclick="motfToggleBusinessOfferings('${business.id}', ${hasActive ? "false" : "true"})">
+          ${hasActive ? "상품 숨김" : "상품 공개"}
+        </button>
+      </div>
+    `;
   }
 
   function renderUsers(profiles) {
@@ -183,7 +221,7 @@
     `).join("");
   }
 
-  function renderPartners(profiles, businesses) {
+  function renderPartners(profiles, businesses, offerings) {
     const body = document.getElementById("masterPartnerControlTableBody");
     if (!body) return;
     const partners = profiles.filter((profile) => profile.role === "partner");
@@ -193,14 +231,15 @@
     }
     body.innerHTML = partners.map((profile) => {
       const business = businesses.find((item) => item.owner_id === profile.id);
+      const businessOfferings = business ? offerings.filter((item) => item.business_id === business.id) : [];
       const type = business?.business_type === "market" ? "공판장" : "숙소";
       return `
         <tr>
           <td><strong>${escapeHtml(business?.business_name || "업장정보 미등록")}</strong><br><small>${escapeHtml(profile.email || "")}</small></td>
           <td>${escapeHtml(type)} · ${statusBadge(profile.status)}</td>
           <td>${escapeHtml(business?.business_number || "사업자번호 미등록")}</td>
-          <td><span style="font-weight:700; color:var(--teal-dark);">0건</span></td>
-          <td>${partnerAction(profile)}</td>
+          <td><span style="font-weight:700; color:var(--teal-dark);">${businessOfferings.length}개 상품</span></td>
+          <td>${partnerAction(profile, business, offerings)}</td>
         </tr>
       `;
     }).join("");
@@ -216,17 +255,19 @@
       if (userHeaders[index]) userHeaders[index].textContent = label;
     });
 
-    const [profileResult, businessResult] = await Promise.all([
+    const [profileResult, businessResult, offeringResult] = await Promise.all([
       client().from("profiles")
         .select("id, email, full_name, phone, organization, role, status, created_at")
         .order("created_at", { ascending: false }),
       client().from("businesses")
         .select(businessSelect)
         .order("created_at", { ascending: false }),
+      client().from("offerings")
+        .select("id, business_id, is_active"),
     ]);
 
-    if (profileResult.error || businessResult.error) {
-      console.error(profileResult.error || businessResult.error);
+    if (profileResult.error || businessResult.error || offeringResult.error) {
+      console.error(profileResult.error || businessResult.error || offeringResult.error);
       const userBody = document.getElementById("masterUserControlTableBody");
       const partnerBody = document.getElementById("masterPartnerControlTableBody");
       if (userBody) userBody.innerHTML = '<tr class="motf-admin-empty-row"><td colspan="5">회원 정보를 불러오지 못했습니다.</td></tr>';
@@ -235,7 +276,23 @@
     }
 
     renderUsers(profileResult.data || []);
-    renderPartners(profileResult.data || [], businessResult.data || []);
+    renderPartners(profileResult.data || [], businessResult.data || [], offeringResult.data || []);
+  };
+
+  window.motfToggleBusinessOfferings = async function motfToggleBusinessOfferings(businessId, active) {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    if (!confirm(active ? "이 업장의 상품을 이용자에게 공개할까요?" : "이 업장의 상품을 이용자 화면에서 숨길까요?")) return;
+    const { error } = await client().rpc("set_business_offerings_active", {
+      target_business_id: businessId,
+      active,
+    });
+    if (error) {
+      console.error(error);
+      alert("상품 공개 상태를 변경하지 못했습니다.");
+      return;
+    }
+    await window.loadMotfAdminDirectory();
+    alert("상품 공개 상태가 변경되었습니다.");
   };
 
   window.motfSetAccountStatus = async function motfSetAccountStatus(userId, status, role) {
