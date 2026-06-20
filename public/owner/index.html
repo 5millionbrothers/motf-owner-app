@@ -654,6 +654,7 @@
     .moderation-card.is-hidden { opacity:.55; background:var(--cream); }
     @media (max-width: 900px) { .master-split-layout { grid-template-columns:1fr; } }
   </style>
+  <link rel="stylesheet" href="owner-data.css?v=20260620-data1">
 </head>
 <body>
 
@@ -2222,11 +2223,21 @@
         'https://izbwcqnvwsdijoognoag.supabase.co',
         'sb_publishable_dPivJzpG1ZQWNyTupQ4HRw_dbo5sl9X'
       );
+      window.motfSupabase = supabaseClient;
+      window.motfApplyBusinessToDashboard = function(business) {
+        if (!business || currentOwnerType === 'admin') return;
+        mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
+        mockData[currentOwnerType].displayName = business.business_name;
+        mockData[currentOwnerType].desc = business.description || '';
+        document.getElementById('sidebar-owner-name').innerText = `${business.business_name} 님 홈`;
+        document.getElementById('preview-display-name').innerText = business.business_name;
+        updatePreviewDisplay();
+      };
 
       async function openDashboardForUser(user) {
         const { data: profile, error: profileError } = await supabaseClient
           .from('profiles')
-          .select('full_name, role, status')
+          .select('email, full_name, phone, organization, role, status')
           .eq('id', user.id)
           .single();
 
@@ -2238,17 +2249,19 @@
 
         document.getElementById('login-view').style.display = 'none';
         document.getElementById('admin-main').style.display = 'flex';
+        window.motfCurrentProfile = { id: user.id, login_email: user.email, ...profile };
 
         if (profile.role === 'admin') {
           currentOwnerType = 'admin';
           initAdminMasterDashboard();
+          window.loadMotfAdminDirectory?.();
           return;
         }
 
         const metadata = user.user_metadata || {};
         let { data: business } = await supabaseClient
           .from('businesses')
-          .select('id, business_type, business_name, description')
+          .select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, approval_status, rejection_reason')
           .eq('owner_id', user.id)
           .maybeSingle();
 
@@ -2260,18 +2273,20 @@
             representative_name: metadata.full_name || profile.full_name || '대표자',
             phone: metadata.phone || null,
             approval_status: 'approved'
-          }).select('id, business_type, business_name, description').single();
+          }).select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, approval_status, rejection_reason').single();
           business = inserted.data;
         }
 
         if (!business) throw new Error('연결된 업장 정보를 찾을 수 없습니다.');
         currentOwnerType = business.business_type === 'market' ? 'market' : 'stay';
+        window.motfCurrentBusiness = business;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
         mockData[currentOwnerType].displayName = business.business_name;
         if (business.description) mockData[currentOwnerType].desc = business.description;
         document.getElementById('topbar-mypage-trigger-btn').style.display = 'flex';
         document.getElementById('topbar-admin-logout-btn').style.display = 'none';
         initDashboard();
+        window.loadMotfPartnerBusiness?.(business, window.motfCurrentProfile);
       }
 
       window.handleLogin = async function(event) {
@@ -2342,6 +2357,8 @@
         document.getElementById('login-view').style.display = 'flex';
         document.getElementById('ownerId').value = '';
         document.getElementById('ownerPw').value = '';
+        window.motfCurrentProfile = null;
+        window.motfCurrentBusiness = null;
       };
 
       window.handleKakaoLogin = function() {
@@ -2356,5 +2373,6 @@
       }, 0);
     })();
   </script>
+  <script src="owner-data.js?v=20260620-data1"></script>
 </body>
 </html>

@@ -1,0 +1,58 @@
+.motf-business-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px;
+  background: var(--warm);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.motf-business-fields .motf-field-wide {
+  grid-column: 1 / -1;
+}
+
+.motf-business-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.motf-business-fields input {
+  width: 100%;
+  padding: 10px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.motf-admin-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.motf-admin-mini-btn {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.motf-admin-empty-row td {
+  padding: 24px !important;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .motf-business-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .motf-business-fields .motf-field-wide {
+    grid-column: auto;
+  }
+}
