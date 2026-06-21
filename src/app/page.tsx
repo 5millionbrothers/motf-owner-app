@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import PartnerDashboard from "@/components/PartnerDashboard";
 import AdminDashboard from "@/components/AdminDashboard";
@@ -33,29 +33,8 @@ export default function Home() {
 
   const supabase = getSupabaseClient();
 
-  async function routeSignedInUser(userId: string) {
+  const routeSignedInUser = useCallback(async (userId: string) => {
     if (!supabase) return;
-    const { data: authData } = await supabase.auth.getUser();
-    const signedInUser = authData.user;
-    if (signedInUser?.id === userId) {
-      const metadata = signedInUser.user_metadata;
-      const { data: existingBusiness } = await supabase
-        .from("businesses")
-        .select("id")
-        .eq("owner_id", userId)
-        .maybeSingle();
-
-      if (!existingBusiness && metadata.business_name && metadata.business_type) {
-        await supabase.from("businesses").insert({
-          owner_id: userId,
-          business_type: metadata.business_type,
-          business_name: metadata.business_name,
-          representative_name: metadata.full_name,
-          phone: metadata.phone,
-        });
-      }
-    }
-
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("full_name, role, status")
@@ -71,14 +50,14 @@ export default function Home() {
     setProfileName(profile.full_name || "파트너");
     if (profile.role === "admin" && profile.status === "approved") {
       setAccountView("admin");
-    } else if (profile.status === "approved") {
+    } else if (profile.role === "partner" && profile.status === "approved") {
       setAccountView("partner");
-    } else if (profile.status === "pending") {
+    } else if (profile.role === "partner" && profile.status === "pending") {
       setAccountView("pending");
     } else {
       setAccountView("blocked");
     }
-  }
+  }, [supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -101,7 +80,7 @@ export default function Home() {
       if (!session?.user) setAccountView("auth");
     });
     return () => listener.subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, routeSignedInUser]);
 
   async function handleLogout() {
     if (!supabase) return;
@@ -149,7 +128,7 @@ export default function Home() {
     setLoading(false);
   }
 
-  async function loadAdminApplications() {
+  const loadAdminApplications = useCallback(async () => {
     if (!supabase) return;
     setApplicationsLoading(true);
     const { data: businesses, error: businessError } = await supabase
@@ -183,11 +162,11 @@ export default function Home() {
       };
     }));
     setApplicationsLoading(false);
-  }
+  }, [supabase]);
 
   useEffect(() => {
     if (accountView === "admin") loadAdminApplications();
-  }, [accountView]);
+  }, [accountView, loadAdminApplications]);
 
   async function reviewApplication(application: PartnerApplication, decision: "approved" | "rejected") {
     if (!supabase) return;
@@ -227,23 +206,6 @@ export default function Home() {
       return;
     }
 
-    const metadata = data.user.user_metadata;
-    const { data: business } = await supabase
-      .from("businesses")
-      .select("id, approval_status")
-      .eq("owner_id", data.user.id)
-      .maybeSingle();
-
-    if (!business && metadata.business_name && metadata.business_type) {
-      await supabase.from("businesses").insert({
-        owner_id: data.user.id,
-        business_type: metadata.business_type,
-        business_name: metadata.business_name,
-        representative_name: metadata.full_name,
-        phone: metadata.phone,
-      });
-    }
-
     await routeSignedInUser(data.user.id);
     setLoading(false);
   }
@@ -273,6 +235,7 @@ export default function Home() {
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
+            account_type: "partner",
             full_name: String(form.get("fullName")),
             phone: String(form.get("phone")),
             business_type: String(form.get("businessType")),

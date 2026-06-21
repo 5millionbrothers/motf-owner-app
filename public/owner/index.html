@@ -1084,12 +1084,6 @@
     let masterContentTab = 'reviews';
     let currentRegisteredProfile = null;
 
-    const DEMO_ACCOUNTS = {
-      stay: { password: '0000', role: 'stay' },
-      market: { password: '0000', role: 'market' },
-      '5millionbrothers': { password: 'attackontitan', role: 'admin' }
-    };
-
     const COMMISSION_RATES = {
       stay: 7,    
       market: 5   
@@ -1188,20 +1182,6 @@
       }
     };
 
-    function handleLogoutSession() {
-      if(!confirm("현재 대시보드에서 로그아웃하시겠습니까?")) return;
-      document.getElementById('admin-main').style.display = 'none';
-      document.getElementById('login-view').style.display = 'flex';
-      document.getElementById('ownerId').value = '';
-      document.getElementById('ownerPw').value = '';
-      currentRegisteredProfile = null;
-    }
-
-    function getRegisteredAccounts() {
-      try { return JSON.parse(localStorage.getItem('motf_partner_accounts') || '[]'); }
-      catch(e) { return []; }
-    }
-
     function openSignupModal() {
       document.getElementById('signupSuccessMessage').style.display = 'none';
       document.getElementById('signupModal').classList.add('active');
@@ -1210,80 +1190,6 @@
 
     function closeSignupModal() {
       document.getElementById('signupModal').classList.remove('active');
-    }
-
-    function handleSignup(event) {
-      event.preventDefault();
-      const id = document.getElementById('signupId').value.trim();
-      const password = document.getElementById('signupPassword').value;
-      const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
-      if(!/^[A-Za-z0-9_]{4,20}$/.test(id)) { alert('아이디는 영문, 숫자, 밑줄을 사용해 4~20자로 입력해 주세요.'); return; }
-      if(password !== passwordConfirm) { alert('비밀번호 확인이 일치하지 않습니다.'); return; }
-      if(Object.prototype.hasOwnProperty.call(DEMO_ACCOUNTS, id)) { alert('이미 사용 중인 아이디입니다.'); return; }
-      const accounts = getRegisteredAccounts();
-      if(accounts.some(a => a.id === id)) { alert('이미 사용 중인 아이디입니다.'); return; }
-      const account = {
-        id,
-        password,
-        role: document.getElementById('signupRole').value,
-        businessName: document.getElementById('signupBusinessName').value.trim(),
-        ownerName: document.getElementById('signupOwnerName').value.trim(),
-        phone: document.getElementById('signupPhone').value.trim(),
-        status: 'pending_review',
-        createdAt: new Date().toISOString()
-      };
-      accounts.push(account);
-      localStorage.setItem('motf_partner_accounts', JSON.stringify(accounts));
-      document.getElementById('signupForm').reset();
-      const message = document.getElementById('signupSuccessMessage');
-      message.innerText = '회원가입이 완료되었습니다. 등록한 아이디로 바로 로그인할 수 있습니다.';
-      message.style.display = 'block';
-      document.getElementById('ownerId').value = id;
-      document.getElementById('ownerPw').value = '';
-      setTimeout(closeSignupModal, 1200);
-    }
-
-    function handleKakaoLogin() {
-      alert('카카오 로그인 버튼은 준비되었습니다. 실제 연결을 위해서는 카카오 디벨로퍼스 앱 키와 서버의 OAuth 콜백 주소 설정이 필요합니다.');
-    }
-
-    function handleLogin(event) {
-      event.preventDefault();
-      const inputId = document.getElementById('ownerId').value.trim();
-      const inputPw = document.getElementById('ownerPw').value;
-      const demoAccount = DEMO_ACCOUNTS[inputId];
-      const registeredAccount = getRegisteredAccounts().find(a => a.id === inputId);
-      const account = demoAccount || registeredAccount;
-
-      if(!account || account.password !== inputPw) {
-        alert('아이디 또는 비밀번호가 올바르지 않습니다.');
-        return;
-      }
-      currentRegisteredProfile = registeredAccount || null;
-      
-      // 모티프 본사 마스터 모드 전개
-      if (account.role === 'admin') {
-        currentOwnerType = 'admin';
-        document.getElementById('login-view').style.display = 'none';
-        document.getElementById('admin-main').style.display = 'flex';
-        initAdminMasterDashboard(); 
-        return;
-      }
-      
-      currentOwnerType = account.role;
-      
-      document.getElementById('login-view').style.display = 'none';
-      document.getElementById('admin-main').style.display = 'flex';
-      
-      // 사장님 모드 전용 상단 탑바 통제
-      document.getElementById('topbar-mypage-trigger-btn').style.display = 'flex';
-      document.getElementById('topbar-admin-logout-btn').style.display = 'none';
-      
-      initDashboard();
-      if(currentRegisteredProfile) {
-        document.getElementById('sidebar-owner-name').innerText = `${currentRegisteredProfile.businessName} 님 홈`;
-        document.getElementById('preview-display-name').innerText = currentRegisteredProfile.businessName;
-      }
     }
 
     /* 모티프 본사 마스터 전용 백오피스 메뉴 및 모듈 바인딩 */
@@ -2322,24 +2228,16 @@
           return;
         }
 
-        const metadata = user.user_metadata || {};
-        let { data: business } = await supabaseClient
+        if (profile.role !== 'partner') {
+          await supabaseClient.auth.signOut();
+          throw new Error('사장님 또는 운영팀 계정으로 로그인해 주세요.');
+        }
+
+        const { data: business } = await supabaseClient
           .from('businesses')
           .select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, approval_status, rejection_reason')
           .eq('owner_id', user.id)
           .maybeSingle();
-
-        if (!business && metadata.business_type && metadata.business_name) {
-          const inserted = await supabaseClient.from('businesses').insert({
-            owner_id: user.id,
-            business_type: metadata.business_type,
-            business_name: metadata.business_name,
-            representative_name: metadata.full_name || profile.full_name || '대표자',
-            phone: metadata.phone || null,
-            approval_status: 'approved'
-          }).select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, approval_status, rejection_reason').single();
-          business = inserted.data;
-        }
 
         if (!business) throw new Error('연결된 업장 정보를 찾을 수 없습니다.');
         currentOwnerType = business.business_type === 'market' ? 'market' : 'stay';
@@ -2363,23 +2261,6 @@
         if (submitButton) { submitButton.disabled = true; submitButton.textContent = '로그인 중...'; }
 
         try {
-          if ((inputId === 'stay' || inputId === 'market') && password === '0000') {
-            currentOwnerType = inputId;
-            document.getElementById('login-view').style.display = 'none';
-            document.getElementById('admin-main').style.display = 'flex';
-            document.getElementById('topbar-mypage-trigger-btn').style.display = 'flex';
-            document.getElementById('topbar-admin-logout-btn').style.display = 'none';
-            initDashboard();
-            return;
-          }
-          if (inputId === '5millionbrothers' && password === 'attackontitan') {
-            currentOwnerType = 'admin';
-            document.getElementById('login-view').style.display = 'none';
-            document.getElementById('admin-main').style.display = 'flex';
-            initAdminMasterDashboard();
-            return;
-          }
-
           const { data, error } = await supabaseClient.auth.signInWithPassword({ email: inputId, password });
           if (error) throw error;
           await openDashboardForUser(data.user);
@@ -2403,6 +2284,7 @@
           options: {
             emailRedirectTo: `${location.origin}/owner/index.html`,
             data: {
+              account_type: 'partner',
               business_type: document.getElementById('signupRole').value,
               business_name: document.getElementById('signupBusinessName').value.trim(),
               full_name: document.getElementById('signupOwnerName').value.trim(),

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import DashboardIcon from "@/components/DashboardIcon";
 
 type Menu = "stats" | "partners" | "chats" | "cases" | "reservations" | "content" | "revenue" | "settlement";
+// 여러 관리자 테이블을 한 화면에서 합쳐 보여주는 과도기 공통 행 타입이다.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const reservationLabel: Record<string,string> = { pending:"확정 대기", confirmed:"예약 확정", rejected:"거절", cancelled:"취소", completed:"이용 완료" };
 
@@ -23,7 +25,7 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   const [notice, setNotice] = useState("");
   const [contentTab, setContentTab] = useState<"reviews"|"posts">("reviews");
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setNotice("");
     const [businessResult, profileResult, reservationResult, conversationResult, caseResult, reviewResult, postResult] = await Promise.all([
       supabase.from("businesses").select("*").order("created_at", { ascending:false }),
@@ -35,10 +37,10 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
       supabase.from("community_posts").select("*").order("created_at", { ascending:false }),
     ]);
     setBusinesses(businessResult.data || []); setProfiles(profileResult.data || []); setReservations(reservationResult.data || []); setConversations(conversationResult.data || []); setCases(caseResult.data || []); setReviews(reviewResult.data || []); setPosts(postResult.data || []);
-    if (!selectedBusiness && businessResult.data?.[0]) setSelectedBusiness(businessResult.data[0].id);
-  }
+    if (businessResult.data?.[0]) setSelectedBusiness((current) => current || businessResult.data[0].id);
+  }, [supabase]);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { void loadAll(); }, [loadAll]);
   useEffect(() => {
     if (!selectedConversation) { setMessages([]); return; }
     supabase.from("messages").select("*").eq("conversation_id", selectedConversation).order("created_at").then(({data}) => setMessages(data || []));
@@ -60,7 +62,7 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
     const { error } = await supabase.rpc("set_reservation_status", { target_reservation_id:id, new_status:status, reason:reason?.trim() || null });
     setNotice(error ? error.message : "운영팀에서 예약 상태를 변경했습니다."); await loadAll();
   }
-  async function updateCase(id:string, status:string) { const {error}=await supabase.from("support_cases").update({status}).eq("id",id); setNotice(error?error.message:"문의 상태를 변경했습니다."); await loadAll(); }
+  async function updateCase(id:string, status:string) { const {error}=await supabase.rpc("review_support_case", { target_case_id:id, new_status:status, note:null }); setNotice(error?error.message:"문의 상태를 변경했습니다."); await loadAll(); }
   async function toggleContent(table:"reviews"|"community_posts", id:string, hidden:boolean) { const {error}=await supabase.from(table).update({is_hidden:!hidden}).eq("id",id); setNotice(error?error.message:"공개 상태를 변경했습니다."); await loadAll(); }
 
   const menuItems:{id:Menu,label:string,icon:string}[]=[
