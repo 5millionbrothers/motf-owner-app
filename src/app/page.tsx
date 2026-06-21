@@ -7,6 +7,7 @@ import AdminDashboard from "@/components/AdminDashboard";
 
 type AuthMode = "login" | "signup" | "recovery" | "new-password";
 type AccountView = "auth" | "pending" | "partner" | "admin" | "blocked";
+type LoginError = { code?: string; message?: string };
 type PartnerApplication = {
   businessId: string;
   ownerId: string;
@@ -18,6 +19,21 @@ type PartnerApplication = {
   email: string | null;
   profileStatus: string;
 };
+
+function loginErrorMessage(error: LoginError) {
+  const code = error.code || "";
+  const message = (error.message || "").toLowerCase();
+  if (code === "email_not_confirmed" || message.includes("email not confirmed")) {
+    return "이메일 인증이 완료되지 않았습니다. 가입한 메일함의 인증 링크를 먼저 눌러주세요. 스팸 메일함도 확인해 주세요.";
+  }
+  if (code === "invalid_credentials" || message.includes("invalid login credentials")) {
+    return "이메일 또는 비밀번호가 일치하지 않습니다.";
+  }
+  if (code === "over_request_rate_limit" || message.includes("rate limit")) {
+    return "로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  return error.message ? `로그인하지 못했습니다: ${error.message}` : "로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+}
 
 export default function Home() {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -201,7 +217,7 @@ export default function Home() {
     });
 
     if (loginError) {
-      setError("이메일 또는 비밀번호를 확인해 주세요.");
+      setError(loginErrorMessage(loginError));
       setLoading(false);
       return;
     }

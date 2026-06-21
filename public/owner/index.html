@@ -2265,7 +2265,15 @@
           if (error) throw error;
           await openDashboardForUser(data.user);
         } catch (error) {
-          alert(error.message || '로그인에 실패했습니다.');
+          const code = error.code || '';
+          const message = String(error.message || '').toLowerCase();
+          if (code === 'email_not_confirmed' || message.includes('email not confirmed')) {
+            alert('이메일 인증이 완료되지 않았습니다. 가입한 메일함의 인증 링크를 먼저 눌러주세요. 스팸 메일함도 확인해 주세요.');
+          } else if (code === 'invalid_credentials' || message.includes('invalid login credentials')) {
+            alert('이메일 또는 비밀번호가 일치하지 않습니다.');
+          } else {
+            alert(error.message || '로그인에 실패했습니다.');
+          }
         } finally {
           if (submitButton) { submitButton.disabled = false; submitButton.textContent = '로그인'; }
         }
