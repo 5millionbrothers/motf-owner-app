@@ -382,8 +382,22 @@
       return;
     }
 
-    renderUsers(profileResult.data || []);
-    renderPartners(profileResult.data || [], businessResult.data || [], offeringResult.data || []);
+    const profiles = profileResult.data || [];
+    renderUsers(profiles);
+    renderPartners(profiles, businessResult.data || [], offeringResult.data || []);
+
+    const localDateKey = (value) => {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    const todayKey = localDateKey(new Date());
+    const newUsersToday = profiles.filter((profile) => profile.role === "user" && localDateKey(profile.created_at) === todayKey).length;
+    const pendingPartners = profiles.filter((profile) => profile.role === "partner" && profile.status === "pending").length;
+    const userStat = document.getElementById("m-stat-users");
+    const partnerStat = document.getElementById("m-stat-pending-partners");
+    if (userStat) userStat.textContent = `${newUsersToday.toLocaleString()}명`;
+    if (partnerStat) partnerStat.textContent = `${pendingPartners.toLocaleString()}개 업체`;
   };
 
   window.motfToggleBusinessOfferings = async function motfToggleBusinessOfferings(businessId, active) {
@@ -436,11 +450,12 @@
   };
 
   window.refreshMasterDataDisplays = function refreshMasterDataDisplaysWithDatabase(...args) {
-    const result = originalRefreshMasterDataDisplays?.apply(this, args);
     if (window.motfCurrentProfile?.role === "admin") {
       window.setTimeout(window.loadMotfAdminDirectory, 0);
+      window.setTimeout(window.loadMotfAdminTransactions, 0);
+      return;
     }
-    return result;
+    return originalRefreshMasterDataDisplays?.apply(this, args);
   };
 
   let partnerTransactions = [];
@@ -496,7 +511,9 @@
       id: item.id,
       businessName: business.business_name,
       customerName: item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name,
-      date: business.business_type === "market" ? String(item.pickup_time || "").slice(0, 5) : item.event_date,
+      date: business.business_type === "market"
+        ? `${String(item.created_at || "").slice(0, 10)} ${String(item.pickup_time || "").slice(0, 5)}`.trim()
+        : item.event_date,
       target: business.business_type === "market"
         ? (item.market_order_items || []).map((row) => `${row.item_name} ${row.quantity}개`).join(", ")
         : item.offering_name,
@@ -504,6 +521,31 @@
       status: item.status,
       rejectReason: item.reject_reason,
     }));
+    mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
+      id: item.id,
+      user: item.customerName,
+      date: String(item.date || "").slice(0, 10),
+      target: item.target,
+      price: Number(item.amount || 0),
+      status: item.status,
+      rejectReason: item.rejectReason || "",
+    }));
+    const active = partnerTransactions.filter((item) => !["rejected", "cancelled"].includes(item.status));
+    const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const settled = active.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const expected = active.filter((item) => ["pending", "confirmed"].includes(item.status)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const rate = currentOwnerType === "market" ? 0.05 : 0.07;
+    const values = {
+      "rev-total-val": rawTotal,
+      "rev-net-total-val": Math.floor(rawTotal * (1 - rate)),
+      "rev-settled-val": Math.floor(settled * (1 - rate)),
+      "rev-expected-val": Math.floor(expected * (1 - rate)),
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = `${value.toLocaleString()}원`;
+    });
+    window.renderCalendar?.();
     window.renderOrders();
   };
 
@@ -529,11 +571,98 @@
     const nameOf = (id) => businesses.find((item) => item.id === id)?.business_name || "업장";
     adminTransactions = [
       ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
-      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:String(item.pickup_time || "").slice(0,5), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
+      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
     ];
     const filter = document.getElementById("masterOrderPartnerFilter");
     if (filter) filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
+    renderAdminTransactionSummary();
     window.renderMasterOrders();
+  };
+
+  function renderAdminTransactionSummary() {
+    const countedStatuses = new Set(["confirmed", "completed"]);
+    const counted = adminTransactions.filter((item) => countedStatuses.has(item.status));
+    const gmv = counted.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const fee = counted.reduce((sum, item) => sum + Math.floor(Number(item.amount || 0) * (item.kind === "market" ? 0.05 : 0.07)), 0);
+    const gmvNode = document.getElementById("m-stat-gmv");
+    const feeNode = document.getElementById("m-stat-fee");
+    if (gmvNode) gmvNode.textContent = `${gmv.toLocaleString()}원`;
+    if (feeNode) feeNode.textContent = `${fee.toLocaleString()}원`;
+
+    const tracker = document.getElementById("masterTransactionTrackerBody");
+    if (tracker) {
+      tracker.innerHTML = adminTransactions.length
+        ? adminTransactions.map((item) => {
+            const itemFee = Math.floor(Number(item.amount || 0) * (item.kind === "market" ? 0.05 : 0.07));
+            return `<tr>
+              <td>${escapeHtml(String(item.id).slice(0, 8).toUpperCase())}</td>
+              <td>${escapeHtml(item.businessName)}</td>
+              <td>${escapeHtml(item.customerName)}</td>
+              <td>${Number(item.amount || 0).toLocaleString()}원</td>
+              <td>${itemFee.toLocaleString()}원</td>
+              <td>${escapeHtml(transactionStatus[item.status] || item.status)}</td>
+            </tr>`;
+          }).join("")
+        : '<tr class="motf-admin-empty-row"><td colspan="6">실제 거래 내역이 없습니다.</td></tr>';
+    }
+
+    const rejectTimeline = document.getElementById("masterRejectTimelineBody");
+    if (rejectTimeline) {
+      const rejected = adminTransactions.filter((item) => item.status === "rejected");
+      rejectTimeline.innerHTML = rejected.length
+        ? rejected.map((item) => `<tr>
+            <td>${escapeHtml(item.businessName)}</td>
+            <td>${escapeHtml(item.customerName)}</td>
+            <td>${escapeHtml(item.target || "-")}</td>
+            <td>${Number(item.amount || 0).toLocaleString()}원</td>
+            <td>${escapeHtml(item.rejectReason || "사유 미입력")}</td>
+          </tr>`).join("")
+        : '<tr class="motf-admin-empty-row"><td colspan="5">거절된 실제 요청이 없습니다.</td></tr>';
+    }
+
+    const activeRevenueTab = document.querySelector("#panel-master-revenue .rev-menu-btn.active")?.id;
+    renderAdminRevenue(activeRevenueTab === "m-rev-sub-2" ? "room" : activeRevenueTab === "m-rev-sub-3" ? "trend" : "period");
+  }
+
+  function renderAdminRevenue(tab) {
+    const content = document.getElementById("masterRevenueSubContent");
+    if (!content) return;
+    ["m-rev-sub-1", "m-rev-sub-2", "m-rev-sub-3"].forEach((id, index) => {
+      document.getElementById(id)?.classList.toggle("active", index === ["period", "room", "trend"].indexOf(tab));
+    });
+
+    const counted = adminTransactions.filter((item) => ["confirmed", "completed"].includes(item.status));
+    if (!counted.length) {
+      const titles = { period: "기간별 매출 조회", room: "업장별 매출 비중", trend: "매출 변동 추이" };
+      content.innerHTML = `<h4>${titles[tab]}</h4><p style="color:var(--muted);">확정 또는 완료된 실제 거래가 아직 없습니다.</p>`;
+      return;
+    }
+
+    if (tab === "room") {
+      const totals = new Map();
+      counted.forEach((item) => totals.set(item.businessName, (totals.get(item.businessName) || 0) + Number(item.amount || 0)));
+      const grandTotal = [...totals.values()].reduce((sum, value) => sum + value, 0);
+      content.innerHTML = `<h4>업장별 매출 비중</h4><div style="background:var(--warm);padding:16px;border-radius:8px;line-height:1.9;">${[...totals.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, total]) => `<div>${escapeHtml(name)}: <strong>${total.toLocaleString()}원</strong> (${((total / grandTotal) * 100).toFixed(1)}%)</div>`)
+        .join("")}</div>`;
+      return;
+    }
+
+    const monthly = new Map();
+    counted.forEach((item) => {
+      const month = String(item.date || "").slice(0, 7) || "날짜 미상";
+      monthly.set(month, (monthly.get(month) || 0) + Number(item.amount || 0));
+    });
+    const rows = [...monthly.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const title = tab === "trend" ? "매출 변동 추이" : "기간별 매출 조회";
+    content.innerHTML = `<h4>${title}</h4><div style="background:var(--warm);padding:16px;border-radius:8px;line-height:1.9;">${rows
+      .map(([month, total]) => `<div>${escapeHtml(month)}: <strong>${total.toLocaleString()}원</strong></div>`)
+      .join("")}</div>`;
+  }
+
+  window.switchMasterRevSub = function switchDatabaseMasterRevenue(tab) {
+    renderAdminRevenue(tab);
   };
 
   window.renderMasterOrders = function renderDatabaseMasterOrders() {
