@@ -177,9 +177,12 @@
       .eq("business_id", business.id)
       .order("sort_order")
       .then(({ data, error }) => {
-        if (!error && data?.length) {
-          window.motfApplyOfferingsToDashboard?.(data);
+        if (!error) {
+          const offerings = data || [];
+          window.motfApplyOfferingsToDashboard?.(offerings);
           updatePhotoPreview();
+          const needsOnboarding = !business.region || !business.address || !business.description || !offerings.length;
+          window.motfSetPartnerOnboarding?.(needsOnboarding);
         }
       });
   };
@@ -202,8 +205,8 @@
       updated_at: new Date().toISOString(),
     };
 
-    if (!payload.business_name || !payload.representative_name) {
-      alert("업장명과 대표자명을 입력해주세요.");
+    if (!payload.business_name || !payload.representative_name || !payload.region || !payload.address || !payload.description) {
+      alert("업장명, 대표자명, 지역, 주소와 소개 문구를 모두 입력해주세요.");
       return;
     }
 
@@ -215,6 +218,10 @@
     }
 
     const offeringItems = window.motfReadOfferingsFromDashboard?.() || [];
+    if (!offeringItems.length || offeringItems.some((item) => !item.name || Number(item.price) <= 0)) {
+      alert("객실 또는 상품을 하나 이상 추가하고 이름과 가격을 입력해주세요.");
+      return;
+    }
     const [{ data, error }, offeringResult] = await Promise.all([
       client().from("businesses")
         .update(payload)
@@ -241,6 +248,7 @@
 
     window.motfCurrentBusiness = data;
     window.motfApplyBusinessToDashboard?.(data);
+    window.motfSetPartnerOnboarding?.(false);
     alert("업장 기본정보와 객실·상품이 저장되었습니다.");
   };
 
