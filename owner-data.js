@@ -19,6 +19,9 @@
     "region",
     "cover_image_url",
     "facilities",
+    "latitude",
+    "longitude",
+    "location_verified_at",
     "approval_status",
     "rejection_reason",
   ].join(", ");
@@ -35,6 +38,103 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
   }
+
+  let naverMapsPromise;
+
+  function hasCoordinates(business) {
+    if (business?.latitude == null || business?.longitude == null || business.latitude === "" || business.longitude === "") return false;
+    return Number.isFinite(Number(business?.latitude)) && Number.isFinite(Number(business?.longitude));
+  }
+
+  function setLocationStatus(message, state = "pending") {
+    const status = document.getElementById("motfBusinessLocationStatus");
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+  }
+
+  async function loadNaverGeocoder() {
+    if (window.naver?.maps?.Service) return window.naver;
+    if (naverMapsPromise) return naverMapsPromise;
+    naverMapsPromise = (async () => {
+      const response = await fetch("/api/map-config", { cache: "no-store" });
+      if (!response.ok) throw new Error("지도 설정을 불러오지 못했습니다.");
+      const { naverMapKeyId } = await response.json();
+      if (!naverMapKeyId) throw new Error("네이버 지도 인증키가 설정되지 않았습니다.");
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-motf-naver-geocoder="true"]');
+        existing?.remove();
+        const script = document.createElement("script");
+        script.dataset.motfNaverGeocoder = "true";
+        script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(naverMapKeyId)}&submodules=geocoder`;
+        script.onload = resolve;
+        script.onerror = () => {
+          script.remove();
+          reject(new Error("네이버 주소 검색 모듈을 불러오지 못했습니다."));
+        };
+        document.head.appendChild(script);
+      });
+      if (!window.naver?.maps?.Service) throw new Error("네이버 주소 검색 서비스를 사용할 수 없습니다.");
+      return window.naver;
+    })().catch((error) => {
+      naverMapsPromise = undefined;
+      throw error;
+    });
+    return naverMapsPromise;
+  }
+
+  async function geocodeAddress(address) {
+    const naver = await loadNaverGeocoder();
+    return new Promise((resolve, reject) => {
+      naver.maps.Service.geocode({ query: address }, (status, response) => {
+        if (status !== naver.maps.Service.Status.OK) {
+          reject(new Error("주소 검색 요청에 실패했습니다."));
+          return;
+        }
+        const result = response?.v2?.addresses?.[0];
+        const latitude = Number(result?.y);
+        const longitude = Number(result?.x);
+        if (!result || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          reject(new Error("주소를 찾지 못했습니다. 도로명과 건물번호까지 입력해주세요."));
+          return;
+        }
+        resolve({ latitude, longitude, matchedAddress: result.roadAddress || result.jibunAddress || address });
+      });
+    });
+  }
+
+  async function verifyBusinessLocation() {
+    const fields = ensurePartnerFields();
+    const addressInput = document.getElementById("motfBusinessAddress");
+    const button = document.getElementById("motfVerifyBusinessLocationButton");
+    const address = addressInput?.value.trim();
+    if (!fields || !address) {
+      setLocationStatus("주소를 먼저 입력해주세요.", "error");
+      throw new Error("업장 주소를 입력해주세요.");
+    }
+    button?.setAttribute("disabled", "");
+    setLocationStatus("주소 위치를 확인하는 중입니다...", "pending");
+    try {
+      const result = await geocodeAddress(address);
+      fields.dataset.latitude = String(result.latitude);
+      fields.dataset.longitude = String(result.longitude);
+      fields.dataset.locationAddress = address;
+      setLocationStatus(`위치 확인 완료 · ${result.matchedAddress}`, "success");
+      return result;
+    } catch (error) {
+      delete fields.dataset.latitude;
+      delete fields.dataset.longitude;
+      delete fields.dataset.locationAddress;
+      setLocationStatus(error.message || "주소 위치를 확인하지 못했습니다.", "error");
+      throw error;
+    } finally {
+      button?.removeAttribute("disabled");
+    }
+  }
+
+  window.motfVerifyBusinessLocation = () => verifyBusinessLocation().catch((error) => {
+    alert(error.message || "주소 위치를 확인하지 못했습니다.");
+  });
 
   function ensurePartnerFields() {
     let fields = document.querySelector("#motfBusinessFields");
@@ -63,9 +163,23 @@
       </label>
       <label class="motf-field-wide">업장 주소
         <input id="motfBusinessAddress" maxlength="250" autocomplete="street-address" />
+        <span class="motf-location-actions">
+          <button type="button" id="motfVerifyBusinessLocationButton" class="motf-location-button" onclick="motfVerifyBusinessLocation()">
+            <i data-lucide="map-pin"></i> 주소 위치 확인
+          </button>
+          <small id="motfBusinessLocationStatus" class="motf-location-status" data-state="pending">지도에 표시할 위치를 확인해주세요.</small>
+        </span>
       </label>
     `;
     editSection.insertBefore(fields, editSection.firstElementChild);
+    const addressInput = document.getElementById("motfBusinessAddress");
+    addressInput?.addEventListener("input", () => {
+      if (addressInput.value.trim() === fields.dataset.locationAddress) return;
+      delete fields.dataset.latitude;
+      delete fields.dataset.longitude;
+      setLocationStatus("주소가 변경되었습니다. 위치를 다시 확인해주세요.", "pending");
+    });
+    window.lucide?.createIcons();
     return fields;
   }
 
@@ -170,6 +284,18 @@
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    const fields = document.getElementById("motfBusinessFields");
+    if (fields && hasCoordinates(business)) {
+      fields.dataset.latitude = String(business.latitude);
+      fields.dataset.longitude = String(business.longitude);
+      fields.dataset.locationAddress = business.address || "";
+      setLocationStatus("저장된 지도 위치가 있습니다.", "success");
+    } else if (fields) {
+      delete fields.dataset.latitude;
+      delete fields.dataset.longitude;
+      delete fields.dataset.locationAddress;
+      setLocationStatus("지도에 표시할 위치를 확인해주세요.", "pending");
+    }
     bindPhotoUpload();
     updatePhotoPreview(business.cover_image_url || null);
     client().from("offerings")
@@ -210,46 +336,55 @@
       return;
     }
 
-    const saveButton = document.querySelector('#panel-mypage button[onclick="saveMypageData()"]');
-    const originalButtonHtml = saveButton?.innerHTML;
-    if (saveButton) {
-      saveButton.disabled = true;
-      saveButton.textContent = "저장 중...";
-    }
-
     const offeringItems = window.motfReadOfferingsFromDashboard?.() || [];
     if (!offeringItems.length || offeringItems.some((item) => !item.name || Number(item.price) <= 0)) {
       alert("객실 또는 상품을 하나 이상 추가하고 이름과 가격을 입력해주세요.");
       return;
     }
-    const [{ data, error }, offeringResult] = await Promise.all([
-      client().from("businesses")
-        .update(payload)
-        .eq("id", business.id)
-        .select(businessSelect)
-        .single(),
-      client().rpc("save_business_offerings", {
-        target_business_id: business.id,
-        items: offeringItems,
-      }),
-    ]);
+    const saveButton = document.querySelector('#panel-mypage button[onclick="saveMypageData()"]');
+    const originalButtonHtml = saveButton?.innerHTML;
+    if (saveButton) saveButton.disabled = true;
+    try {
+      if (saveButton) saveButton.textContent = "주소 확인 중...";
+      const fields = ensurePartnerFields();
+      const addressIsVerified = fields?.dataset.locationAddress === payload.address
+        && Number.isFinite(Number(fields?.dataset.latitude))
+        && Number.isFinite(Number(fields?.dataset.longitude));
+      const location = addressIsVerified
+        ? { latitude: Number(fields.dataset.latitude), longitude: Number(fields.dataset.longitude) }
+        : await verifyBusinessLocation();
+      payload.latitude = location.latitude;
+      payload.longitude = location.longitude;
+      payload.location_verified_at = new Date().toISOString();
 
-    if (saveButton) {
-      saveButton.disabled = false;
-      saveButton.innerHTML = originalButtonHtml;
-      window.lucide?.createIcons();
+      if (saveButton) saveButton.textContent = "저장 중...";
+      const [{ data, error }, offeringResult] = await Promise.all([
+        client().from("businesses")
+          .update(payload)
+          .eq("id", business.id)
+          .select(businessSelect)
+          .single(),
+        client().rpc("save_business_offerings", {
+          target_business_id: business.id,
+          items: offeringItems,
+        }),
+      ]);
+      if (error || offeringResult.error) throw error || offeringResult.error;
+
+      window.motfCurrentBusiness = data;
+      window.motfApplyBusinessToDashboard?.(data);
+      window.motfSetPartnerOnboarding?.(false);
+      alert("업장 기본정보와 객실·상품, 지도 위치가 저장되었습니다.");
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalButtonHtml;
+        window.lucide?.createIcons();
+      }
     }
-
-    if (error || offeringResult.error) {
-      console.error(error || offeringResult.error);
-      alert("업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
-      return;
-    }
-
-    window.motfCurrentBusiness = data;
-    window.motfApplyBusinessToDashboard?.(data);
-    window.motfSetPartnerOnboarding?.(false);
-    alert("업장 기본정보와 객실·상품이 저장되었습니다.");
   };
 
   function statusLabel(status) {
@@ -335,9 +470,12 @@
       const business = businesses.find((item) => item.owner_id === profile.id);
       const businessOfferings = business ? offerings.filter((item) => item.business_id === business.id) : [];
       const type = business?.business_type === "market" ? "공판장" : "숙소";
+      const locationState = hasCoordinates(business)
+        ? '<small class="motf-map-state is-ready">지도 위치 확인됨</small>'
+        : '<small class="motf-map-state is-missing">지도 위치 미등록</small>';
       return `
         <tr>
-          <td><strong>${escapeHtml(business?.business_name || "업장정보 미등록")}</strong><br><small>${escapeHtml(profile.email || "")}</small></td>
+          <td><strong>${escapeHtml(business?.business_name || "업장정보 미등록")}</strong><br><small>${escapeHtml(profile.email || "")}</small>${locationState}</td>
           <td>${escapeHtml(type)} · ${statusBadge(profile.status)}</td>
           <td>${escapeHtml(business?.business_number || "사업자번호 미등록")}</td>
           <td><span style="font-weight:700; color:var(--teal-dark);">${businessOfferings.length}개 상품</span></td>
@@ -382,8 +520,22 @@
       return;
     }
 
-    renderUsers(profileResult.data || []);
-    renderPartners(profileResult.data || [], businessResult.data || [], offeringResult.data || []);
+    const profiles = profileResult.data || [];
+    renderUsers(profiles);
+    renderPartners(profiles, businessResult.data || [], offeringResult.data || []);
+
+    const localDateKey = (value) => {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    const todayKey = localDateKey(new Date());
+    const newUsersToday = profiles.filter((profile) => profile.role === "user" && localDateKey(profile.created_at) === todayKey).length;
+    const pendingPartners = profiles.filter((profile) => profile.role === "partner" && profile.status === "pending").length;
+    const userStat = document.getElementById("m-stat-users");
+    const partnerStat = document.getElementById("m-stat-pending-partners");
+    if (userStat) userStat.textContent = `${newUsersToday.toLocaleString()}명`;
+    if (partnerStat) partnerStat.textContent = `${pendingPartners.toLocaleString()}개 업체`;
   };
 
   window.motfToggleBusinessOfferings = async function motfToggleBusinessOfferings(businessId, active) {
@@ -436,11 +588,12 @@
   };
 
   window.refreshMasterDataDisplays = function refreshMasterDataDisplaysWithDatabase(...args) {
-    const result = originalRefreshMasterDataDisplays?.apply(this, args);
     if (window.motfCurrentProfile?.role === "admin") {
       window.setTimeout(window.loadMotfAdminDirectory, 0);
+      window.setTimeout(window.loadMotfAdminTransactions, 0);
+      return;
     }
-    return result;
+    return originalRefreshMasterDataDisplays?.apply(this, args);
   };
 
   let partnerTransactions = [];
@@ -496,7 +649,9 @@
       id: item.id,
       businessName: business.business_name,
       customerName: item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name,
-      date: business.business_type === "market" ? String(item.pickup_time || "").slice(0, 5) : item.event_date,
+      date: business.business_type === "market"
+        ? `${String(item.created_at || "").slice(0, 10)} ${String(item.pickup_time || "").slice(0, 5)}`.trim()
+        : item.event_date,
       target: business.business_type === "market"
         ? (item.market_order_items || []).map((row) => `${row.item_name} ${row.quantity}개`).join(", ")
         : item.offering_name,
@@ -504,6 +659,31 @@
       status: item.status,
       rejectReason: item.reject_reason,
     }));
+    mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
+      id: item.id,
+      user: item.customerName,
+      date: String(item.date || "").slice(0, 10),
+      target: item.target,
+      price: Number(item.amount || 0),
+      status: item.status,
+      rejectReason: item.rejectReason || "",
+    }));
+    const active = partnerTransactions.filter((item) => !["rejected", "cancelled"].includes(item.status));
+    const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const settled = active.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const expected = active.filter((item) => ["pending", "confirmed"].includes(item.status)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const rate = currentOwnerType === "market" ? 0.05 : 0.07;
+    const values = {
+      "rev-total-val": rawTotal,
+      "rev-net-total-val": Math.floor(rawTotal * (1 - rate)),
+      "rev-settled-val": Math.floor(settled * (1 - rate)),
+      "rev-expected-val": Math.floor(expected * (1 - rate)),
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = `${value.toLocaleString()}원`;
+    });
+    window.renderCalendar?.();
     window.renderOrders();
   };
 
@@ -529,11 +709,98 @@
     const nameOf = (id) => businesses.find((item) => item.id === id)?.business_name || "업장";
     adminTransactions = [
       ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
-      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:String(item.pickup_time || "").slice(0,5), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
+      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
     ];
     const filter = document.getElementById("masterOrderPartnerFilter");
     if (filter) filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
+    renderAdminTransactionSummary();
     window.renderMasterOrders();
+  };
+
+  function renderAdminTransactionSummary() {
+    const countedStatuses = new Set(["confirmed", "completed"]);
+    const counted = adminTransactions.filter((item) => countedStatuses.has(item.status));
+    const gmv = counted.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const fee = counted.reduce((sum, item) => sum + Math.floor(Number(item.amount || 0) * (item.kind === "market" ? 0.05 : 0.07)), 0);
+    const gmvNode = document.getElementById("m-stat-gmv");
+    const feeNode = document.getElementById("m-stat-fee");
+    if (gmvNode) gmvNode.textContent = `${gmv.toLocaleString()}원`;
+    if (feeNode) feeNode.textContent = `${fee.toLocaleString()}원`;
+
+    const tracker = document.getElementById("masterTransactionTrackerBody");
+    if (tracker) {
+      tracker.innerHTML = adminTransactions.length
+        ? adminTransactions.map((item) => {
+            const itemFee = Math.floor(Number(item.amount || 0) * (item.kind === "market" ? 0.05 : 0.07));
+            return `<tr>
+              <td>${escapeHtml(String(item.id).slice(0, 8).toUpperCase())}</td>
+              <td>${escapeHtml(item.businessName)}</td>
+              <td>${escapeHtml(item.customerName)}</td>
+              <td>${Number(item.amount || 0).toLocaleString()}원</td>
+              <td>${itemFee.toLocaleString()}원</td>
+              <td>${escapeHtml(transactionStatus[item.status] || item.status)}</td>
+            </tr>`;
+          }).join("")
+        : '<tr class="motf-admin-empty-row"><td colspan="6">실제 거래 내역이 없습니다.</td></tr>';
+    }
+
+    const rejectTimeline = document.getElementById("masterRejectTimelineBody");
+    if (rejectTimeline) {
+      const rejected = adminTransactions.filter((item) => item.status === "rejected");
+      rejectTimeline.innerHTML = rejected.length
+        ? rejected.map((item) => `<tr>
+            <td>${escapeHtml(item.businessName)}</td>
+            <td>${escapeHtml(item.customerName)}</td>
+            <td>${escapeHtml(item.target || "-")}</td>
+            <td>${Number(item.amount || 0).toLocaleString()}원</td>
+            <td>${escapeHtml(item.rejectReason || "사유 미입력")}</td>
+          </tr>`).join("")
+        : '<tr class="motf-admin-empty-row"><td colspan="5">거절된 실제 요청이 없습니다.</td></tr>';
+    }
+
+    const activeRevenueTab = document.querySelector("#panel-master-revenue .rev-menu-btn.active")?.id;
+    renderAdminRevenue(activeRevenueTab === "m-rev-sub-2" ? "room" : activeRevenueTab === "m-rev-sub-3" ? "trend" : "period");
+  }
+
+  function renderAdminRevenue(tab) {
+    const content = document.getElementById("masterRevenueSubContent");
+    if (!content) return;
+    ["m-rev-sub-1", "m-rev-sub-2", "m-rev-sub-3"].forEach((id, index) => {
+      document.getElementById(id)?.classList.toggle("active", index === ["period", "room", "trend"].indexOf(tab));
+    });
+
+    const counted = adminTransactions.filter((item) => ["confirmed", "completed"].includes(item.status));
+    if (!counted.length) {
+      const titles = { period: "기간별 매출 조회", room: "업장별 매출 비중", trend: "매출 변동 추이" };
+      content.innerHTML = `<h4>${titles[tab]}</h4><p style="color:var(--muted);">확정 또는 완료된 실제 거래가 아직 없습니다.</p>`;
+      return;
+    }
+
+    if (tab === "room") {
+      const totals = new Map();
+      counted.forEach((item) => totals.set(item.businessName, (totals.get(item.businessName) || 0) + Number(item.amount || 0)));
+      const grandTotal = [...totals.values()].reduce((sum, value) => sum + value, 0);
+      content.innerHTML = `<h4>업장별 매출 비중</h4><div style="background:var(--warm);padding:16px;border-radius:8px;line-height:1.9;">${[...totals.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, total]) => `<div>${escapeHtml(name)}: <strong>${total.toLocaleString()}원</strong> (${((total / grandTotal) * 100).toFixed(1)}%)</div>`)
+        .join("")}</div>`;
+      return;
+    }
+
+    const monthly = new Map();
+    counted.forEach((item) => {
+      const month = String(item.date || "").slice(0, 7) || "날짜 미상";
+      monthly.set(month, (monthly.get(month) || 0) + Number(item.amount || 0));
+    });
+    const rows = [...monthly.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const title = tab === "trend" ? "매출 변동 추이" : "기간별 매출 조회";
+    content.innerHTML = `<h4>${title}</h4><div style="background:var(--warm);padding:16px;border-radius:8px;line-height:1.9;">${rows
+      .map(([month, total]) => `<div>${escapeHtml(month)}: <strong>${total.toLocaleString()}원</strong></div>`)
+      .join("")}</div>`;
+  }
+
+  window.switchMasterRevSub = function switchDatabaseMasterRevenue(tab) {
+    renderAdminRevenue(tab);
   };
 
   window.renderMasterOrders = function renderDatabaseMasterOrders() {
