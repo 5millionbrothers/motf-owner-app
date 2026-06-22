@@ -2233,11 +2233,11 @@
           throw new Error(profile.status === 'pending' ? '현재 입점 심사 중입니다.' : '현재 이용할 수 없는 계정입니다.');
         }
 
-        document.getElementById('login-view').style.display = 'none';
-        document.getElementById('admin-main').style.display = 'flex';
         window.motfCurrentProfile = { id: user.id, login_email: user.email, ...profile };
 
         if (profile.role === 'admin') {
+          document.getElementById('login-view').style.display = 'none';
+          document.getElementById('admin-main').style.display = 'flex';
           currentOwnerType = 'admin';
           initAdminMasterDashboard();
           window.loadMotfAdminDirectory?.();
@@ -2259,6 +2259,8 @@
           .maybeSingle();
 
         if (!business) throw new Error('연결된 업장 정보를 찾을 수 없습니다.');
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('admin-main').style.display = 'flex';
         currentOwnerType = business.business_type === 'market' ? 'market' : 'stay';
         window.motfCurrentBusiness = business;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
@@ -2287,6 +2289,11 @@
           if (error) throw error;
           await openDashboardForUser(data.user);
         } catch (error) {
+          await supabaseClient.auth.signOut();
+          document.getElementById('admin-main').style.display = 'none';
+          document.getElementById('login-view').style.display = 'flex';
+          window.motfCurrentProfile = null;
+          window.motfCurrentBusiness = null;
           const code = error.code || '';
           const message = String(error.message || '').toLowerCase();
           if (code === 'email_not_confirmed' || message.includes('email not confirmed')) {
@@ -2346,7 +2353,14 @@
       setTimeout(async () => {
         const { data } = await supabaseClient.auth.getSession();
         if (data.session?.user) {
-          try { await openDashboardForUser(data.session.user); } catch (error) { console.warn(error.message); }
+          try {
+            await openDashboardForUser(data.session.user);
+          } catch (error) {
+            await supabaseClient.auth.signOut();
+            document.getElementById('admin-main').style.display = 'none';
+            document.getElementById('login-view').style.display = 'flex';
+            console.warn(error.message);
+          }
         }
       }, 0);
     })();
