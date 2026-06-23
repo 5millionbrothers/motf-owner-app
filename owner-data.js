@@ -15,6 +15,8 @@
     "phone",
     "business_number",
     "address",
+    "address_detail",
+    "postal_code",
     "description",
     "region",
     "cover_image_url",
@@ -40,6 +42,7 @@
   }
 
   let naverMapsPromise;
+  let postcodePromise;
 
   function hasCoordinates(business) {
     if (business?.latitude == null || business?.longitude == null || business.latitude === "" || business.longitude === "") return false;
@@ -52,6 +55,66 @@
     status.textContent = message;
     status.dataset.state = state;
   }
+
+  function clearVerifiedLocation(message = "주소가 변경되었습니다. 위치를 다시 확인해주세요.") {
+    const fields = document.getElementById("motfBusinessFields");
+    if (!fields) return;
+    delete fields.dataset.latitude;
+    delete fields.dataset.longitude;
+    delete fields.dataset.locationAddress;
+    setLocationStatus(message, "pending");
+  }
+
+  function loadPostcodeApi() {
+    if (window.daum?.Postcode) return Promise.resolve(window.daum);
+    if (postcodePromise) return postcodePromise;
+    postcodePromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-motf-postcode="true"]');
+      if (existing) {
+        existing.addEventListener("load", () => resolve(window.daum), { once: true });
+        existing.addEventListener("error", () => reject(new Error("주소 검색 API를 불러오지 못했습니다.")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.dataset.motfPostcode = "true";
+      script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.onload = () => resolve(window.daum);
+      script.onerror = () => {
+        postcodePromise = undefined;
+        script.remove();
+        reject(new Error("주소 검색 API를 불러오지 못했습니다."));
+      };
+      document.head.appendChild(script);
+    });
+    return postcodePromise;
+  }
+
+  async function openBusinessAddressSearch() {
+    const daum = await loadPostcodeApi();
+    new daum.Postcode({
+      oncomplete(data) {
+        const address = data.roadAddress || data.address || "";
+        const postcode = data.zonecode || "";
+        const region = data.sigungu || data.sido || "";
+        const addressInput = document.getElementById("motfBusinessAddress");
+        const postalInput = document.getElementById("motfBusinessPostalCode");
+        const regionInput = document.getElementById("motfBusinessRegion");
+        const detailInput = document.getElementById("motfBusinessAddressDetail");
+
+        if (addressInput) addressInput.value = address;
+        if (postalInput) postalInput.value = postcode;
+        if (regionInput && !regionInput.value.trim()) regionInput.value = region;
+        detailInput?.focus();
+        clearVerifiedLocation("주소가 선택되었습니다. 저장 시 지도 위치를 확인합니다.");
+      },
+    }).open();
+  }
+
+  window.motfOpenBusinessAddressSearch = () => {
+    openBusinessAddressSearch().catch((error) => {
+      alert(error.message || "주소 검색을 열지 못했습니다.");
+    });
+  };
 
   async function loadNaverGeocoder() {
     if (window.naver?.maps?.Service) return window.naver;
@@ -161,8 +224,19 @@
       <label>지역
         <input id="motfBusinessRegion" maxlength="50" placeholder="예: 가평" />
       </label>
+      <label>우편번호
+        <span class="motf-address-search-row">
+          <input id="motfBusinessPostalCode" maxlength="12" readonly placeholder="주소 검색으로 입력" />
+          <button type="button" class="motf-address-search-button" onclick="motfOpenBusinessAddressSearch()">
+            <i data-lucide="search"></i> 주소 검색
+          </button>
+        </span>
+      </label>
       <label class="motf-field-wide">업장 주소
-        <input id="motfBusinessAddress" maxlength="250" autocomplete="street-address" />
+        <input id="motfBusinessAddress" maxlength="250" autocomplete="street-address" readonly placeholder="주소 검색 버튼으로 도로명주소를 선택해주세요." />
+      </label>
+      <label class="motf-field-wide">상세주소
+        <input id="motfBusinessAddressDetail" maxlength="120" autocomplete="address-line2" placeholder="건물명, 층, 호수 등 선택 입력" />
         <span class="motf-location-actions">
           <button type="button" id="motfVerifyBusinessLocationButton" class="motf-location-button" onclick="motfVerifyBusinessLocation()">
             <i data-lucide="map-pin"></i> 주소 위치 확인
@@ -175,9 +249,7 @@
     const addressInput = document.getElementById("motfBusinessAddress");
     addressInput?.addEventListener("input", () => {
       if (addressInput.value.trim() === fields.dataset.locationAddress) return;
-      delete fields.dataset.latitude;
-      delete fields.dataset.longitude;
-      setLocationStatus("주소가 변경되었습니다. 위치를 다시 확인해주세요.", "pending");
+      clearVerifiedLocation("주소가 변경되었습니다. 위치를 다시 확인해주세요.");
     });
     window.lucide?.createIcons();
     return fields;
@@ -277,7 +349,9 @@
       motfBusinessPhone: business.phone,
       motfBusinessNumber: business.business_number,
       motfBusinessRegion: business.region,
+      motfBusinessPostalCode: business.postal_code,
       motfBusinessAddress: business.address,
+      motfBusinessAddressDetail: business.address_detail,
       editDescInput: business.description,
     };
     Object.entries(values).forEach(([id, value]) => {
@@ -325,7 +399,9 @@
       phone: document.getElementById("motfBusinessPhone")?.value.trim() || null,
       business_number: document.getElementById("motfBusinessNumber")?.value.trim() || null,
       region: document.getElementById("motfBusinessRegion")?.value.trim() || null,
+      postal_code: document.getElementById("motfBusinessPostalCode")?.value.trim() || null,
       address: document.getElementById("motfBusinessAddress")?.value.trim() || null,
+      address_detail: document.getElementById("motfBusinessAddressDetail")?.value.trim() || null,
       description: document.getElementById("editDescInput")?.value.trim() || null,
       facilities: window.motfReadFacilitiesFromDashboard?.() || [],
       updated_at: new Date().toISOString(),

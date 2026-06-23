@@ -491,7 +491,11 @@
     }
     .motf-business-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 650; }
     .motf-business-fields input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .motf-business-fields input[readonly] { background: #f8faf9; color: var(--ink); cursor: default; }
     .motf-field-wide { grid-column: 1 / -1; }
+    .motf-address-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+    .motf-address-search-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--teal); border-radius: 8px; background: var(--teal); color: white; font-weight: 750; white-space: nowrap; cursor: pointer; }
+    .motf-address-search-button svg { width: 15px; height: 15px; }
     .motf-location-actions { display: flex; align-items: center; gap: 12px; min-height: 34px; }
     .motf-location-button { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--teal); border-radius: 8px; background: var(--paper); color: var(--teal-dark); font-weight: 700; cursor: pointer; }
     .motf-location-button svg { width: 15px; height: 15px; }
@@ -670,6 +674,7 @@
       .master-split-layout { grid-template-columns:1fr; }
       .motf-business-fields { grid-template-columns: 1fr; }
       .motf-field-wide { grid-column: auto; }
+      .motf-address-search-row { grid-template-columns: 1fr; }
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
@@ -2229,7 +2234,7 @@
 
         const { data: business } = await supabaseClient
           .from('businesses')
-          .select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, region, cover_image_url, facilities, latitude, longitude, location_verified_at, approval_status, rejection_reason')
+          .select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, address_detail, postal_code, description, region, cover_image_url, facilities, latitude, longitude, location_verified_at, approval_status, rejection_reason')
           .eq('owner_id', user.id)
           .maybeSingle();
 
@@ -2344,6 +2349,6 @@
       }, 0);
     })();
   </script>
-  <script src="owner-data.js?v=20260622-location1"></script>
+  <script src="owner-data.js?v=20260623-postcode1"></script>
 </body>
 </html>
