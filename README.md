@@ -31,10 +31,25 @@ pnpm dev
 ```text
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+NAVER_MAP_KEY_ID=...
 ```
+
+`NAVER_MAP_KEY_ID`는 사장님 앱의 주소 위치 확인에서만 사용합니다. 네이버 클라우드에서
+`Web Dynamic Map`과 `Geocoding`을 활성화하고 `https://motfowner.co.kr`,
+`https://www.motfowner.co.kr`을 허용 도메인에 등록해야 합니다.
 
 비밀 키와 `service_role` 키는 이 앱에 넣지 않습니다. DB 변경 원본은
 [motf-database](https://github.com/5millionbrothers/motf-database)에서만 관리합니다.
+
+## 운영 도메인
+
+```text
+https://motfowner.co.kr
+https://www.motfowner.co.kr
+```
+
+Supabase 인증 리다이렉트, 네이버 지도 허용 도메인, 향후 카카오 로그인 Redirect URI는 위
+도메인을 기준으로 등록합니다. Vercel 기본 주소는 Preview와 장애 확인용으로만 유지합니다.
 
 ## 배포 절차
 
