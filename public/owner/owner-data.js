@@ -15,10 +15,15 @@
     "phone",
     "business_number",
     "address",
+    "address_detail",
+    "postal_code",
     "description",
     "region",
     "cover_image_url",
     "facilities",
+    "latitude",
+    "longitude",
+    "location_verified_at",
     "approval_status",
     "rejection_reason",
   ].join(", ");
@@ -35,6 +40,164 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
   }
+
+  let naverMapsPromise;
+  let postcodePromise;
+
+  function hasCoordinates(business) {
+    if (business?.latitude == null || business?.longitude == null || business.latitude === "" || business.longitude === "") return false;
+    return Number.isFinite(Number(business?.latitude)) && Number.isFinite(Number(business?.longitude));
+  }
+
+  function setLocationStatus(message, state = "pending") {
+    const status = document.getElementById("motfBusinessLocationStatus");
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+  }
+
+  function clearVerifiedLocation(message = "주소가 변경되었습니다. 위치를 다시 확인해주세요.") {
+    const fields = document.getElementById("motfBusinessFields");
+    if (!fields) return;
+    delete fields.dataset.latitude;
+    delete fields.dataset.longitude;
+    delete fields.dataset.locationAddress;
+    setLocationStatus(message, "pending");
+  }
+
+  function loadPostcodeApi() {
+    if (window.daum?.Postcode) return Promise.resolve(window.daum);
+    if (postcodePromise) return postcodePromise;
+    postcodePromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-motf-postcode="true"]');
+      if (existing) {
+        existing.addEventListener("load", () => resolve(window.daum), { once: true });
+        existing.addEventListener("error", () => reject(new Error("주소 검색 API를 불러오지 못했습니다.")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.dataset.motfPostcode = "true";
+      script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+      script.onload = () => resolve(window.daum);
+      script.onerror = () => {
+        postcodePromise = undefined;
+        script.remove();
+        reject(new Error("주소 검색 API를 불러오지 못했습니다."));
+      };
+      document.head.appendChild(script);
+    });
+    return postcodePromise;
+  }
+
+  async function openBusinessAddressSearch() {
+    const daum = await loadPostcodeApi();
+    new daum.Postcode({
+      oncomplete(data) {
+        const address = data.roadAddress || data.address || "";
+        const postcode = data.zonecode || "";
+        const region = data.sigungu || data.sido || "";
+        const addressInput = document.getElementById("motfBusinessAddress");
+        const postalInput = document.getElementById("motfBusinessPostalCode");
+        const regionInput = document.getElementById("motfBusinessRegion");
+        const detailInput = document.getElementById("motfBusinessAddressDetail");
+
+        if (addressInput) addressInput.value = address;
+        if (postalInput) postalInput.value = postcode;
+        if (regionInput && !regionInput.value.trim()) regionInput.value = region;
+        detailInput?.focus();
+        clearVerifiedLocation("주소가 선택되었습니다. 저장 시 지도 위치를 확인합니다.");
+      },
+    }).open();
+  }
+
+  window.motfOpenBusinessAddressSearch = () => {
+    openBusinessAddressSearch().catch((error) => {
+      alert(error.message || "주소 검색을 열지 못했습니다.");
+    });
+  };
+
+  async function loadNaverGeocoder() {
+    if (window.naver?.maps?.Service) return window.naver;
+    if (naverMapsPromise) return naverMapsPromise;
+    naverMapsPromise = (async () => {
+      const response = await fetch("/api/map-config", { cache: "no-store" });
+      if (!response.ok) throw new Error("지도 설정을 불러오지 못했습니다.");
+      const { naverMapKeyId } = await response.json();
+      if (!naverMapKeyId) throw new Error("네이버 지도 인증키가 설정되지 않았습니다.");
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-motf-naver-geocoder="true"]');
+        existing?.remove();
+        const script = document.createElement("script");
+        script.dataset.motfNaverGeocoder = "true";
+        script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(naverMapKeyId)}&submodules=geocoder`;
+        script.onload = resolve;
+        script.onerror = () => {
+          script.remove();
+          reject(new Error("네이버 주소 검색 모듈을 불러오지 못했습니다."));
+        };
+        document.head.appendChild(script);
+      });
+      if (!window.naver?.maps?.Service) throw new Error("네이버 주소 검색 서비스를 사용할 수 없습니다.");
+      return window.naver;
+    })().catch((error) => {
+      naverMapsPromise = undefined;
+      throw error;
+    });
+    return naverMapsPromise;
+  }
+
+  async function geocodeAddress(address) {
+    const naver = await loadNaverGeocoder();
+    return new Promise((resolve, reject) => {
+      naver.maps.Service.geocode({ query: address }, (status, response) => {
+        if (status !== naver.maps.Service.Status.OK) {
+          reject(new Error("주소 검색 요청에 실패했습니다."));
+          return;
+        }
+        const result = response?.v2?.addresses?.[0];
+        const latitude = Number(result?.y);
+        const longitude = Number(result?.x);
+        if (!result || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          reject(new Error("주소를 찾지 못했습니다. 도로명과 건물번호까지 입력해주세요."));
+          return;
+        }
+        resolve({ latitude, longitude, matchedAddress: result.roadAddress || result.jibunAddress || address });
+      });
+    });
+  }
+
+  async function verifyBusinessLocation() {
+    const fields = ensurePartnerFields();
+    const addressInput = document.getElementById("motfBusinessAddress");
+    const button = document.getElementById("motfVerifyBusinessLocationButton");
+    const address = addressInput?.value.trim();
+    if (!fields || !address) {
+      setLocationStatus("주소를 먼저 입력해주세요.", "error");
+      throw new Error("업장 주소를 입력해주세요.");
+    }
+    button?.setAttribute("disabled", "");
+    setLocationStatus("주소 위치를 확인하는 중입니다...", "pending");
+    try {
+      const result = await geocodeAddress(address);
+      fields.dataset.latitude = String(result.latitude);
+      fields.dataset.longitude = String(result.longitude);
+      fields.dataset.locationAddress = address;
+      setLocationStatus(`위치 확인 완료 · ${result.matchedAddress}`, "success");
+      return result;
+    } catch (error) {
+      delete fields.dataset.latitude;
+      delete fields.dataset.longitude;
+      delete fields.dataset.locationAddress;
+      setLocationStatus(error.message || "주소 위치를 확인하지 못했습니다.", "error");
+      throw error;
+    } finally {
+      button?.removeAttribute("disabled");
+    }
+  }
+
+  window.motfVerifyBusinessLocation = () => verifyBusinessLocation().catch((error) => {
+    alert(error.message || "주소 위치를 확인하지 못했습니다.");
+  });
 
   function ensurePartnerFields() {
     let fields = document.querySelector("#motfBusinessFields");
@@ -61,11 +224,34 @@
       <label>지역
         <input id="motfBusinessRegion" maxlength="50" placeholder="예: 가평" />
       </label>
+      <label>우편번호
+        <span class="motf-address-search-row">
+          <input id="motfBusinessPostalCode" maxlength="12" readonly placeholder="주소 검색으로 입력" />
+          <button type="button" class="motf-address-search-button" onclick="motfOpenBusinessAddressSearch()">
+            <i data-lucide="search"></i> 주소 검색
+          </button>
+        </span>
+      </label>
       <label class="motf-field-wide">업장 주소
-        <input id="motfBusinessAddress" maxlength="250" autocomplete="street-address" />
+        <input id="motfBusinessAddress" maxlength="250" autocomplete="street-address" readonly placeholder="주소 검색 버튼으로 도로명주소를 선택해주세요." />
+      </label>
+      <label class="motf-field-wide">상세주소
+        <input id="motfBusinessAddressDetail" maxlength="120" autocomplete="address-line2" placeholder="건물명, 층, 호수 등 선택 입력" />
+        <span class="motf-location-actions">
+          <button type="button" id="motfVerifyBusinessLocationButton" class="motf-location-button" onclick="motfVerifyBusinessLocation()">
+            <i data-lucide="map-pin"></i> 주소 위치 확인
+          </button>
+          <small id="motfBusinessLocationStatus" class="motf-location-status" data-state="pending">지도에 표시할 위치를 확인해주세요.</small>
+        </span>
       </label>
     `;
     editSection.insertBefore(fields, editSection.firstElementChild);
+    const addressInput = document.getElementById("motfBusinessAddress");
+    addressInput?.addEventListener("input", () => {
+      if (addressInput.value.trim() === fields.dataset.locationAddress) return;
+      clearVerifiedLocation("주소가 변경되었습니다. 위치를 다시 확인해주세요.");
+    });
+    window.lucide?.createIcons();
     return fields;
   }
 
@@ -163,13 +349,27 @@
       motfBusinessPhone: business.phone,
       motfBusinessNumber: business.business_number,
       motfBusinessRegion: business.region,
+      motfBusinessPostalCode: business.postal_code,
       motfBusinessAddress: business.address,
+      motfBusinessAddressDetail: business.address_detail,
       editDescInput: business.description,
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    const fields = document.getElementById("motfBusinessFields");
+    if (fields && hasCoordinates(business)) {
+      fields.dataset.latitude = String(business.latitude);
+      fields.dataset.longitude = String(business.longitude);
+      fields.dataset.locationAddress = business.address || "";
+      setLocationStatus("저장된 지도 위치가 있습니다.", "success");
+    } else if (fields) {
+      delete fields.dataset.latitude;
+      delete fields.dataset.longitude;
+      delete fields.dataset.locationAddress;
+      setLocationStatus("지도에 표시할 위치를 확인해주세요.", "pending");
+    }
     bindPhotoUpload();
     updatePhotoPreview(business.cover_image_url || null);
     client().from("offerings")
@@ -199,7 +399,9 @@
       phone: document.getElementById("motfBusinessPhone")?.value.trim() || null,
       business_number: document.getElementById("motfBusinessNumber")?.value.trim() || null,
       region: document.getElementById("motfBusinessRegion")?.value.trim() || null,
+      postal_code: document.getElementById("motfBusinessPostalCode")?.value.trim() || null,
       address: document.getElementById("motfBusinessAddress")?.value.trim() || null,
+      address_detail: document.getElementById("motfBusinessAddressDetail")?.value.trim() || null,
       description: document.getElementById("editDescInput")?.value.trim() || null,
       facilities: window.motfReadFacilitiesFromDashboard?.() || [],
       updated_at: new Date().toISOString(),
@@ -210,46 +412,55 @@
       return;
     }
 
-    const saveButton = document.querySelector('#panel-mypage button[onclick="saveMypageData()"]');
-    const originalButtonHtml = saveButton?.innerHTML;
-    if (saveButton) {
-      saveButton.disabled = true;
-      saveButton.textContent = "저장 중...";
-    }
-
     const offeringItems = window.motfReadOfferingsFromDashboard?.() || [];
     if (!offeringItems.length || offeringItems.some((item) => !item.name || Number(item.price) <= 0)) {
       alert("객실 또는 상품을 하나 이상 추가하고 이름과 가격을 입력해주세요.");
       return;
     }
-    const [{ data, error }, offeringResult] = await Promise.all([
-      client().from("businesses")
-        .update(payload)
-        .eq("id", business.id)
-        .select(businessSelect)
-        .single(),
-      client().rpc("save_business_offerings", {
-        target_business_id: business.id,
-        items: offeringItems,
-      }),
-    ]);
+    const saveButton = document.querySelector('#panel-mypage button[onclick="saveMypageData()"]');
+    const originalButtonHtml = saveButton?.innerHTML;
+    if (saveButton) saveButton.disabled = true;
+    try {
+      if (saveButton) saveButton.textContent = "주소 확인 중...";
+      const fields = ensurePartnerFields();
+      const addressIsVerified = fields?.dataset.locationAddress === payload.address
+        && Number.isFinite(Number(fields?.dataset.latitude))
+        && Number.isFinite(Number(fields?.dataset.longitude));
+      const location = addressIsVerified
+        ? { latitude: Number(fields.dataset.latitude), longitude: Number(fields.dataset.longitude) }
+        : await verifyBusinessLocation();
+      payload.latitude = location.latitude;
+      payload.longitude = location.longitude;
+      payload.location_verified_at = new Date().toISOString();
 
-    if (saveButton) {
-      saveButton.disabled = false;
-      saveButton.innerHTML = originalButtonHtml;
-      window.lucide?.createIcons();
+      if (saveButton) saveButton.textContent = "저장 중...";
+      const [{ data, error }, offeringResult] = await Promise.all([
+        client().from("businesses")
+          .update(payload)
+          .eq("id", business.id)
+          .select(businessSelect)
+          .single(),
+        client().rpc("save_business_offerings", {
+          target_business_id: business.id,
+          items: offeringItems,
+        }),
+      ]);
+      if (error || offeringResult.error) throw error || offeringResult.error;
+
+      window.motfCurrentBusiness = data;
+      window.motfApplyBusinessToDashboard?.(data);
+      window.motfSetPartnerOnboarding?.(false);
+      alert("업장 기본정보와 객실·상품, 지도 위치가 저장되었습니다.");
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalButtonHtml;
+        window.lucide?.createIcons();
+      }
     }
-
-    if (error || offeringResult.error) {
-      console.error(error || offeringResult.error);
-      alert("업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
-      return;
-    }
-
-    window.motfCurrentBusiness = data;
-    window.motfApplyBusinessToDashboard?.(data);
-    window.motfSetPartnerOnboarding?.(false);
-    alert("업장 기본정보와 객실·상품이 저장되었습니다.");
   };
 
   function statusLabel(status) {
@@ -335,9 +546,12 @@
       const business = businesses.find((item) => item.owner_id === profile.id);
       const businessOfferings = business ? offerings.filter((item) => item.business_id === business.id) : [];
       const type = business?.business_type === "market" ? "공판장" : "숙소";
+      const locationState = hasCoordinates(business)
+        ? '<small class="motf-map-state is-ready">지도 위치 확인됨</small>'
+        : '<small class="motf-map-state is-missing">지도 위치 미등록</small>';
       return `
         <tr>
-          <td><strong>${escapeHtml(business?.business_name || "업장정보 미등록")}</strong><br><small>${escapeHtml(profile.email || "")}</small></td>
+          <td><strong>${escapeHtml(business?.business_name || "업장정보 미등록")}</strong><br><small>${escapeHtml(profile.email || "")}</small>${locationState}</td>
           <td>${escapeHtml(type)} · ${statusBadge(profile.status)}</td>
           <td>${escapeHtml(business?.business_number || "사업자번호 미등록")}</td>
           <td><span style="font-weight:700; color:var(--teal-dark);">${businessOfferings.length}개 상품</span></td>
