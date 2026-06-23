@@ -149,9 +149,9 @@
   async function geocodeAddress(address) {
     const naver = await loadNaverGeocoder();
     return new Promise((resolve, reject) => {
-      naver.maps.Service.geocode({ query: address }, (status, response) => {
+      naver.maps.Service.geocode({ address }, (status, response) => {
         if (status !== naver.maps.Service.Status.OK) {
-          reject(new Error("주소 검색 요청에 실패했습니다."));
+          reject(new Error(`주소 검색 요청에 실패했습니다. 네이버 지도 API 설정과 허용 도메인을 확인해주세요. (${status})`));
           return;
         }
         const result = response?.v2?.addresses?.[0];
