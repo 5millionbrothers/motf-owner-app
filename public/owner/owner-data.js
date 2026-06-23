@@ -681,6 +681,16 @@
     cancelled: "취소",
     completed: "완료",
   };
+  const refundStatus = {
+    required: "환불 예정",
+    processing: "환불 처리 중",
+    refunded: "환불 완료",
+    failed: "환불 확인 필요",
+  };
+  function transactionDisplayStatus(item) {
+    if (item.refundStatus && item.refundStatus !== "none") return refundStatus[item.refundStatus] || item.refundStatus;
+    return transactionStatus[item.status] || item.status;
+  }
 
   function activePartnerOrderStatus() {
     const button = document.querySelector("#panel-orders .tab-btn.active");
@@ -693,12 +703,13 @@
 
   function transactionCard(item, admin = false) {
     const pending = item.status === "pending";
+    const refundLabel = item.refundStatus && item.refundStatus !== "none" ? refundStatus[item.refundStatus] || item.refundStatus : "";
     const actions = pending ? `
       <div class="item-actions">
         <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
       </div>
-    ` : `<span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${transactionStatus[item.status] || item.status}</span>`;
+    ` : `<span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span>`;
     return `
       <div class="item-card">
         <div style="flex:1;">
@@ -706,6 +717,7 @@
           <h4>${escapeHtml(item.customerName)}</h4>
           <p>${escapeHtml(item.date)} · ${escapeHtml(item.target)} · ${Number(item.amount).toLocaleString()}원</p>
           ${item.rejectReason ? `<p style="color:#b91c1c;">거절 사유: ${escapeHtml(item.rejectReason)}</p>` : ""}
+          ${refundLabel ? `<p style="color:#b45309;">${escapeHtml(refundLabel)}${item.refundAmount ? ` · ${Number(item.refundAmount).toLocaleString()}원` : ""}</p>` : ""}
         </div>
         ${actions}
       </div>
@@ -716,8 +728,8 @@
     if (!client() || !business) return;
     const table = business.business_type === "market" ? "market_orders" : "reservations";
     const fields = business.business_type === "market"
-      ? "id, customer_name, pickup_time, total_amount, status, reject_reason, created_at, market_order_items(item_name, quantity)"
-      : "id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason";
+      ? "id, customer_name, pickup_time, total_amount, status, reject_reason, refund_status, refund_amount, created_at, market_order_items(item_name, quantity)"
+      : "id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount";
     const { data, error } = await client().from(table).select(fields).eq("business_id", business.id).order("created_at", { ascending: false });
     if (error) return console.error(error);
     partnerTransactions = (data || []).map((item) => ({
@@ -734,6 +746,8 @@
       amount: item.total_amount,
       status: item.status,
       rejectReason: item.reject_reason,
+      refundStatus: item.refund_status,
+      refundAmount: item.refund_amount,
     }));
     mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
       id: item.id,
@@ -743,6 +757,8 @@
       price: Number(item.amount || 0),
       status: item.status,
       rejectReason: item.rejectReason || "",
+      refundStatus: item.refundStatus || "none",
+      refundAmount: item.refundAmount || null,
     }));
     const active = partnerTransactions.filter((item) => !["rejected", "cancelled"].includes(item.status));
     const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -777,15 +793,15 @@
     if (!client() || window.motfCurrentProfile?.role !== "admin") return;
     const [businessResult, reservationResult, orderResult] = await Promise.all([
       client().from("businesses").select("id, business_name, business_type"),
-      client().from("reservations").select("id, business_id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, created_at").order("created_at", { ascending: false }),
-      client().from("market_orders").select("id, business_id, customer_name, pickup_time, total_amount, status, reject_reason, created_at, market_order_items(item_name, quantity)").order("created_at", { ascending: false }),
+      client().from("reservations").select("id, business_id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount, created_at").order("created_at", { ascending: false }),
+      client().from("market_orders").select("id, business_id, customer_name, pickup_time, total_amount, status, reject_reason, refund_status, refund_amount, created_at, market_order_items(item_name, quantity)").order("created_at", { ascending: false }),
     ]);
     if (businessResult.error || reservationResult.error || orderResult.error) return console.error(businessResult.error || reservationResult.error || orderResult.error);
     const businesses = businessResult.data || [];
     const nameOf = (id) => businesses.find((item) => item.id === id)?.business_name || "업장";
     adminTransactions = [
-      ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
-      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason })),
+      ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
+      ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
     ];
     const filter = document.getElementById("masterOrderPartnerFilter");
     if (filter) filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
@@ -814,7 +830,7 @@
               <td>${escapeHtml(item.customerName)}</td>
               <td>${Number(item.amount || 0).toLocaleString()}원</td>
               <td>${itemFee.toLocaleString()}원</td>
-              <td>${escapeHtml(transactionStatus[item.status] || item.status)}</td>
+              <td>${escapeHtml(transactionDisplayStatus(item))}</td>
             </tr>`;
           }).join("")
         : '<tr class="motf-admin-empty-row"><td colspan="6">실제 거래 내역이 없습니다.</td></tr>';
