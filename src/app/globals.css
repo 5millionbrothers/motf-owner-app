@@ -193,6 +193,7 @@ code { font-family: Consolas, monospace; }
 .owner-tabs button { position:relative; padding:8px 16px; border:0; background:transparent; color:var(--muted); font-size:15px; }
 .owner-tabs button.active { color:var(--teal); font-weight:700; }
 .owner-tabs button.active::after { content:""; position:absolute; right:0; bottom:-13px; left:0; height:3px; background:var(--teal); }
+.section-subtitle { margin:22px 0 12px; color:var(--teal-dark); font-size:16px; }
 .reservation-list { gap:16px; }
 .reservation-list article { padding:20px; background:var(--paper); border-radius:12px; }
 .reservation-list h3 { margin:0 0 6px; font-size:16px; }

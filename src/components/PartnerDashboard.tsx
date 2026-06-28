@@ -7,22 +7,27 @@ import DashboardIcon from "@/components/DashboardIcon";
 type Menu = "calendar" | "reservations" | "chat" | "revenue" | "mypage";
 type Business = { id: string; business_name: string; business_type: string; representative_name: string; phone: string | null; address: string | null; description: string | null; };
 type Reservation = { id: string; customer_name: string; group_name: string | null; event_date: string; guest_count: number | null; offering_name: string; total_amount: number; status: string; reject_reason: string | null; };
+type MarketOrder = { id: string; customer_name: string; pickup_time: string | null; pickup_place: string | null; total_amount: number; status: string; refund_status?: string | null; };
+type PaymentIntent = { order_id: string; kind: string; amount: number; order_name: string; draft: Record<string, string | number | null>; status: string; virtual_account: Record<string, string> | null; virtual_account_issued_at: string | null; created_at: string; };
+type WorkItem = { id: string; source: "stay" | "market" | "intent"; customer_name: string; date: string; offering_name: string; total_amount: number; status: string; reject_reason?: string | null; guest_count?: number | null; };
 type Conversation = { id: string; customer_name: string; group_name: string | null; last_message_at: string; };
 type Message = { id: string; sender_id: string; sender_role: string; body: string; read_at: string | null; created_at: string; };
 
-const statusLabel: Record<string, string> = { pending: "확정 대기", confirmed: "예약 확정", rejected: "거절", cancelled: "취소", completed: "이용 완료" };
+const statusLabel: Record<string, string> = { virtual_account_issued: "입금 대기", pending: "확정 대기", confirmed: "예약 확정", rejected: "거절", cancelled: "취소", completed: "이용 완료" };
 
 export default function PartnerDashboard({ supabase, profileName, onLogout }: { supabase: SupabaseClient; profileName: string; onLogout: () => void; }) {
   const [menu, setMenu] = useState<Menu>("calendar");
   const [business, setBusiness] = useState<Business | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [marketOrders, setMarketOrders] = useState<MarketOrder[]>([]);
+  const [paymentIntents, setPaymentIntents] = useState<PaymentIntent[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<WorkItem | null>(null);
   const [reservationFilter, setReservationFilter] = useState("pending");
 
   const loadDashboard = useCallback(async () => {
@@ -37,12 +42,16 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
       return;
     }
     setBusiness(businessData);
-    const [{ data: reservationData, error: reservationError }, { data: conversationData }] = await Promise.all([
+    const [{ data: reservationData, error: reservationError }, { data: marketOrderData }, { data: paymentIntentData }, { data: conversationData }] = await Promise.all([
       supabase.from("reservations").select("id, customer_name, group_name, event_date, guest_count, offering_name, total_amount, status, reject_reason").eq("business_id", businessData.id).order("event_date"),
+      supabase.from("market_orders").select("id, customer_name, pickup_place, pickup_time, total_amount, status, refund_status").eq("business_id", businessData.id).order("created_at", { ascending: false }),
+      supabase.from("payment_intents").select("order_id, kind, amount, order_name, draft, status, virtual_account, virtual_account_issued_at, created_at").eq("status","virtual_account_issued").order("created_at", { ascending: false }),
       supabase.from("conversations").select("id, customer_name, group_name, last_message_at").eq("business_id", businessData.id).order("last_message_at", { ascending: false }),
     ]);
     if (reservationError) setNotice("2단계 데이터베이스 SQL을 먼저 적용해 주세요.");
     setReservations(reservationData || []);
+    setMarketOrders(marketOrderData || []);
+    setPaymentIntents((paymentIntentData || []).filter((item) => item.draft?.business_id === businessData.id));
     setConversations(conversationData || []);
     if (conversationData?.[0]) setSelectedConversation((current) => current || conversationData[0].id);
     setLoading(false);
@@ -64,9 +73,31 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
     return () => { void supabase.removeChannel(channel); };
   }, [selectedConversation, supabase]);
 
-  const revenue = useMemo(() => reservations.filter((item) => ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total_amount, 0), [reservations]);
-  const pendingCount = reservations.filter((item) => item.status === "pending").length;
-  const filteredReservations = reservations.filter((item) => reservationFilter === "all" ? true : item.status === reservationFilter);
+  const workItems = useMemo<WorkItem[]>(() => [
+    ...paymentIntents.map((item) => ({
+      id: item.order_id,
+      source: "intent" as const,
+      customer_name: String(item.draft?.customer_name || "이용자"),
+      date: item.kind === "stay" ? String(item.draft?.event_date || item.created_at).slice(0, 10) : String(item.draft?.pickup_time || item.created_at).slice(0, 10),
+      offering_name: item.order_name,
+      total_amount: item.amount,
+      status: "virtual_account_issued",
+    })),
+    ...reservations.map((item) => ({ ...item, source: "stay" as const, date: item.event_date })),
+    ...marketOrders.map((item) => ({
+      id: item.id,
+      source: "market" as const,
+      customer_name: item.customer_name,
+      date: String(item.pickup_time || "").slice(0, 10),
+      offering_name: item.pickup_place || "공판장 주문",
+      total_amount: item.total_amount,
+      status: item.status,
+    })),
+  ], [marketOrders, paymentIntents, reservations]);
+  const revenue = useMemo(() => workItems.filter((item) => ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total_amount, 0), [workItems]);
+  const pendingDeposit = useMemo(() => paymentIntents.reduce((sum, item) => sum + item.amount, 0), [paymentIntents]);
+  const pendingCount = workItems.filter((item) => item.status === "pending" || item.status === "virtual_account_issued").length;
+  const filteredReservations = workItems.filter((item) => reservationFilter === "all" ? true : item.status === reservationFilter);
   const calendarCells = useMemo(() => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
@@ -123,10 +154,10 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
       <div className="dashboard-body">
         {notice && <div className="dashboard-notice">{notice}</div>}
         {loading ? <div className="empty-panel">데이터를 불러오는 중입니다...</div> : <>
-          {menu === "calendar" && <section><h2 className="owner-panel-title">월간 스케줄 현황</h2><div className="owner-calendar-controls"><button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹ 이전 달</button><h3>{calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월</h3><button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>다음 달 ›</button></div><div className="owner-calendar-layout"><div className="owner-calendar-grid">{["일","월","화","수","목","금","토"].map((day) => <div className="owner-day-label" key={day}>{day}</div>)}{calendarCells.map((day, index) => <div className={`owner-calendar-cell ${day ? "" : "blank"}`} key={`${day}-${index}`}>{day && <><div className="owner-date-num">{day}</div>{reservations.filter((item) => { const date = new Date(`${item.event_date}T00:00:00`); return date.getFullYear() === calendarMonth.getFullYear() && date.getMonth() === calendarMonth.getMonth() && date.getDate() === day && item.status !== "rejected" && item.status !== "cancelled"; }).map((item) => <button key={item.id} className={`owner-cal-badge ${item.status === "confirmed" ? "confirm" : "pending"}`} onClick={() => setSelectedReservation(item)}>{item.customer_name} ({item.status === "confirmed" ? "확정" : "대기"})</button>)}</>}</div>)}</div><aside className="owner-calendar-detail"><h4>ⓘ 일별 상세 정보</h4>{selectedReservation ? <div className="owner-calendar-detail-body"><strong>{selectedReservation.customer_name}</strong><p>📅 {selectedReservation.event_date}</p><p>🎯 {selectedReservation.offering_name}</p><p>👥 {selectedReservation.guest_count || "-"}명</p><b>💵 {selectedReservation.total_amount.toLocaleString()}원</b><span>{statusLabel[selectedReservation.status]}</span></div> : <p>캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보가 표시됩니다.</p>}</aside></div></section>}
-          {menu === "reservations" && <section><h2 className="owner-panel-title">예약 및 승인 관리</h2><div className="owner-tabs">{[["pending","확정 대기"],["confirmed","예약 확정"],["completed","지난 예약"],["rejected","거절한 예약"]].map(([id,label]) => <button key={id} className={reservationFilter === id ? "active" : ""} onClick={() => setReservationFilter(id)}>{label}</button>)}</div>{filteredReservations.length ? <div className="reservation-list">{filteredReservations.map((item) => <article key={item.id}><div><h3>{item.customer_name}</h3><p>날짜: {item.event_date} | 대상 항목: {item.offering_name} | 금액: {item.total_amount.toLocaleString()}원</p>{item.reject_reason && <small>거절 사유: {item.reject_reason}</small>}</div>{item.status === "pending" && <div><button className="owner-pill-button approve" onClick={() => changeReservationStatus(item.id, "confirmed")}>확정하기</button><button className="owner-pill-button reject" onClick={() => changeReservationStatus(item.id, "rejected")}>거절하기</button></div>}</article>)}</div> : <Empty text="해당 내역이 존재하지 않습니다." />}</section>}
+          {menu === "calendar" && <section><h2 className="owner-panel-title">월간 스케줄 현황</h2><div className="owner-calendar-controls"><button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>‹ 이전 달</button><h3>{calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월</h3><button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>다음 달 ›</button></div><div className="owner-calendar-layout"><div className="owner-calendar-grid">{["일","월","화","수","목","금","토"].map((day) => <div className="owner-day-label" key={day}>{day}</div>)}{calendarCells.map((day, index) => <div className={`owner-calendar-cell ${day ? "" : "blank"}`} key={`${day}-${index}`}>{day && <><div className="owner-date-num">{day}</div>{workItems.filter((item) => { const date = new Date(`${item.date}T00:00:00`); return date.getFullYear() === calendarMonth.getFullYear() && date.getMonth() === calendarMonth.getMonth() && date.getDate() === day && item.status !== "rejected" && item.status !== "cancelled"; }).map((item) => <button key={item.id} className={`owner-cal-badge ${item.status === "confirmed" ? "confirm" : "pending"}`} onClick={() => setSelectedReservation(item)}>{item.customer_name} ({item.status === "virtual_account_issued" ? "입금대기" : item.status === "confirmed" ? "확정" : "대기"})</button>)}</>}</div>)}</div><aside className="owner-calendar-detail"><h4>ⓘ 일별 상세 정보</h4>{selectedReservation ? <div className="owner-calendar-detail-body"><strong>{selectedReservation.customer_name}</strong><p>📅 {selectedReservation.date}</p><p>🎯 {selectedReservation.offering_name}</p><p>👥 {selectedReservation.guest_count || "-"}명</p><b>💵 {selectedReservation.total_amount.toLocaleString()}원</b><span>{statusLabel[selectedReservation.status] || "입금 대기"}</span></div> : <p>캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보가 표시됩니다.</p>}</aside></div></section>}
+          {menu === "reservations" && <section><h2 className="owner-panel-title">예약 및 승인 관리</h2><div className="owner-tabs">{[["virtual_account_issued","입금 대기"],["pending","확정 대기"],["confirmed","예약 확정"],["completed","지난 예약"],["rejected","거절한 예약"]].map(([id,label]) => <button key={id} className={reservationFilter === id ? "active" : ""} onClick={() => setReservationFilter(id)}>{label}</button>)}</div>{filteredReservations.length ? <div className="reservation-list">{filteredReservations.map((item) => <article key={item.id}><div><h3>{item.customer_name}</h3><p>날짜: {item.date} | 대상 항목: {item.offering_name} | 금액: {item.total_amount.toLocaleString()}원</p>{item.reject_reason && <small>거절 사유: {item.reject_reason}</small>}</div>{item.status === "pending" && item.source === "stay" ? <div><button className="owner-pill-button approve" onClick={() => changeReservationStatus(item.id, "confirmed")}>확정하기</button><button className="owner-pill-button reject" onClick={() => changeReservationStatus(item.id, "rejected")}>거절하기</button></div> : <span className="master-badge">{statusLabel[item.status] || "입금 대기"}</span>}</article>)}</div> : <Empty text="해당 내역이 존재하지 않습니다." />}</section>}
           {menu === "chat" && <div className="chat-panel"><div className="chat-people">{conversations.length ? conversations.map((item) => <button className={selectedConversation === item.id ? "active" : ""} key={item.id} onClick={() => setSelectedConversation(item.id)}><strong>{item.customer_name}</strong><small>{item.group_name || "이용자 문의"}</small></button>) : <Empty text="진행 중인 채팅이 없습니다." />}</div><div className="chat-room">{selectedConversation ? <><div className="message-list">{messages.map((item) => <div key={item.id} className={item.sender_role === "partner" ? "message mine" : "message"}>{item.body}<small>{new Date(item.created_at).toLocaleString("ko-KR")}{item.sender_role === "partner" ? ` · ${item.read_at ? "읽음" : "안읽음"}` : ""}</small></div>)}</div><form onSubmit={sendMessage}><input name="message" placeholder="메시지를 입력하세요" autoComplete="off" /><button>전송</button></form></> : <Empty text="대화를 선택해 주세요." />}</div></div>}
-          {menu === "revenue" && <section><h2 className="owner-panel-title">종합 매출 데이터</h2><div className="owner-stats-grid"><div><span>이번 달 총 매출액</span><strong>{revenue.toLocaleString()}원</strong></div><div><span>총 정산 금액</span><strong>{Math.floor(revenue * (business?.business_type === "market" ? .95 : .93)).toLocaleString()}원</strong></div><div><span>정산 완료 금액</span><strong>0원</strong></div><div><span>정산 예정 금액</span><strong>{Math.floor(revenue * (business?.business_type === "market" ? .95 : .93)).toLocaleString()}원</strong></div></div><div className="owner-revenue-layout"><nav><button className="active">💡 순수익 계산기</button><button>기간별 매출 조회</button><button>항목/객실별 매출</button><button>매출 변동 추이</button></nav><div className="panel-card"><h2>실시간 모티프 순수익 산출</h2><p className="muted-copy">확정 및 이용 완료 예약을 기준으로 자동 계산됩니다.</p></div></div></section>}
+          {menu === "revenue" && <section><h2 className="owner-panel-title">종합 매출 데이터</h2><div className="owner-stats-grid"><div><span>이번 달 총 매출액</span><strong>{revenue.toLocaleString()}원</strong></div><div><span>총 정산 금액</span><strong>{Math.floor(revenue * (business?.business_type === "market" ? .95 : .93)).toLocaleString()}원</strong></div><div><span>정산 완료 금액</span><strong>0원</strong></div><div><span>입금 대기 금액</span><strong>{pendingDeposit.toLocaleString()}원</strong></div></div><div className="owner-revenue-layout"><nav><button className="active">순수익 계산기</button><button>기간별 매출 조회</button><button>항목/객실별 매출</button><button>매출 변동 추이</button></nav><div className="panel-card"><h2>실시간 모티프 순수익 산출</h2><p className="muted-copy">확정 및 이용 완료 예약을 기준으로 자동 계산됩니다. 입금 대기 금액은 정산 예정액에는 포함하지 않습니다.</p></div></div></section>}
           {menu === "mypage" && business && <section><div className="owner-mypage-heading"><h2 className="owner-panel-title">정보 수정 및 미리보기</h2><button onClick={onLogout}>로그아웃</button></div><h3>💻 서비스 제공 유저화면 미리보기 연동</h3><div className="owner-preview"><h4>{business.business_name}</h4><p>{business.description || "업장 소개 문구를 입력해 주세요."}</p></div><h3>⚙️ 데이터 상세 편집</h3><div className="panel-card narrow-card"><form className="business-form" onSubmit={saveBusiness}><label>업장명<input name="businessName" defaultValue={business.business_name} required /></label><label>대표자명<input name="representativeName" defaultValue={business.representative_name} required /></label><label>연락처<input name="phone" defaultValue={business.phone || ""} /></label><label>주소<input name="address" defaultValue={business.address || ""} /></label><label>소개 문구<textarea name="description" rows={5} defaultValue={business.description || ""} /></label><button className="primary-button">변경사항 저장하기</button></form></div></section>}
         </>}
       </div>
