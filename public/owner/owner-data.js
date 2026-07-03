@@ -674,6 +674,7 @@
 
   let partnerTransactions = [];
   let adminTransactions = [];
+  let adminSettlements = [];
   const transactionStatus = {
     pending: "확정 대기",
     confirmed: "확정",
@@ -729,7 +730,7 @@
   }
 
   function pendingIntentBusinessId(item = {}) {
-    return String(item.draft?.business_id || item.draft?.businessId || "");
+    return String(item.business_id || item.draft?.business_id || item.draft?.businessId || "");
   }
 
   function pendingIntentTarget(item = {}) {
@@ -770,6 +771,137 @@
     };
   }
 
+  function blockSourceLabel(source) {
+    return {
+      manual: "수동 차단",
+      pending_payment: "입금 대기",
+      motf: "예약 확정",
+      external_ical: "외부 일정",
+      external_api: "외부 연동",
+    }[source] || source || "-";
+  }
+
+  async function loadStayAvailabilityData(businessId = null) {
+    if (!client()) return { offerings: [], blocks: [] };
+    let offeringQuery = client()
+      .from("offerings")
+      .select("id, business_id, name, is_active, businesses(id, business_name, business_type)")
+      .eq("is_active", true)
+      .order("sort_order");
+    let blockQuery = client()
+      .from("stay_availability_blocks")
+      .select("id, business_id, offering_id, start_date, end_date, source, note, status, offerings(name), businesses(business_name)")
+      .eq("status", "active")
+      .order("start_date", { ascending: true });
+
+    if (businessId) {
+      offeringQuery = offeringQuery.eq("business_id", businessId);
+      blockQuery = blockQuery.eq("business_id", businessId);
+    }
+
+    const [offeringResult, blockResult] = await Promise.all([offeringQuery, blockQuery]);
+    if (offeringResult.error || blockResult.error) {
+      console.warn("Could not load stay availability data.", offeringResult.error || blockResult.error);
+      return { offerings: [], blocks: [] };
+    }
+
+    return {
+      offerings: (offeringResult.data || []).filter((item) => item.businesses?.business_type === "stay"),
+      blocks: blockResult.data || [],
+    };
+  }
+
+  function availabilityBoxHtml(scope, offerings, blocks) {
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const options = offerings.length
+      ? offerings.map((item) => `<option value="${item.id}">${escapeHtml(item.businesses?.business_name || "숙소")} · ${escapeHtml(item.name || "객실")}</option>`).join("")
+      : '<option value="">등록된 숙소 객실 없음</option>';
+    const rows = blocks.length
+      ? blocks.map((block) => `<tr>
+          <td>${escapeHtml(block.businesses?.business_name || "-")}</td>
+          <td>${escapeHtml(block.offerings?.name || "-")}</td>
+          <td>${escapeHtml(block.start_date)} ~ ${escapeHtml(block.end_date)}</td>
+          <td>${escapeHtml(blockSourceLabel(block.source))}</td>
+          <td>${escapeHtml(block.note || "-")}</td>
+          <td>${block.source === "manual" ? `<button class="motf-reject-action-btn" style="padding:5px 9px;font-size:12px;" onclick="motfCancelAvailabilityBlock('${block.id}', '${scope}')">해제</button>` : '<span class="master-status-badge master-badge-waiting">자동</span>'}</td>
+        </tr>`).join("")
+      : '<tr class="motf-admin-empty-row"><td colspan="6">현재 활성화된 방막기 내역이 없습니다.</td></tr>';
+
+    return `
+      <div class="info-panel" style="margin-bottom:18px;">
+        <div class="section-toolbar" style="margin-bottom:12px;">
+          <h3 style="margin:0;">수동 공실/품절 관리</h3>
+          <span>외부 예약이나 전화 예약이 들어오면 여기서 직접 방을 막아둘 수 있습니다.</span>
+        </div>
+        <div class="admin-filter-row">
+          <select id="${scope}AvailabilityOffering">${options}</select>
+          <input id="${scope}AvailabilityStart" type="date" value="${today}" />
+          <input id="${scope}AvailabilityEnd" type="date" value="${tomorrow}" />
+          <input id="${scope}AvailabilityNote" placeholder="메모 예: 네이버 예약, 전화 예약" />
+          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">품절 처리</button>
+        </div>
+        <table class="master-admin-table">
+          <thead><tr><th>숙소</th><th>객실</th><th>기간</th><th>상태</th><th>메모</th><th>관리</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function renderAvailabilityManager(scope, businessId = null) {
+    const targetId = scope === "master" ? "masterOrderListArea" : "orderListArea";
+    const list = document.getElementById(targetId);
+    if (!list) return;
+    let box = document.getElementById(`${scope}AvailabilityManager`);
+    if (!box) {
+      box = document.createElement("div");
+      box.id = `${scope}AvailabilityManager`;
+      list.parentElement?.insertBefore(box, list);
+    }
+    const { offerings, blocks } = await loadStayAvailabilityData(businessId);
+    box.innerHTML = availabilityBoxHtml(scope, offerings, blocks);
+  }
+
+  window.motfCreateAvailabilityBlock = async function motfCreateAvailabilityBlock(scope) {
+    const offeringId = document.getElementById(`${scope}AvailabilityOffering`)?.value;
+    const startDate = document.getElementById(`${scope}AvailabilityStart`)?.value;
+    const endDate = document.getElementById(`${scope}AvailabilityEnd`)?.value;
+    const note = document.getElementById(`${scope}AvailabilityNote`)?.value || "";
+    if (!offeringId || !startDate || !endDate || startDate >= endDate) {
+      alert("객실과 올바른 날짜 범위를 선택해주세요.");
+      return;
+    }
+    const { error } = await client().rpc("create_stay_manual_block", {
+      target_offering_id: offeringId,
+      target_check_in: startDate,
+      target_check_out: endDate,
+      block_note: note,
+    });
+    if (error) {
+      console.error(error);
+      alert(error.message || "품절 처리에 실패했습니다.");
+      return;
+    }
+    if (scope === "master") await renderAvailabilityManager("master", null);
+    else await renderAvailabilityManager("partner", window.motfCurrentBusiness?.id);
+    alert("선택한 기간이 품절 처리되었습니다.");
+  };
+
+  window.motfCancelAvailabilityBlock = async function motfCancelAvailabilityBlock(blockId, scope) {
+    if (!confirm("이 수동 품절 처리를 해제할까요?")) return;
+    const { error } = await client().rpc("cancel_stay_availability_block", {
+      target_block_id: blockId,
+    });
+    if (error) {
+      console.error(error);
+      alert("품절 해제에 실패했습니다.");
+      return;
+    }
+    if (scope === "master") await renderAvailabilityManager("master", null);
+    else await renderAvailabilityManager("partner", window.motfCurrentBusiness?.id);
+  };
+
   window.loadMotfPartnerTransactions = async function loadMotfPartnerTransactions(business = window.motfCurrentBusiness) {
     if (!client() || !business) return;
     const table = business.business_type === "market" ? "market_orders" : "reservations";
@@ -778,16 +910,13 @@
       : "id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount";
     const { data, error } = await client().from(table).select(fields).eq("business_id", business.id).order("created_at", { ascending: false });
     if (error) return console.error(error);
-    const { data: pendingIntents, error: pendingIntentError } = await client()
-      .from("payment_intents")
-      .select("order_id, kind, amount, order_name, status, virtual_account_issued_at, created_at, draft")
-      .eq("status", "virtual_account_issued")
-      .eq("kind", business.business_type === "market" ? "market" : "stay")
-      .contains("draft", { business_id: business.id })
-      .order("virtual_account_issued_at", { ascending: false });
+    const { data: pendingIntents, error: pendingIntentError } = await client().rpc("list_pending_payment_intents", {
+      target_business_id: business.id,
+    });
     if (pendingIntentError) console.warn("Could not load pending payment intents.", pendingIntentError);
     const pendingPaymentRows = (pendingIntents || [])
-      .map((item) => pendingIntentToTransaction(item, business.business_name));
+      .filter((item) => item.kind === (business.business_type === "market" ? "market" : "stay"))
+      .map((item) => pendingIntentToTransaction(item, item.business_name || business.business_name));
     partnerTransactions = [
       ...pendingPaymentRows,
       ...(data || []).map((item) => ({
@@ -842,6 +971,11 @@
     if (!window.motfCurrentBusiness) return originalRenderOrders?.();
     const area = document.getElementById("orderListArea");
     if (!area) return;
+    if (window.motfCurrentBusiness.business_type === "stay") {
+      renderAvailabilityManager("partner", window.motfCurrentBusiness.id);
+    } else {
+      document.getElementById("partnerAvailabilityManager")?.remove();
+    }
     const activeStatus = activePartnerOrderStatus();
     const rows = partnerTransactions.filter((item) => activeStatus === "pending"
       ? ["pending", "virtual_account_issued"].includes(item.status)
@@ -857,7 +991,7 @@
       client().from("businesses").select("id, business_name, business_type"),
       client().from("reservations").select("id, business_id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount, created_at").order("created_at", { ascending: false }),
       client().from("market_orders").select("id, business_id, customer_name, pickup_time, total_amount, status, reject_reason, refund_status, refund_amount, created_at, market_order_items(item_name, quantity)").order("created_at", { ascending: false }),
-      client().from("payment_intents").select("order_id, kind, amount, order_name, status, virtual_account_issued_at, created_at, draft").eq("status", "virtual_account_issued").order("virtual_account_issued_at", { ascending: false }),
+      client().rpc("list_pending_payment_intents", { target_business_id: null }),
     ]);
     if (businessResult.error || reservationResult.error || orderResult.error || intentResult.error) return console.error(businessResult.error || reservationResult.error || orderResult.error || intentResult.error);
     const businesses = businessResult.data || [];
@@ -871,6 +1005,7 @@
     if (filter) filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
     renderAdminTransactionSummary();
     window.renderMasterOrders();
+    loadMotfAdminSettlements();
   };
 
   function renderAdminTransactionSummary() {
@@ -918,6 +1053,67 @@
     renderAdminRevenue(activeRevenueTab === "m-rev-sub-2" ? "room" : activeRevenueTab === "m-rev-sub-3" ? "trend" : "period");
   }
 
+  async function loadMotfAdminSettlements() {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const { data, error } = await client().rpc("list_partner_settlements");
+    if (error) {
+      console.warn("Could not load partner settlements.", error);
+      adminSettlements = [];
+    } else {
+      adminSettlements = data || [];
+    }
+    renderMotfAdminSettlements();
+  }
+
+  function renderMotfAdminSettlements() {
+    const body = document.getElementById("masterSettlementTableBody");
+    if (!body) return;
+    const pending = adminSettlements.filter((item) => item.status === "pending");
+    const paid = adminSettlements.filter((item) => item.status === "paid");
+    const gross = adminSettlements.reduce((sum, item) => sum + Number(item.gross_amount || 0), 0);
+    const fee = adminSettlements.reduce((sum, item) => sum + Number(item.commission_amount || 0), 0);
+    const rows = [...pending, ...paid];
+
+    body.innerHTML = rows.length
+      ? rows.map((item) => {
+          const rate = `${(Number(item.commission_rate || 0) * 100).toFixed(0)}%`;
+          const label = item.transaction_kind === "market" ? "공판장" : "숙소";
+          const status = item.status === "paid"
+            ? `<span class="master-status-badge master-badge-active">정산 완료</span>`
+            : `<button class="primary-btn" style="padding:6px 12px; font-size:13px; background-color:#d97706;" onclick="motfMarkSettlementPaid('${item.id}')">정산 완료처리</button>`;
+          return `<tr>
+            <td><strong>${escapeHtml(item.business_name || "업장")}</strong><br><small>${label} · ${escapeHtml(item.customer_name || "-")} · ${escapeHtml(item.target_name || "-")}</small></td>
+            <td>${rate}</td>
+            <td>${Number(item.gross_amount || 0).toLocaleString()}원</td>
+            <td style="color:#b91c1c;">${Number(item.commission_amount || 0).toLocaleString()}원</td>
+            <td style="font-weight:700; color:var(--teal-dark);">${Number(item.payout_amount || 0).toLocaleString()}원</td>
+            <td>${status}</td>
+          </tr>`;
+        }).join("")
+      : '<tr class="motf-admin-empty-row"><td colspan="6">확정된 예약/주문 기준 정산 건이 아직 없습니다.</td></tr>';
+
+    const gmvNode = document.getElementById("m-stat-gmv");
+    const feeNode = document.getElementById("m-stat-fee");
+    if (gmvNode) gmvNode.textContent = `${gross.toLocaleString()}원`;
+    if (feeNode) feeNode.textContent = `${fee.toLocaleString()}원`;
+
+  }
+
+  window.motfMarkSettlementPaid = async function motfMarkSettlementPaid(id) {
+    const note = prompt("정산 메모를 입력해주세요. 비워도 됩니다.") || "";
+    const { error } = await client().rpc("mark_partner_settlement_paid", {
+      target_settlement_id: id,
+      payment_note: note,
+    });
+    if (error) {
+      console.error(error);
+      alert("정산 완료처리에 실패했습니다.");
+      return;
+    }
+    await loadMotfAdminSettlements();
+    alert("정산 완료로 처리했습니다.");
+  };
+
   function renderAdminRevenue(tab) {
     const content = document.getElementById("masterRevenueSubContent");
     if (!content) return;
@@ -963,6 +1159,7 @@
     if (window.motfCurrentProfile?.role !== "admin") return originalRenderMasterOrders?.();
     const area = document.getElementById("masterOrderListArea");
     if (!area) return;
+    renderAvailabilityManager("master", null);
     const businessFilter = document.getElementById("masterOrderPartnerFilter")?.value || "all";
     const rawStatus = document.getElementById("masterOrderStatusFilter")?.value || "all";
     const statusMap = { confirm:"confirmed", past:"completed", reject:"rejected" };
