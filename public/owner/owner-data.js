@@ -689,6 +689,7 @@
   };
   function transactionDisplayStatus(item) {
     if (item.refundStatus && item.refundStatus !== "none") return refundStatus[item.refundStatus] || item.refundStatus;
+    if (item.status === "virtual_account_issued") return "입금 대기";
     return transactionStatus[item.status] || item.status;
   }
 
@@ -704,7 +705,10 @@
   function transactionCard(item, admin = false) {
     const pending = item.status === "pending";
     const refundLabel = item.refundStatus && item.refundStatus !== "none" ? refundStatus[item.refundStatus] || item.refundStatus : "";
-    const actions = pending ? `
+    const readOnlyPaymentIntent = item.kind === "payment_intent" || item.status === "virtual_account_issued";
+    const actions = readOnlyPaymentIntent ? `
+      <span class="master-status-badge master-badge-waiting">입금 대기</span>
+    ` : pending ? `
       <div class="item-actions">
         <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
@@ -724,6 +728,48 @@
     `;
   }
 
+  function pendingIntentBusinessId(item = {}) {
+    return String(item.draft?.business_id || item.draft?.businessId || "");
+  }
+
+  function pendingIntentTarget(item = {}) {
+    const draft = item.draft || {};
+    if (item.kind === "market") {
+      const items = Array.isArray(draft.items) ? draft.items : [];
+      const label = items
+        .map((row) => `${row.item_name || row.name || "상품"} ${row.quantity || 1}개`)
+        .join(", ");
+      return label || item.order_name || "공판장 주문";
+    }
+    return draft.offering_name || item.order_name || "숙소 예약";
+  }
+
+  function pendingIntentToTransaction(item = {}, businessName = "입금 대기") {
+    const draft = item.draft || {};
+    const issuedDate = String(item.virtual_account_issued_at || item.created_at || "").slice(0, 10);
+    const pickupTime = String(draft.pickup_time || "").slice(0, 5);
+    const customerName = draft.group_name
+      ? `${draft.customer_name || "이용자"} (${draft.group_name})`
+      : draft.customer_name || "이용자";
+    return {
+      kind: "payment_intent",
+      sourceKind: item.kind,
+      id: item.order_id,
+      businessId: pendingIntentBusinessId(item),
+      businessName,
+      customerName,
+      date: item.kind === "market"
+        ? `${issuedDate} ${pickupTime}`.trim()
+        : draft.event_date || issuedDate,
+      target: pendingIntentTarget(item),
+      amount: item.amount,
+      status: item.status,
+      rejectReason: "",
+      refundStatus: "none",
+      refundAmount: null,
+    };
+  }
+
   window.loadMotfPartnerTransactions = async function loadMotfPartnerTransactions(business = window.motfCurrentBusiness) {
     if (!client() || !business) return;
     const table = business.business_type === "market" ? "market_orders" : "reservations";
@@ -732,7 +778,19 @@
       : "id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount";
     const { data, error } = await client().from(table).select(fields).eq("business_id", business.id).order("created_at", { ascending: false });
     if (error) return console.error(error);
-    partnerTransactions = (data || []).map((item) => ({
+    const { data: pendingIntents, error: pendingIntentError } = await client()
+      .from("payment_intents")
+      .select("order_id, kind, amount, order_name, status, virtual_account_issued_at, created_at, draft")
+      .eq("status", "virtual_account_issued")
+      .eq("kind", business.business_type === "market" ? "market" : "stay")
+      .contains("draft", { business_id: business.id })
+      .order("virtual_account_issued_at", { ascending: false });
+    if (pendingIntentError) console.warn("Could not load pending payment intents.", pendingIntentError);
+    const pendingPaymentRows = (pendingIntents || [])
+      .map((item) => pendingIntentToTransaction(item, business.business_name));
+    partnerTransactions = [
+      ...pendingPaymentRows,
+      ...(data || []).map((item) => ({
       kind: business.business_type === "market" ? "market" : "stay",
       id: item.id,
       businessName: business.business_name,
@@ -748,7 +806,8 @@
       rejectReason: item.reject_reason,
       refundStatus: item.refund_status,
       refundAmount: item.refund_amount,
-    }));
+      })),
+    ];
     mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
       id: item.id,
       user: item.customerName,
@@ -783,7 +842,10 @@
     if (!window.motfCurrentBusiness) return originalRenderOrders?.();
     const area = document.getElementById("orderListArea");
     if (!area) return;
-    const rows = partnerTransactions.filter((item) => item.status === activePartnerOrderStatus());
+    const activeStatus = activePartnerOrderStatus();
+    const rows = partnerTransactions.filter((item) => activeStatus === "pending"
+      ? ["pending", "virtual_account_issued"].includes(item.status)
+      : item.status === activeStatus);
     area.innerHTML = rows.length
       ? rows.map((item) => transactionCard(item)).join("")
       : '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 실제 요청이 없습니다.</p>';
@@ -791,15 +853,17 @@
 
   window.loadMotfAdminTransactions = async function loadMotfAdminTransactions() {
     if (!client() || window.motfCurrentProfile?.role !== "admin") return;
-    const [businessResult, reservationResult, orderResult] = await Promise.all([
+    const [businessResult, reservationResult, orderResult, intentResult] = await Promise.all([
       client().from("businesses").select("id, business_name, business_type"),
       client().from("reservations").select("id, business_id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount, created_at").order("created_at", { ascending: false }),
       client().from("market_orders").select("id, business_id, customer_name, pickup_time, total_amount, status, reject_reason, refund_status, refund_amount, created_at, market_order_items(item_name, quantity)").order("created_at", { ascending: false }),
+      client().from("payment_intents").select("order_id, kind, amount, order_name, status, virtual_account_issued_at, created_at, draft").eq("status", "virtual_account_issued").order("virtual_account_issued_at", { ascending: false }),
     ]);
-    if (businessResult.error || reservationResult.error || orderResult.error) return console.error(businessResult.error || reservationResult.error || orderResult.error);
+    if (businessResult.error || reservationResult.error || orderResult.error || intentResult.error) return console.error(businessResult.error || reservationResult.error || orderResult.error || intentResult.error);
     const businesses = businessResult.data || [];
     const nameOf = (id) => businesses.find((item) => item.id === id)?.business_name || "업장";
     adminTransactions = [
+      ...(intentResult.data || []).map((item) => pendingIntentToTransaction(item, nameOf(pendingIntentBusinessId(item)))),
       ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
       ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
     ];
@@ -903,7 +967,11 @@
     const rawStatus = document.getElementById("masterOrderStatusFilter")?.value || "all";
     const statusMap = { confirm:"confirmed", past:"completed", reject:"rejected" };
     const statusFilter = statusMap[rawStatus] || rawStatus;
-    const rows = adminTransactions.filter((item) => (businessFilter === "all" || item.businessId === businessFilter) && (statusFilter === "all" || item.status === statusFilter));
+    const rows = adminTransactions.filter((item) => {
+      const matchesBusiness = businessFilter === "all" || item.businessId === businessFilter;
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter || (statusFilter === "pending" && item.status === "virtual_account_issued");
+      return matchesBusiness && matchesStatus;
+    });
     area.innerHTML = rows.length ? rows.map((item) => transactionCard(item, true)).join("") : '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 실제 요청이 없습니다.</p>';
   };
 
