@@ -9,6 +9,11 @@ type Menu = "stats" | "partners" | "chats" | "cases" | "reservations" | "content
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const reservationLabel: Record<string,string> = { pending:"확정 대기", confirmed:"예약 확정", rejected:"거절", cancelled:"취소", completed:"이용 완료" };
+const isFutureDate = (value?: string | null) => {
+  if (!value) return true;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) || time > Date.now();
+};
 
 export default function AdminDashboard({ supabase, onLogout }: { supabase: SupabaseClient; onLogout: () => void }) {
   const [menu, setMenu] = useState<Menu>("stats");
@@ -32,7 +37,7 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
       supabase.from("businesses").select("*").order("created_at", { ascending:false }),
       supabase.from("profiles").select("id,email,full_name,phone,role,status,created_at").order("created_at", { ascending:false }),
       supabase.from("reservations").select("*").order("created_at", { ascending:false }),
-      supabase.from("payment_intents").select("order_id, customer_id, kind, amount, order_name, status, virtual_account_issued_at, created_at").order("created_at", { ascending:false }),
+      supabase.from("payment_intents").select("order_id, customer_id, kind, amount, order_name, status, virtual_account_issued_at, created_at, expires_at").order("created_at", { ascending:false }),
       supabase.from("conversations").select("*").order("last_message_at", { ascending:false }),
       supabase.from("support_cases").select("*").order("created_at", { ascending:false }),
       supabase.from("reviews").select("*").order("created_at", { ascending:false }),
@@ -51,7 +56,7 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   const partnerProfiles = useMemo(() => profiles.filter((profile) => profile.role === "partner"), [profiles]);
   const totalRevenue = reservations.filter((item) => ["confirmed","completed"].includes(item.status)).reduce((sum,item) => sum + item.total_amount, 0);
   const businessName = (id:string) => businesses.find((item) => item.id === id)?.business_name || "업장 정보 없음";
-  const pendingPaymentIntents = paymentIntents.filter((item) => item.status === "virtual_account_issued" || item.status === "prepared");
+  const pendingPaymentIntents = paymentIntents.filter((item) => (item.status === "virtual_account_issued" || item.status === "prepared") && isFutureDate(item.expires_at));
   const customerName = (id:string) => profiles.find((item) => item.id === id)?.full_name || profiles.find((item) => item.id === id)?.email || "이용자 정보 없음";
 
   async function reviewPartner(ownerId:string, decision:"approved"|"rejected") {
