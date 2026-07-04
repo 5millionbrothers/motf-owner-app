@@ -68,6 +68,26 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   async function setReservation(id:string, status:"confirmed"|"rejected") {
     const reason = status === "rejected" ? window.prompt("운영팀 거절 사유를 입력해 주세요.") : null;
     if (status === "rejected" && !reason?.trim()) return;
+    if (status === "rejected") {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setNotice("로그인이 만료되었습니다. 다시 로그인해주세요.");
+        return;
+      }
+      const response = await fetch("/api/refund-transaction", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ kind: "stay", id, reason: reason?.trim() }),
+      });
+      const result = await response.json().catch(() => null);
+      setNotice(result?.message || (response.ok ? "운영팀에서 예약을 거절하고 환불 요청을 처리했습니다." : "자동 환불 처리에 실패했습니다."));
+      await loadAll();
+      return;
+    }
     const { error } = await supabase.rpc("set_reservation_status", { target_reservation_id:id, new_status:status, reason:reason?.trim() || null });
     setNotice(error ? error.message : "운영팀에서 예약 상태를 변경했습니다."); await loadAll();
   }

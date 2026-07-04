@@ -1179,6 +1179,27 @@
       if (!reason) return;
     }
     if (!confirm(status === "confirmed" ? "이 요청을 확정할까요?" : "이 요청을 거절할까요?")) return;
+    if (status === "rejected") {
+      const { data: sessionData } = await client().auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) return alert("로그인이 만료되었습니다. 다시 로그인해주세요.");
+      const response = await fetch("/api/refund-transaction", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ kind, id, reason }),
+      });
+      const result = await response.json().catch(() => null);
+      if (window.motfCurrentProfile?.role === "admin") await window.loadMotfAdminTransactions();
+      else await window.loadMotfPartnerTransactions();
+      if (!response.ok || !result?.ok) {
+        return alert(result?.message || "거절은 처리됐지만 자동 환불 요청에 실패했습니다. 관리자 확인이 필요합니다.");
+      }
+      alert(result.message || "거절 및 자동 환불 요청이 처리되었습니다.");
+      return;
+    }
     const functionName = kind === "market" ? "set_market_order_status" : "set_reservation_status";
     const args = kind === "market"
       ? { target_order_id:id, new_status:status, reason }
