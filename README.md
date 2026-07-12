@@ -1,64 +1,36 @@
-# moTF 사장님·운영팀 웹
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-하나의 로그인 화면에서 계정 역할에 따라 사장님 대시보드와 운영팀 대시보드를 분리하는 앱입니다.
+## Getting Started
 
-## 현재 운영 화면
-
-- 현재 Vercel 운영 화면의 기준 원본은 `public/owner/index.html`과 `public/owner/owner-data.js`입니다.
-- `/` 접속은 `next.config.ts`에 의해 `/owner/index.html`로 이동합니다.
-- `src/`의 Next.js 화면은 기능 이전을 위한 차기 구조이며 현재 운영 화면이 아닙니다.
-- 기능 안정화 기간에는 같은 기능을 두 구조에 중복 구현하지 않습니다.
-
-자세한 기준은 [`docs/owner-ui-architecture.md`](docs/owner-ui-architecture.md)를 확인합니다.
-
-## 권한
-
-- `partner / approved`: 자기 업장 정보, 거래, 채팅 관리
-- `admin / approved`: 전체 업장, 회원, 거래, 문의 모니터링과 처리
-- 일반 이용자 계정은 이 앱의 대시보드에 들어갈 수 없습니다.
-
-공개 데모 계정 우회는 제거되어 있으며 Supabase 인증과 실제 데이터만 사용합니다.
-
-## 로컬 실행
+First, run the development server:
 
 ```bash
-pnpm install --frozen-lockfile
+npm run dev
+# or
+yarn dev
+# or
 pnpm dev
+# or
+bun dev
 ```
 
-`.env.local`:
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-```text
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-NAVER_MAP_KEY_ID=...
-```
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-`NAVER_MAP_KEY_ID`는 사장님 앱의 주소 위치 확인에서만 사용합니다. 네이버 클라우드에서
-`Web Dynamic Map`과 `Geocoding`을 활성화하고 `https://motfowner.co.kr`,
-`https://www.motfowner.co.kr`을 허용 도메인에 등록해야 합니다.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-비밀 키와 `service_role` 키는 이 앱에 넣지 않습니다. DB 변경 원본은
-[motf-database](https://github.com/5millionbrothers/motf-database)에서만 관리합니다.
+## Learn More
 
-## 운영 도메인
+To learn more about Next.js, take a look at the following resources:
 
-```text
-https://motfowner.co.kr
-https://www.motfowner.co.kr
-```
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-Supabase 인증 리다이렉트, 네이버 지도 허용 도메인, 향후 카카오 로그인 Redirect URI는 위
-도메인을 기준으로 등록합니다. Vercel 기본 주소는 Preview와 장애 확인용으로만 유지합니다.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## 배포 절차
+## Deploy on Vercel
 
-1. 기능별 브랜치에서 수정합니다.
-2. Pull Request를 만들고 `lint`와 `build` 검사를 통과시킵니다.
-3. 친구가 변경 내용을 확인한 뒤 `main`에 합칩니다.
-4. Vercel Preview에서 역할별 로그인을 시험한 후 운영 배포를 확인합니다.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-## 남은 구조 정리
-
-현재 운영 중인 `public/owner/` 기능을 목록화하고 Next.js로 한 화면씩 이전합니다. 인증, 업장 관리,
-거래, 채팅, 문의 기능이 모두 이전되고 역할별 회귀 테스트를 통과한 뒤에만 루트 리다이렉트를 제거합니다.
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

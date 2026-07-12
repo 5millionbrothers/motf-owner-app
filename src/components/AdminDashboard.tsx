@@ -1,26 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import DashboardIcon from "@/components/DashboardIcon";
 
 type Menu = "stats" | "partners" | "chats" | "cases" | "reservations" | "content" | "revenue" | "settlement";
-// 여러 관리자 테이블을 한 화면에서 합쳐 보여주는 과도기 공통 행 타입이다.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const reservationLabel: Record<string,string> = { pending:"확정 대기", confirmed:"예약 확정", rejected:"거절", cancelled:"취소", completed:"이용 완료" };
-const isFutureDate = (value?: string | null) => {
-  if (!value) return true;
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) || time > Date.now();
-};
 
 export default function AdminDashboard({ supabase, onLogout }: { supabase: SupabaseClient; onLogout: () => void }) {
   const [menu, setMenu] = useState<Menu>("stats");
   const [businesses, setBusinesses] = useState<Row[]>([]);
   const [profiles, setProfiles] = useState<Row[]>([]);
   const [reservations, setReservations] = useState<Row[]>([]);
-  const [paymentIntents, setPaymentIntents] = useState<Row[]>([]);
   const [conversations, setConversations] = useState<Row[]>([]);
   const [cases, setCases] = useState<Row[]>([]);
   const [reviews, setReviews] = useState<Row[]>([]);
@@ -31,23 +23,22 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   const [notice, setNotice] = useState("");
   const [contentTab, setContentTab] = useState<"reviews"|"posts">("reviews");
 
-  const loadAll = useCallback(async () => {
+  async function loadAll() {
     setNotice("");
-    const [businessResult, profileResult, reservationResult, paymentIntentResult, conversationResult, caseResult, reviewResult, postResult] = await Promise.all([
+    const [businessResult, profileResult, reservationResult, conversationResult, caseResult, reviewResult, postResult] = await Promise.all([
       supabase.from("businesses").select("*").order("created_at", { ascending:false }),
       supabase.from("profiles").select("id,email,full_name,phone,role,status,created_at").order("created_at", { ascending:false }),
       supabase.from("reservations").select("*").order("created_at", { ascending:false }),
-      supabase.from("payment_intents").select("order_id, customer_id, kind, amount, order_name, status, virtual_account_issued_at, created_at, expires_at").order("created_at", { ascending:false }),
       supabase.from("conversations").select("*").order("last_message_at", { ascending:false }),
       supabase.from("support_cases").select("*").order("created_at", { ascending:false }),
       supabase.from("reviews").select("*").order("created_at", { ascending:false }),
       supabase.from("community_posts").select("*").order("created_at", { ascending:false }),
     ]);
-    setBusinesses(businessResult.data || []); setProfiles(profileResult.data || []); setReservations(reservationResult.data || []); setPaymentIntents(paymentIntentResult.data || []); setConversations(conversationResult.data || []); setCases(caseResult.data || []); setReviews(reviewResult.data || []); setPosts(postResult.data || []);
-    if (businessResult.data?.[0]) setSelectedBusiness((current) => current || businessResult.data[0].id);
-  }, [supabase]);
+    setBusinesses(businessResult.data || []); setProfiles(profileResult.data || []); setReservations(reservationResult.data || []); setConversations(conversationResult.data || []); setCases(caseResult.data || []); setReviews(reviewResult.data || []); setPosts(postResult.data || []);
+    if (!selectedBusiness && businessResult.data?.[0]) setSelectedBusiness(businessResult.data[0].id);
+  }
 
-  useEffect(() => { void loadAll(); }, [loadAll]);
+  useEffect(() => { loadAll(); }, []);
   useEffect(() => {
     if (!selectedConversation) { setMessages([]); return; }
     supabase.from("messages").select("*").eq("conversation_id", selectedConversation).order("created_at").then(({data}) => setMessages(data || []));
@@ -56,8 +47,6 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   const partnerProfiles = useMemo(() => profiles.filter((profile) => profile.role === "partner"), [profiles]);
   const totalRevenue = reservations.filter((item) => ["confirmed","completed"].includes(item.status)).reduce((sum,item) => sum + item.total_amount, 0);
   const businessName = (id:string) => businesses.find((item) => item.id === id)?.business_name || "업장 정보 없음";
-  const pendingPaymentIntents = paymentIntents.filter((item) => (item.status === "virtual_account_issued" || item.status === "prepared") && isFutureDate(item.expires_at));
-  const customerName = (id:string) => profiles.find((item) => item.id === id)?.full_name || profiles.find((item) => item.id === id)?.email || "이용자 정보 없음";
 
   async function reviewPartner(ownerId:string, decision:"approved"|"rejected") {
     const reason = decision === "rejected" ? window.prompt("거절 사유를 입력해 주세요.") : null;
@@ -68,30 +57,10 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   async function setReservation(id:string, status:"confirmed"|"rejected") {
     const reason = status === "rejected" ? window.prompt("운영팀 거절 사유를 입력해 주세요.") : null;
     if (status === "rejected" && !reason?.trim()) return;
-    if (status === "rejected") {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) {
-        setNotice("로그인이 만료되었습니다. 다시 로그인해주세요.");
-        return;
-      }
-      const response = await fetch("/api/refund-transaction", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ kind: "stay", id, reason: reason?.trim() }),
-      });
-      const result = await response.json().catch(() => null);
-      setNotice(result?.message || (response.ok ? "운영팀에서 예약을 거절하고 환불 요청을 처리했습니다." : "자동 환불 처리에 실패했습니다."));
-      await loadAll();
-      return;
-    }
     const { error } = await supabase.rpc("set_reservation_status", { target_reservation_id:id, new_status:status, reason:reason?.trim() || null });
     setNotice(error ? error.message : "운영팀에서 예약 상태를 변경했습니다."); await loadAll();
   }
-  async function updateCase(id:string, status:string) { const {error}=await supabase.rpc("review_support_case", { target_case_id:id, new_status:status, note:null }); setNotice(error?error.message:"문의 상태를 변경했습니다."); await loadAll(); }
+  async function updateCase(id:string, status:string) { const {error}=await supabase.from("support_cases").update({status}).eq("id",id); setNotice(error?error.message:"문의 상태를 변경했습니다."); await loadAll(); }
   async function toggleContent(table:"reviews"|"community_posts", id:string, hidden:boolean) { const {error}=await supabase.from(table).update({is_hidden:!hidden}).eq("id",id); setNotice(error?error.message:"공개 상태를 변경했습니다."); await loadAll(); }
 
   const menuItems:{id:Menu,label:string,icon:string}[]=[
@@ -102,7 +71,7 @@ export default function AdminDashboard({ supabase, onLogout }: { supabase: Supab
   return <main className="dashboard-page admin-dashboard">
     <aside className="dashboard-sidebar"><div className="dashboard-sidebar-header"><div className="dashboard-logo">moTF</div><div className="dashboard-owner">모티프 본사 총관리자</div></div><nav>{menuItems.map((item)=><button key={item.id} className={menu===item.id?"active":""} onClick={()=>setMenu(item.id)}><DashboardIcon name={item.icon}/>{item.label}</button>)}</nav></aside>
     <section className="dashboard-content"><header className="dashboard-top"><button className="admin-logout-button" onClick={onLogout}>로그아웃</button></header><div className="dashboard-body">{notice&&<div className="dashboard-notice">{notice}</div>}
-      {menu==="stats"&&<section><h2 className="owner-panel-title">moTF 플랫폼 마스터 실시간 종합 현황</h2><div className="owner-stats-grid"><Stat label="가입 파트너" value={`${partnerProfiles.length}명`}/><Stat label="입점 심사 대기" value={`${partnerProfiles.filter((p)=>p.status==="pending").length}건`}/><Stat label="입금 대기 요청" value={`${pendingPaymentIntents.length}건`}/><Stat label="플랫폼 누적 거래액" value={`${totalRevenue.toLocaleString()}원`}/></div><AdminTable headers={["업장","예약자","이용일","금액","상태"]} rows={reservations.slice(0,10).map((r)=><tr key={r.id}><td>{businessName(r.business_id)}</td><td>{r.customer_name}</td><td>{r.event_date}</td><td>{r.total_amount.toLocaleString()}원</td><td><Badge text={reservationLabel[r.status]}/></td></tr>)}/><h3 className="owner-panel-title" style={{fontSize:18, marginTop:28}}>입금 대기 결제요청</h3><AdminTable headers={["주문번호","이용자","구분","상품명","금액","상태"]} rows={pendingPaymentIntents.slice(0,10).map((p)=><tr key={p.order_id}><td>{p.order_id}</td><td>{customerName(p.customer_id)}</td><td>{p.kind==="stay"?"숙소":"공판장"}</td><td>{p.order_name}</td><td>{p.amount.toLocaleString()}원</td><td><Badge text={p.status==="virtual_account_issued"?"입금 대기":"결제 준비"}/></td></tr>)}/></section>}
+      {menu==="stats"&&<section><h2 className="owner-panel-title">moTF 플랫폼 마스터 실시간 종합 현황</h2><div className="owner-stats-grid"><Stat label="가입 파트너" value={`${partnerProfiles.length}명`}/><Stat label="입점 심사 대기" value={`${partnerProfiles.filter((p)=>p.status==="pending").length}건`}/><Stat label="플랫폼 누적 거래액" value={`${totalRevenue.toLocaleString()}원`}/><Stat label="본사 예상 수수료" value={`${Math.floor(totalRevenue*.06).toLocaleString()}원`}/></div><AdminTable headers={["업장","예약자","이용일","금액","상태"]} rows={reservations.slice(0,10).map((r)=><tr key={r.id}><td>{businessName(r.business_id)}</td><td>{r.customer_name}</td><td>{r.event_date}</td><td>{r.total_amount.toLocaleString()}원</td><td><Badge text={reservationLabel[r.status]}/></td></tr>)}/></section>}
       {menu==="partners"&&<section><h2 className="owner-panel-title">전체 가입 유저 및 파트너 업장 관리</h2><AdminTable headers={["업장명","유형","대표자","이메일","심사 상태","관리"]} rows={businesses.map((b)=>{const p=profiles.find((x)=>x.id===b.owner_id);return <tr key={b.id}><td><strong>{b.business_name}</strong></td><td>{b.business_type==="stay"?"숙소":"공판장"}</td><td>{b.representative_name}</td><td>{p?.email||"-"}</td><td><Badge text={p?.status||b.approval_status}/></td><td>{p?.status==="pending"&&<div className="table-actions"><button className="approve-button" onClick={()=>reviewPartner(b.owner_id,"approved")}>승인</button><button className="reject-button" onClick={()=>reviewPartner(b.owner_id,"rejected")}>거절</button></div>}</td></tr>})}/></section>}
       {menu==="chats"&&<section><h2 className="owner-panel-title">사장님별 전체 채팅 모니터링</h2><div className="master-chat-grid"><div className="master-business-list">{businesses.map((b)=><button key={b.id} className={selectedBusiness===b.id?"active":""} onClick={()=>{setSelectedBusiness(b.id);setSelectedConversation("");}}><strong>{b.business_name}</strong><small>채팅 {conversations.filter((c)=>c.business_id===b.id).length}건</small></button>)}</div><div className="chat-panel"><div className="chat-people">{chatsForBusiness.map((c)=><button key={c.id} className={selectedConversation===c.id?"active":""} onClick={()=>setSelectedConversation(c.id)}><strong>{c.customer_name}</strong><small>{c.group_name||"이용자 문의"}</small></button>)}</div><div className="chat-room"><div className="message-list">{messages.map((m)=><div key={m.id} className={`message ${m.sender_role==="partner"?"mine":""}`}>{m.body}<small>{new Date(m.created_at).toLocaleString("ko-KR")}</small></div>)}</div><div className="monitor-note">운영팀 읽기 전용 모니터링</div></div></div></div></section>}
       {menu==="cases"&&<section><h2 className="owner-panel-title">플랫폼 문의 및 분쟁 관리</h2>{cases.length?<AdminTable headers={["유형","제목","관련 업장","접수일","상태"]} rows={cases.map((c)=><tr key={c.id}><td>{c.case_type==="dispute"?"분쟁":"문의"}</td><td><strong>{c.title}</strong><small className="table-subcopy">{c.body}</small></td><td>{businessName(c.business_id)}</td><td>{new Date(c.created_at).toLocaleDateString("ko-KR")}</td><td><select value={c.status} onChange={(e)=>updateCase(c.id,e.target.value)}><option value="received">접수</option><option value="processing">처리 중</option><option value="resolved">완료</option></select></td></tr>)}/>:<Empty text="접수된 문의·분쟁이 없습니다. 3단계 SQL 적용 후 실데이터가 표시됩니다."/>}</section>}

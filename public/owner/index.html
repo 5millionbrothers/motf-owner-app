@@ -106,6 +106,10 @@
     .auth-modal-head h2 { margin:0; color:var(--teal-dark); }
     .modal-close-btn { border:0; background:transparent; font-size:24px; cursor:pointer; color:var(--muted); }
     .terms-row { display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:13px; color:var(--ink); margin:14px 0; }
+    .terms-row input[type="checkbox"] { width:16px; height:16px; flex:0 0 16px; margin-top:1px; accent-color:var(--teal); }
+    .terms-content { display:flex; flex-direction:column; gap:7px; line-height:1.45; }
+    .terms-view-btn { align-self:flex-start; border:1px solid var(--line); border-radius:999px; padding:5px 10px; background:var(--paper); color:var(--teal-dark); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .terms-view-btn:hover { background:var(--olive-soft); }
     .signup-success { display:none; background:var(--olive-soft); color:var(--teal-dark); padding:12px; border-radius:8px; font-size:13px; margin-bottom:16px; }
     
     /* 메인 대시보드 구조 조율 */
@@ -720,7 +724,7 @@
         <div class="form-group"><label for="signupId" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">로그인 이메일</label><input id="signupId" type="email" placeholder="example@motf.co.kr" required autocomplete="email"></div>
         <div class="form-group"><label for="signupPassword" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호</label><input id="signupPassword" type="password" minlength="8" placeholder="8자 이상 입력하세요" required autocomplete="new-password"></div>
         <div class="form-group"><label for="signupPasswordConfirm" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호 확인</label><input id="signupPasswordConfirm" type="password" minlength="8" required autocomplete="new-password"></div>
-        <label class="terms-row"><input id="signupTerms" type="checkbox" required><span>이용약관 및 개인정보 수집·이용에 동의합니다. 실제 출시 전 약관 전문과 개인정보처리방침 연결이 필요합니다.</span></label>
+        <label class="terms-row"><input id="signupTerms" type="checkbox" required><span class="terms-content"><span>이용약관 및 개인정보 수집·이용에 동의합니다.</span><button type="button" class="terms-view-btn" onclick="openTermsGuide(event)">약관 확인하기</button></span></label>
         <button type="submit" class="primary-btn" style="width:100%;justify-content:center;padding:14px;">가입 완료</button>
       </form>
     </div>
@@ -737,6 +741,7 @@
         <ul class="sidebar-menu">
           <li><button class="menu-item active" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
           <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
+          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
           <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
           <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출 관리</button></li>
         </ul>
@@ -746,7 +751,7 @@
     <div class="content-area">
       <header class="top-bar">
         <button class="mypage-btn" id="topbar-mypage-trigger-btn" onclick="switchPanel('mypage')">
-          <i data-lucide="store"></i> <span id="topbar-partner-manage-label">업장 등록·관리</span>
+          <i data-lucide="user-round-cog"></i> <span id="topbar-partner-manage-label">마이페이지</span>
         </button>
         <button class="motf-logout-top-btn" id="topbar-admin-logout-btn" onclick="handleLogoutSession()">
           <i data-lucide="log-out" style="width:14px;"></i> 로그아웃
@@ -782,6 +787,12 @@
           <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
         </div>
         <div id="orderListArea" class="item-list"></div>
+      </section>
+
+      <section id="panel-availability" class="panel">
+        <h2 class="panel-title">수동 방막기 관리</h2>
+        <p style="margin-top:-8px; margin-bottom:18px; color:var(--muted); font-size:14px;">전화 예약, 외부 예약, 임시 점검처럼 moTF 예약을 받으면 안 되는 날짜를 직접 막아둘 수 있습니다.</p>
+        <div id="partnerAvailabilityManager"></div>
       </section>
 
       <section id="panel-chat" class="panel">
@@ -837,7 +848,7 @@
 
       <section id="panel-mypage" class="panel">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:24px;">
-          <h2 class="panel-title" id="partner-manage-title" style="margin:0;">업장 등록 및 정보 관리</h2>
+          <h2 class="panel-title" id="partner-manage-title" style="margin:0;">마이페이지</h2>
           <button class="motf-logout-top-btn" onclick="handleLogoutSession()">
             <i data-lucide="log-out" style="width:14px;"></i> 로그아웃
           </button>
@@ -846,6 +857,26 @@
         <div id="motfPartnerOnboardingNotice" class="login-guide-box" hidden>
           <strong>첫 등록이 필요합니다.</strong><br>
           1. 업장 기본정보를 입력하고 2. 객실 또는 상품을 하나 이상 추가한 뒤 3. 변경사항 저장하기를 눌러주세요.
+        </div>
+
+        <h3>사장님 계정 및 정산 정보</h3>
+        <div class="motf-business-fields" id="motfOwnerAccountFields" style="margin-bottom:18px;">
+          <label>로그인 이메일
+            <input id="motfOwnerEmail" readonly placeholder="로그인 계정 이메일" />
+          </label>
+          <label>사장님 연락처
+            <input id="motfOwnerPhone" maxlength="30" autocomplete="tel" placeholder="010-0000-0000" />
+          </label>
+          <label>정산 은행
+            <input id="motfSettlementBank" maxlength="40" placeholder="예: 국민은행" />
+          </label>
+          <label>정산 계좌번호
+            <input id="motfSettlementAccount" maxlength="80" placeholder="숫자와 하이픈 입력" />
+          </label>
+          <label class="motf-field-wide">정산 예금주
+            <input id="motfSettlementHolder" maxlength="50" placeholder="사업자 또는 대표자명과 동일하게 입력" />
+          </label>
+          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 입력 화면만 먼저 준비된 상태입니다. 실제 저장은 정산 DB 컬럼 연결 후 활성화됩니다.</p>
         </div>
 
         <h3>서비스 제공 유저화면 미리보기</h3>
@@ -1173,6 +1204,11 @@
 
     function closeSignupModal() {
       document.getElementById('signupModal').classList.remove('active');
+    }
+
+    function openTermsGuide(event) {
+      event?.preventDefault?.();
+      alert('이용약관 및 개인정보처리방침 전문 페이지는 정식 약관 문서 확정 후 연결됩니다. 현재는 가입 진행을 위한 동의 항목만 표시합니다.');
     }
 
     /* 모티프 본사 마스터 전용 백오피스 메뉴 및 모듈 바인딩 */
@@ -1588,23 +1624,22 @@
     function initDashboard() {
       const data = mockData[currentOwnerType];
       const rate = COMMISSION_RATES[currentOwnerType];
-      const manageLabel = currentOwnerType === 'stay' ? '숙소 등록·관리' : '공판장 등록·관리';
       
       const menuBox = document.getElementById('dynamic-sidebar-menu-target-box');
       menuBox.innerHTML = `
         <ul class="sidebar-menu">
           <li><button class="menu-item active" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
           <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
+          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
           <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
           <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출 관리</button></li>
-          <li><button class="menu-item" onclick="switchPanel('mypage')"><i data-lucide="store"></i> ${manageLabel}</button></li>
         </ul>
       `;
 
       const topManageLabel = document.getElementById('topbar-partner-manage-label');
-      if (topManageLabel) topManageLabel.innerText = manageLabel;
+      if (topManageLabel) topManageLabel.innerText = '마이페이지';
       const manageTitle = document.getElementById('partner-manage-title');
-      if (manageTitle) manageTitle.innerText = `${manageLabel} 및 미리보기`;
+      if (manageTitle) manageTitle.innerText = '마이페이지';
 
       switchPanel('calendar'); 
 
@@ -1806,9 +1841,12 @@
       document.getElementById(`panel-${panelId}`).classList.add('active');
       document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
       
-      const idxMap = { calendar:0, orders:1, chat:2, revenue:3, mypage:4 };
-      if(idxMap[panelId] !== undefined) {
-        document.querySelectorAll('.menu-item')[idxMap[panelId]].classList.add('active');
+      document.querySelectorAll('.menu-item').forEach(item => {
+        const action = item.getAttribute('onclick') || '';
+        if (action.includes(`'${panelId}'`) || action.includes(`"${panelId}"`)) item.classList.add('active');
+      });
+      if (panelId === 'availability') {
+        window.motfRenderAvailabilityManager?.('partner', window.motfCurrentBusiness?.id);
       }
     }
 
@@ -1870,6 +1908,7 @@
 
     function showCalendarDetailPopup(order) {
       const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
+      const isConfirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
 
       sidebarLayer.innerHTML = `
         <div style="margin-bottom:10px; background:var(--olive-soft); padding:8px; border-radius:6px;">
@@ -1878,7 +1917,7 @@
         <div style="margin-bottom:8px;"><strong>📅 이용 일정일:</strong> ${order.date}</div>
         <div style="margin-bottom:8px;"><strong>🎯 매칭 항목:</strong> ${order.target}</div>
         <div style="margin-bottom:12px; font-weight:700; color:var(--teal-dark); font-size:15px;"><strong>💵 총 금액:</strong> ${order.price.toLocaleString()}원</div>
-        <div style="margin-bottom:12px;"><strong>🚦 상태:</strong> <span style="font-weight:700;">${order.status === 'confirm' ? '확정 완료' : '확정 대기중'}</span></div>
+        <div style="margin-bottom:12px;"><strong>🚦 상태:</strong> <span style="font-weight:700;">${isConfirmed ? '확정 완료' : '확정 대기중'}</span></div>
         <button class="primary-btn" style="width:100%; justify-content:center; font-size:12px; padding:6px;" onclick="goToUserChat('${order.user}')">
           <i data-lucide="message-square" style="width:14px;"></i> 이 고객과 채팅 소통하기
         </button>

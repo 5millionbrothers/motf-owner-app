@@ -1,13 +1,12 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import PartnerDashboard from "@/components/PartnerDashboard";
 import AdminDashboard from "@/components/AdminDashboard";
 
 type AuthMode = "login" | "signup" | "recovery" | "new-password";
 type AccountView = "auth" | "pending" | "partner" | "admin" | "blocked";
-type LoginError = { code?: string; message?: string };
 type PartnerApplication = {
   businessId: string;
   ownerId: string;
@@ -19,21 +18,6 @@ type PartnerApplication = {
   email: string | null;
   profileStatus: string;
 };
-
-function loginErrorMessage(error: LoginError) {
-  const code = error.code || "";
-  const message = (error.message || "").toLowerCase();
-  if (code === "email_not_confirmed" || message.includes("email not confirmed")) {
-    return "이메일 인증이 완료되지 않았습니다. 가입한 메일함의 인증 링크를 먼저 눌러주세요. 스팸 메일함도 확인해 주세요.";
-  }
-  if (code === "invalid_credentials" || message.includes("invalid login credentials")) {
-    return "이메일 또는 비밀번호가 일치하지 않습니다.";
-  }
-  if (code === "over_request_rate_limit" || message.includes("rate limit")) {
-    return "로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
-  }
-  return error.message ? `로그인하지 못했습니다: ${error.message}` : "로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
-}
 
 export default function Home() {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -49,8 +33,29 @@ export default function Home() {
 
   const supabase = getSupabaseClient();
 
-  const routeSignedInUser = useCallback(async (userId: string) => {
+  async function routeSignedInUser(userId: string) {
     if (!supabase) return;
+    const { data: authData } = await supabase.auth.getUser();
+    const signedInUser = authData.user;
+    if (signedInUser?.id === userId) {
+      const metadata = signedInUser.user_metadata;
+      const { data: existingBusiness } = await supabase
+        .from("businesses")
+        .select("id")
+        .eq("owner_id", userId)
+        .maybeSingle();
+
+      if (!existingBusiness && metadata.business_name && metadata.business_type) {
+        await supabase.from("businesses").insert({
+          owner_id: userId,
+          business_type: metadata.business_type,
+          business_name: metadata.business_name,
+          representative_name: metadata.full_name,
+          phone: metadata.phone,
+        });
+      }
+    }
+
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("full_name, role, status")
@@ -66,14 +71,14 @@ export default function Home() {
     setProfileName(profile.full_name || "파트너");
     if (profile.role === "admin" && profile.status === "approved") {
       setAccountView("admin");
-    } else if (profile.role === "partner" && profile.status === "approved") {
+    } else if (profile.status === "approved") {
       setAccountView("partner");
-    } else if (profile.role === "partner" && profile.status === "pending") {
+    } else if (profile.status === "pending") {
       setAccountView("pending");
     } else {
       setAccountView("blocked");
     }
-  }, [supabase]);
+  }
 
   useEffect(() => {
     if (!supabase) {
@@ -96,7 +101,7 @@ export default function Home() {
       if (!session?.user) setAccountView("auth");
     });
     return () => listener.subscription.unsubscribe();
-  }, [supabase, routeSignedInUser]);
+  }, [supabase]);
 
   async function handleLogout() {
     if (!supabase) return;
@@ -144,7 +149,7 @@ export default function Home() {
     setLoading(false);
   }
 
-  const loadAdminApplications = useCallback(async () => {
+  async function loadAdminApplications() {
     if (!supabase) return;
     setApplicationsLoading(true);
     const { data: businesses, error: businessError } = await supabase
@@ -178,11 +183,11 @@ export default function Home() {
       };
     }));
     setApplicationsLoading(false);
-  }, [supabase]);
+  }
 
   useEffect(() => {
     if (accountView === "admin") loadAdminApplications();
-  }, [accountView, loadAdminApplications]);
+  }, [accountView]);
 
   async function reviewApplication(application: PartnerApplication, decision: "approved" | "rejected") {
     if (!supabase) return;
@@ -217,9 +222,26 @@ export default function Home() {
     });
 
     if (loginError) {
-      setError(loginErrorMessage(loginError));
+      setError("이메일 또는 비밀번호를 확인해 주세요.");
       setLoading(false);
       return;
+    }
+
+    const metadata = data.user.user_metadata;
+    const { data: business } = await supabase
+      .from("businesses")
+      .select("id, approval_status")
+      .eq("owner_id", data.user.id)
+      .maybeSingle();
+
+    if (!business && metadata.business_name && metadata.business_type) {
+      await supabase.from("businesses").insert({
+        owner_id: data.user.id,
+        business_type: metadata.business_type,
+        business_name: metadata.business_name,
+        representative_name: metadata.full_name,
+        phone: metadata.phone,
+      });
     }
 
     await routeSignedInUser(data.user.id);
@@ -251,7 +273,6 @@ export default function Home() {
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            account_type: "partner",
             full_name: String(form.get("fullName")),
             phone: String(form.get("phone")),
             business_type: String(form.get("businessType")),

@@ -1,27 +1,50 @@
-# moTF 사장님 앱 배포
+# moTF 배포 순서
 
-1. GitHub의 `5millionbrothers/motf-owner-app`에서 작업 브랜치를 만듭니다.
-2. Pull Request의 자동 검사와 Vercel Preview를 확인합니다.
-3. Vercel 환경변수에 아래 공개 설정을 등록합니다.
+## 1. GitHub 저장소 만들기
+
+1. GitHub에서 **New repository**를 선택합니다.
+2. 저장소 이름을 `motf-app`으로 입력합니다.
+3. 공개 전이라면 **Private**을 권장합니다.
+4. README, .gitignore, License 자동 추가는 선택하지 않고 저장소를 생성합니다.
+5. 이 프로젝트의 파일을 저장소 최상위에 업로드합니다.
+
+업로드에서 제외해야 하는 항목:
+
+- `node_modules`
+- `.next`
+- `.env.local`
+
+## 2. Vercel 배포
+
+1. Vercel에 GitHub 계정으로 로그인합니다.
+2. **Add New → Project**에서 `motf-app` 저장소를 선택합니다.
+3. Framework Preset이 `Next.js`인지 확인합니다.
+4. Environment Variables에 다음 값을 등록합니다.
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-NAVER_MAP_KEY_ID
 ```
 
-4. Supabase Authentication의 Site URL과 Redirect URLs에 실제 Vercel 주소와
-   `https://motfowner.co.kr/**`, `https://www.motfowner.co.kr/**`,
-   `http://localhost:3000/**`을 등록합니다.
-5. 네이버 클라우드 Maps 애플리케이션에 `Web Dynamic Map`과 `Geocoding`을 활성화하고
-   아래 Web 서비스 URL을 등록합니다.
+5. **Deploy**를 선택합니다.
 
-```text
-https://motfowner.co.kr
-https://www.motfowner.co.kr
-```
+## 3. Supabase 주소 변경
 
-6. 일반 이용자, 승인 전 파트너, 승인 파트너, 관리자 계정으로 각각 접근 권한을 시험합니다.
-7. 승인 파트너 계정에서 주소 검색, 주소 위치 확인, 저장 후 이용자 지도 마커 표시를 확인합니다.
+Vercel 배포 주소가 발급되면 Supabase의 **Authentication → URL Configuration**에서:
 
-`.env.local`, Supabase `service_role`, 결제 비밀 키는 GitHub에 올리지 않습니다.
+- Site URL: Vercel 배포 주소
+- Redirect URLs: `https://발급주소.vercel.app/**`
+
+로 변경합니다. 개발용 `http://localhost:3000/**`은 그대로 남겨도 됩니다.
+
+## 4. 최종 시험
+
+- 회원가입
+- 이메일 인증
+- 일반 로그인
+- 운영팀 로그인
+- 사장님 가입 승인
+- 로그아웃
+- 모바일 화면
+
+을 실제 Vercel 주소에서 확인합니다.

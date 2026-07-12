@@ -201,6 +201,7 @@
 
   function ensurePartnerFields() {
     let fields = document.querySelector("#motfBusinessFields");
+    populateOwnerAccountFields();
     if (fields) return fields;
     const editSection = document.querySelector("#panel-mypage .edit-section");
     if (!editSection) return null;
@@ -253,6 +254,20 @@
     });
     window.lucide?.createIcons();
     return fields;
+  }
+
+  function populateOwnerAccountFields() {
+    const profile = window.motfCurrentProfile || {};
+    const business = window.motfCurrentBusiness || {};
+    const values = {
+      motfOwnerEmail: profile.email || "",
+      motfOwnerPhone: profile.phone || business.phone || "",
+      motfSettlementHolder: business.representative_name || profile.full_name || "",
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const input = document.getElementById(id);
+      if (input && !input.value) input.value = value || "";
+    });
   }
 
   function updatePhotoPreview(url = window.motfGetCurrentPhotoUrl?.()) {
@@ -343,6 +358,7 @@
   window.loadMotfPartnerBusiness = function loadMotfPartnerBusiness(business) {
     if (!business) return;
     ensurePartnerFields();
+    populateOwnerAccountFields();
     const values = {
       motfBusinessName: business.business_name,
       motfRepresentativeName: business.representative_name,
@@ -406,6 +422,7 @@
       facilities: window.motfReadFacilitiesFromDashboard?.() || [],
       updated_at: new Date().toISOString(),
     };
+    const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
 
     if (!payload.business_name || !payload.representative_name || !payload.region || !payload.address || !payload.description) {
       alert("업장명, 대표자명, 지역, 주소와 소개 문구를 모두 입력해주세요.");
@@ -434,7 +451,7 @@
       payload.location_verified_at = new Date().toISOString();
 
       if (saveButton) saveButton.textContent = "저장 중...";
-      const [{ data, error }, offeringResult] = await Promise.all([
+      const [{ data, error }, offeringResult, profileResult] = await Promise.all([
         client().from("businesses")
           .update(payload)
           .eq("id", business.id)
@@ -444,10 +461,14 @@
           target_business_id: business.id,
           items: offeringItems,
         }),
+        ownerPhone
+          ? client().from("profiles").update({ phone: ownerPhone, updated_at: new Date().toISOString() }).eq("id", window.motfCurrentProfile?.id)
+          : Promise.resolve({ error: null }),
       ]);
-      if (error || offeringResult.error) throw error || offeringResult.error;
+      if (error || offeringResult.error || profileResult.error) throw error || offeringResult.error || profileResult.error;
 
       window.motfCurrentBusiness = data;
+      if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
       window.motfApplyBusinessToDashboard?.(data);
       window.motfSetPartnerOnboarding?.(false);
       alert("업장 기본정보와 객실·상품, 지도 위치가 저장되었습니다.");
@@ -863,6 +884,8 @@
     box.innerHTML = availabilityBoxHtml(scope, offerings, blocks);
   }
 
+  window.motfRenderAvailabilityManager = renderAvailabilityManager;
+
   window.motfCreateAvailabilityBlock = async function motfCreateAvailabilityBlock(scope) {
     const offeringId = document.getElementById(`${scope}AvailabilityOffering`)?.value;
     const startDate = document.getElementById(`${scope}AvailabilityStart`)?.value;
@@ -971,11 +994,6 @@
     if (!window.motfCurrentBusiness) return originalRenderOrders?.();
     const area = document.getElementById("orderListArea");
     if (!area) return;
-    if (window.motfCurrentBusiness.business_type === "stay") {
-      renderAvailabilityManager("partner", window.motfCurrentBusiness.id);
-    } else {
-      document.getElementById("partnerAvailabilityManager")?.remove();
-    }
     const activeStatus = activePartnerOrderStatus();
     const rows = partnerTransactions.filter((item) => activeStatus === "pending"
       ? ["pending", "virtual_account_issued"].includes(item.status)
