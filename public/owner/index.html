@@ -1860,6 +1860,7 @@
       if (panelId === 'availability') {
         window.motfRenderAvailabilityManager?.('partner', window.motfCurrentBusiness?.id);
       }
+      window.dispatchEvent(new CustomEvent('motf:owner-panel-change', { detail: { panelId } }));
     }
 
     function adjustMonth(val) {
@@ -2045,6 +2046,9 @@
           currentSelectedChatUser = c.user;
           renderChatList();
           renderChatMessages();
+          window.dispatchEvent(new CustomEvent('motf:owner-chat-change', {
+            detail: { conversationId: c.conversationId }
+          }));
         };
 
         let badgeClass = 'status-badge-chatting';
@@ -2427,6 +2431,6 @@
       }, 0);
     })();
   </script>
-  <script src="owner-data.js?v=20260704-availability-settlement1"></script>
+  <script src="owner-data.js?v=20260713-chat-presence1"></script>
 </body>
 </html>

@@ -55,6 +55,32 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
     supabase.from("messages").select("id, sender_id, sender_role, body, created_at").eq("conversation_id", selectedConversation).order("created_at").then(({ data }) => setMessages(data || []));
   }, [selectedConversation, supabase]);
 
+  useEffect(() => {
+    if (menu !== "chat" || !selectedConversation) return;
+
+    const markRead = async () => {
+      if (document.visibilityState !== "visible") return;
+      await supabase.rpc("mark_conversation_read", { target_conversation_id: selectedConversation });
+    };
+    void markRead();
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void supabase.rpc("set_chat_presence", { target_conversation_id: selectedConversation, is_active: true });
+      }
+    }, 45_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void markRead();
+      else void supabase.rpc("set_chat_presence", { target_conversation_id: selectedConversation, is_active: false });
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      void supabase.rpc("set_chat_presence", { target_conversation_id: selectedConversation, is_active: false });
+    };
+  }, [menu, selectedConversation, supabase]);
+
   const revenue = useMemo(() => reservations.filter((item) => ["confirmed", "completed"].includes(item.status)).reduce((sum, item) => sum + item.total_amount, 0), [reservations]);
   const pendingCount = reservations.filter((item) => item.status === "pending").length;
   const filteredReservations = reservations.filter((item) => reservationFilter === "all" ? true : item.status === reservationFilter);
@@ -79,9 +105,10 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
     const form = event.currentTarget;
     const body = String(new FormData(form).get("message") || "").trim();
     if (!body) return;
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
-    const { error } = await supabase.from("messages").insert({ conversation_id: selectedConversation, sender_id: userData.user.id, sender_role: "partner", body });
+    const { error } = await supabase.rpc("send_chat_message", {
+      target_conversation_id: selectedConversation,
+      message_body: body,
+    });
     if (error) setNotice(error.message);
     else {
       form.reset();

@@ -1249,6 +1249,8 @@
   let adminChatBusinesses = [];
   let adminChatConversations = [];
   let chatReloadTimer = 0;
+  let partnerPresenceTimer = 0;
+  let partnerPresenceConversationId = "";
 
   function mapMessages(messages = []) {
     return [...messages]
@@ -1262,16 +1264,77 @@
       }));
   }
 
+  function selectedPartnerConversationId() {
+    return mockData[currentOwnerType]?.chats
+      ?.find((item) => item.user === currentSelectedChatUser)
+      ?.conversationId || "";
+  }
+
+  function isPartnerChatVisible() {
+    return window.motfCurrentProfile?.role === "partner"
+      && currentActivePanel === "chat"
+      && document.visibilityState === "visible"
+      && Boolean(selectedPartnerConversationId());
+  }
+
+  async function setPartnerPresence(conversationId, isActive) {
+    if (!client() || !conversationId) return;
+    const { error } = await client().rpc("set_chat_presence", {
+      target_conversation_id: conversationId,
+      is_active: isActive,
+    });
+    if (error) console.error(error);
+  }
+
+  function stopPartnerPresence() {
+    window.clearInterval(partnerPresenceTimer);
+    partnerPresenceTimer = 0;
+    const previousId = partnerPresenceConversationId;
+    partnerPresenceConversationId = "";
+    if (previousId) void setPartnerPresence(previousId, false);
+  }
+
+  async function syncPartnerConversation({ markRead = true } = {}) {
+    const conversationId = selectedPartnerConversationId();
+    if (!isPartnerChatVisible() || !conversationId) {
+      stopPartnerPresence();
+      return;
+    }
+
+    if (partnerPresenceConversationId && partnerPresenceConversationId !== conversationId) {
+      void setPartnerPresence(partnerPresenceConversationId, false);
+    }
+    partnerPresenceConversationId = conversationId;
+
+    if (markRead) {
+      const { error } = await client().rpc("mark_conversation_read", {
+        target_conversation_id: conversationId,
+      });
+      if (error) console.error(error);
+    } else {
+      await setPartnerPresence(conversationId, true);
+    }
+
+    window.clearInterval(partnerPresenceTimer);
+    partnerPresenceTimer = window.setInterval(() => {
+      if (!isPartnerChatVisible() || selectedPartnerConversationId() !== partnerPresenceConversationId) {
+        stopPartnerPresence();
+        return;
+      }
+      void setPartnerPresence(partnerPresenceConversationId, true);
+    }, 45_000);
+  }
+
+  window.motfSyncPartnerChatPresence = syncPartnerConversation;
+
   window.loadMotfPartnerChats = async function loadMotfPartnerChats(business = window.motfCurrentBusiness) {
     if (!client() || !business) return;
+    const selectedConversationId = selectedPartnerConversationId();
     const { data, error } = await client().from("conversations")
       .select("id, customer_name, group_name, last_message_at, messages(id, sender_role, body, created_at)")
       .eq("business_id", business.id)
       .order("last_message_at", { ascending: false });
     if (error) return console.error(error);
-    await Promise.all((data || []).map((conversation) => client().rpc("mark_conversation_read", {
-      target_conversation_id: conversation.id,
-    })));
     const chats = (data || []).map((conversation) => {
       const messages = mapMessages(conversation.messages);
       const userLabel = conversation.group_name
@@ -1286,9 +1349,12 @@
       };
     });
     mockData[currentOwnerType].chats = chats;
-    currentSelectedChatUser = chats[0]?.user || "";
+    currentSelectedChatUser = chats.find((item) => item.conversationId === selectedConversationId)?.user
+      || chats[0]?.user
+      || "";
     window.renderChatList?.();
     window.renderChatMessages?.();
+    await syncPartnerConversation({ markRead: true });
   };
 
   window.sendChatMessage = async function sendDatabaseChatMessage() {
@@ -1440,6 +1506,19 @@
       else if (window.motfCurrentBusiness) window.loadMotfPartnerChats();
     }, 250);
   }
+
+  window.addEventListener("motf:owner-panel-change", () => {
+    if (isPartnerChatVisible()) void syncPartnerConversation({ markRead: true });
+    else stopPartnerPresence();
+  });
+  window.addEventListener("motf:owner-chat-change", () => {
+    void syncPartnerConversation({ markRead: true });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (isPartnerChatVisible()) void syncPartnerConversation({ markRead: true });
+    else stopPartnerPresence();
+  });
+  window.addEventListener("pagehide", stopPartnerPresence);
 
   window.setTimeout(() => {
     if (!client()) return;
