@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
+  <link rel="icon" type="image/svg+xml" href="assets/motf-favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/motf-favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/motf-apple-touch-icon.png">
+  <meta property="og:site_name" content="moTF 사장님·운영팀">
+  <meta property="og:title" content="moTF - 사장님 및 본사 통합 관리 대시보드">
+  <meta property="og:image" content="https://motfowner.co.kr/owner/assets/motf-logo-icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:image" content="https://motfowner.co.kr/owner/assets/motf-logo-icon.png">
+  <meta itemprop="image" content="https://motfowner.co.kr/owner/assets/motf-logo-icon.png">
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
@@ -51,7 +60,24 @@
       align-items: center;
     }
     
-    /* 깔끔한 텍스트 기반 로고 스타일 */
+    /* 이용자 사이트와 동일한 브랜드 로고 이미지 */
+    .motf-brand-logo {
+      display: block;
+      width: auto;
+      height: 42px;
+      object-fit: contain;
+    }
+    .login-logo-wrapper .motf-brand-logo {
+      height: 56px;
+      max-width: 230px;
+    }
+    .sidebar-header .motf-brand-logo {
+      height: 34px;
+      max-width: 150px;
+      margin: 0 auto 10px auto;
+    }
+
+    /* 기존 텍스트 로고 fallback */
     .motf-simple-text-logo {
       font-size: 32px;
       font-weight: 800;
@@ -689,7 +715,7 @@
   <section id="login-view">
     <div class="login-card">
       <div class="login-logo-wrapper">
-        <div class="motf-simple-text-logo">moTF</div>
+        <img class="motf-brand-logo" src="assets/motf-logo-header.png" alt="moTF 모두의 TF">
       </div>
       <h2>moTF 대시보드 로그인</h2>
       <p class="login-subtitle">파트너와 운영팀을 위한 통합 관리 서비스</p>
@@ -733,7 +759,7 @@
   <main id="admin-main">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="motf-simple-text-logo">moTF</div>
+        <img class="motf-brand-logo" src="assets/motf-logo-header.png" alt="moTF 모두의 TF">
         <h3 id="sidebar-owner-name" class="owner-title">업장 정보를 불러오는 중...</h3>
       </div>
       
