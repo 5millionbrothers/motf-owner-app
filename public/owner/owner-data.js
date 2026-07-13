@@ -21,6 +21,11 @@
     "region",
     "cover_image_url",
     "facilities",
+    "nearby_tags",
+    "room_count",
+    "bath_count",
+    "amenity_details",
+    "extra_fees",
     "latitude",
     "longitude",
     "location_verified_at",
@@ -369,11 +374,18 @@
       motfBusinessAddress: business.address,
       motfBusinessAddressDetail: business.address_detail,
       editDescInput: business.description,
+      motfRoomCount: business.room_count,
+      motfBathCount: business.bath_count,
+      motfNearbyTags: (business.nearby_tags || []).join(", "),
+      motfExtraFees: (business.extra_fees || []).map((item) => `${item.label || ""}|${item.amount || ""}|${item.detail || ""}`).join("\n"),
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    const stayDetailFields = document.getElementById("motfStayDetailFields");
+    if (stayDetailFields) stayDetailFields.hidden = business.business_type !== "stay";
+    window.motfApplyAmenityDetailsToDashboard?.(business.amenity_details || []);
     const fields = document.getElementById("motfBusinessFields");
     if (fields && hasCoordinates(business)) {
       fields.dataset.latitude = String(business.latitude);
@@ -389,7 +401,7 @@
     bindPhotoUpload();
     updatePhotoPreview(business.cover_image_url || null);
     client().from("offerings")
-      .select("id, name, description, price, max_people, unit, category, image_url, sort_order")
+      .select("id, name, description, price, max_people, min_people, unit, category, image_url, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity")
       .eq("business_id", business.id)
       .order("sort_order")
       .then(({ data, error }) => {
@@ -420,6 +432,11 @@
       address_detail: document.getElementById("motfBusinessAddressDetail")?.value.trim() || null,
       description: document.getElementById("editDescInput")?.value.trim() || null,
       facilities: window.motfReadFacilitiesFromDashboard?.() || [],
+      nearby_tags: (document.getElementById("motfNearbyTags")?.value || "").split(",").map((item) => item.trim()).filter(Boolean),
+      room_count: Number(document.getElementById("motfRoomCount")?.value || 0),
+      bath_count: Number(document.getElementById("motfBathCount")?.value || 0),
+      amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
+      extra_fees: (document.getElementById("motfExtraFees")?.value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [label, amount, detail] = line.split("|").map((item) => item.trim()); return { label, amount: Number(amount) || null, detail: detail || null }; }),
       updated_at: new Date().toISOString(),
     };
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;

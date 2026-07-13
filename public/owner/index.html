@@ -923,6 +923,17 @@
             <div class="facility-container-vertical" id="facilityCheckGrid"></div>
           </div>
 
+          <div id="motfStayDetailFields">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">숙소 공간 및 추가요금</label>
+            <div class="motf-business-fields">
+              <label>전체 객실 수<input id="motfRoomCount" type="number" min="0" /></label>
+              <label>전체 화장실 수<input id="motfBathCount" type="number" min="0" /></label>
+              <label class="motf-field-wide">주변 환경 태그<input id="motfNearbyTags" placeholder="예: seaside, valley" /></label>
+              <label class="motf-field-wide">추가요금 상세<textarea id="motfExtraFees" rows="5" placeholder="바베큐 요금|120000|최대 30명\n숯/그릴|50000|1세트\n추가 인원|20000|1인 기준\n수영장|100000|하계 시즌"></textarea></label>
+            </div>
+            <p style="margin:7px 0 0;color:var(--muted);font-size:12px;">항목명 | 금액 | 설명 순서로 한 줄씩 입력하세요. 이용자 숙소 상세 화면에 그대로 연결됩니다.</p>
+          </div>
+
           <div style="margin-top:10px;">
             <button class="primary-btn" onclick="saveMypageData()"><i data-lucide="save"></i> 변경사항 저장하기</button>
           </div>
@@ -1169,12 +1180,13 @@
         rooms: [],
         photoTabs: ["전체 외관"],
         facilities: [
-          { name: "바베큐장", checked: true, desc: "30명 동시 수용 가능, 숯/그릴 세트 제공", placeholder: "바베큐 가능 인원, 추가 비용 등 요건들을 상세히 기입해 주세요" },
-          { name: "노래방", checked: true, desc: "최신 무선 마이크 2개 구비 및 방음 시설 완비", placeholder: "노트북 연결 가능 여부, 제한 이용 시간 등 상세 수칙을 기입해 주세요" },
-          { name: "족구장", checked: false, desc: "", placeholder: "구장 크기, 네트 수용 가능 인원 등 시설 규격을 적어주세요" },
-          { name: "수영장", checked: true, desc: "7~8월 하계 시즌 상시 개장", placeholder: "풀장 크기, 깊이, 동시 수용인원 수칙 등을 기술해 주세요" },
-          { name: "무료 와이파이", checked: true, desc: "", placeholder: "" }, 
-          { name: "주차", checked: true, desc: "대형 전용 버스 1대 및 일반 승용차 최대 8대 상시 무료 주차 가능", placeholder: "진입 가능한 버스 차량 크기 및 최대 주차 대수 한도를 명시해 주세요" }
+          { key: "barbecue", name: "야외바베큐", checked: true, desc: "30명 동시 수용 가능, 숯/그릴 세트 유료 제공", placeholder: "가능 인원, 숯·그릴 제공 여부와 비용을 적어주세요" },
+          { key: "karaoke", name: "노래방/마이크", checked: true, desc: "무선 마이크 2개 구비", placeholder: "장비와 이용 가능 시간을 적어주세요" },
+          { key: "field", name: "야외운동장", checked: false, desc: "", placeholder: "구장 크기와 이용 가능 종목을 적어주세요" },
+          { key: "pool", name: "수영장", checked: true, desc: "7~8월 하계 시즌 개장", placeholder: "크기, 깊이, 운영 기간과 요금을 적어주세요" },
+          { key: "screen", name: "TV/화면", checked: false, desc: "", placeholder: "TV, 빔프로젝터, 스크린 정보를 적어주세요" },
+          { key: "wifi", name: "무료 와이파이", checked: true, desc: "", placeholder: "" }, 
+          { key: "parking", name: "주차", checked: true, desc: "버스 1대 및 승용차 최대 8대", placeholder: "버스 진입 여부와 주차 대수를 적어주세요" }
         ],
         orders: [],
         chats: []
@@ -2183,6 +2195,13 @@
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null
+          ,feature_summary: item.feature_summary || []
+          ,amenity_details: item.amenity_details || []
+          ,detail_sections: item.detail_sections || {}
+          ,origin: item.origin || null
+          ,nutrition_info: item.nutrition_info || {}
+          ,is_alcohol: Boolean(item.is_alcohol)
+          ,stock_quantity: item.stock_quantity ?? null
         }));
         rebuildPhotoTabsArray();
         renderRoomPriceTable();
@@ -2200,7 +2219,14 @@
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null,
-          sort_order: index
+          sort_order: index,
+          feature_summary: item.feature_summary || [],
+          amenity_details: item.amenity_details || [],
+          detail_sections: item.detail_sections || {},
+          origin: item.origin || null,
+          nutrition_info: item.nutrition_info || {},
+          is_alcohol: Boolean(item.is_alcohol),
+          stock_quantity: item.stock_quantity ?? null
         }));
       };
       window.motfGetCurrentPhotoTarget = function() {
@@ -2230,7 +2256,20 @@
         if (currentOwnerType === 'admin') return [];
         return mockData[currentOwnerType].facilities
           .filter(item => item.checked)
-          .map(item => item.desc ? `${item.name}: ${item.desc}` : item.name);
+          .map(item => item.key || item.name);
+      };
+      window.motfReadAmenityDetailsFromDashboard = function() {
+        if (currentOwnerType !== 'stay') return [];
+        return mockData.stay.facilities.map(item => ({ key: item.key || item.name, label: item.name, available: Boolean(item.checked), detail: item.desc || null }));
+      };
+      window.motfApplyAmenityDetailsToDashboard = function(items) {
+        if (currentOwnerType !== 'stay' || !Array.isArray(items)) return;
+        const details = new Map(items.map(item => [item.key, item]));
+        mockData.stay.facilities.forEach(facility => {
+          const saved = details.get(facility.key);
+          if (saved) { facility.checked = saved.available !== false; facility.desc = saved.detail || ""; }
+        });
+        renderFacilityChips();
       };
 
       window.motfSetPartnerOnboarding = function(needsOnboarding) {

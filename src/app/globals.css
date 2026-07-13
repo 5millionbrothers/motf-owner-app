@@ -269,3 +269,6 @@ code { font-family: Consolas, monospace; }
 .auth-form input, .auth-form select { min-height:42px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--cream); }
 .primary-button { min-height:44px; border-radius:8px; background:var(--teal); }
 .kakao-button, .switch-button { border-radius:8px; }
+.business-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.business-form textarea { line-height:1.55; resize:vertical; }
+@media (max-width:720px) { .business-form-grid { grid-template-columns:1fr; } }
