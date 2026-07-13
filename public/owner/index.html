@@ -53,7 +53,7 @@
     .login-logo-wrapper {
       background-color: var(--cream);
       margin: -40px -40px 24px -40px; 
-      padding: 36px 20px;
+      padding: 34px 20px;
       border-bottom: 1px solid var(--line);
       display: flex;
       justify-content: center;
@@ -64,17 +64,19 @@
     .motf-brand-logo {
       display: block;
       width: auto;
-      height: 42px;
+      height: 38px;
       object-fit: contain;
+      image-rendering: auto;
     }
     .login-logo-wrapper .motf-brand-logo {
-      height: 56px;
-      max-width: 230px;
+      height: 48px;
+      max-width: 210px;
     }
     .sidebar-header .motf-brand-logo {
-      height: 34px;
-      max-width: 150px;
-      margin: 0 auto 10px auto;
+      height: 26px;
+      max-width: 120px;
+      flex: 0 0 auto;
+      margin: 0;
     }
 
     /* 기존 텍스트 로고 fallback */
@@ -155,11 +157,11 @@
     
     .sidebar-header {
       height: var(--topbar-height);
-      padding: 0 20px;
+      padding: 0 18px;
       background-color: var(--paper); 
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
       box-sizing: border-box;
     }
     .sidebar-header .motf-simple-text-logo {
@@ -902,7 +904,7 @@
           <label class="motf-field-wide">정산 예금주
             <input id="motfSettlementHolder" maxlength="50" placeholder="사업자 또는 대표자명과 동일하게 입력" />
           </label>
-          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 입력 화면만 먼저 준비된 상태입니다. 실제 저장은 정산 DB 컬럼 연결 후 활성화됩니다.</p>
+          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 저장 후 운영팀 정산 관리에 활용됩니다.</p>
         </div>
 
         <h3>서비스 제공 유저화면 미리보기</h3>

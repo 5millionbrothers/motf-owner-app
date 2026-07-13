@@ -26,6 +26,9 @@
     "bath_count",
     "amenity_details",
     "extra_fees",
+    "settlement_bank",
+    "settlement_account_number",
+    "settlement_account_holder",
     "latitude",
     "longitude",
     "location_verified_at",
@@ -267,11 +270,13 @@
     const values = {
       motfOwnerEmail: profile.email || "",
       motfOwnerPhone: profile.phone || business.phone || "",
-      motfSettlementHolder: business.representative_name || profile.full_name || "",
+      motfSettlementBank: business.settlement_bank || "",
+      motfSettlementAccount: business.settlement_account_number || "",
+      motfSettlementHolder: business.settlement_account_holder || business.representative_name || profile.full_name || "",
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
-      if (input && !input.value) input.value = value || "";
+      if (input) input.value = value || "";
     });
   }
 
@@ -437,6 +442,9 @@
       bath_count: Number(document.getElementById("motfBathCount")?.value || 0),
       amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
       extra_fees: (document.getElementById("motfExtraFees")?.value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [label, amount, detail] = line.split("|").map((item) => item.trim()); return { label, amount: Number(amount) || null, detail: detail || null }; }),
+      settlement_bank: document.getElementById("motfSettlementBank")?.value.trim() || null,
+      settlement_account_number: document.getElementById("motfSettlementAccount")?.value.trim() || null,
+      settlement_account_holder: document.getElementById("motfSettlementHolder")?.value.trim() || null,
       updated_at: new Date().toISOString(),
     };
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
@@ -488,7 +496,7 @@
       if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
       window.motfApplyBusinessToDashboard?.(data);
       window.motfSetPartnerOnboarding?.(false);
-      alert("업장 기본정보와 객실·상품, 지도 위치가 저장되었습니다.");
+      alert("업장 기본정보와 객실·상품, 지도 위치, 정산 정보가 저장되었습니다.");
     } catch (error) {
       console.error(error);
       alert(error.message || "업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
