@@ -81,3 +81,27 @@
     grid-column: auto;
   }
 }
+.owner-description-preview {
+  display: -webkit-box;
+  min-height: 66px;
+  max-height: 92px;
+  margin: 0 0 12px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.58;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.motf-photo-upload-preview.active {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.motf-photo-upload-preview figure { margin: 0; }
+.motf-photo-upload-preview img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
+.motf-photo-upload-preview figcaption { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.motf-field-status { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.45; }

@@ -48,3 +48,9 @@ Vercel 배포 주소가 발급되면 Supabase의 **Authentication → URL Config
 - 모바일 화면
 
 을 실제 Vercel 주소에서 확인합니다.
+# 추가 환경변수 (사업자 상태 확인)
+
+- `SUPABASE_SERVICE_ROLE_KEY`: 서버 API에서 본인 업장 확인 결과를 저장할 때만 사용
+- `DATA_GO_KR_SERVICE_KEY`: 공공데이터포털의 국세청 사업자등록 상태조회 서비스 일반 인증키(Decoding)
+
+두 값 모두 Vercel 서버 환경변수로만 등록하고 `NEXT_PUBLIC_` 접두사를 붙이지 않습니다. 상태조회는 계속사업 여부를 확인하는 단계이며, 최종 사업자 인증은 운영팀의 사업자등록증 대조 후 완료합니다.

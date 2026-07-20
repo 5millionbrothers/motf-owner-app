@@ -14,21 +14,22 @@
     "representative_name",
     "phone",
     "business_number",
+    "business_number_verification_status",
+    "business_number_status_checked_at",
+    "business_number_verified_at",
     "address",
     "address_detail",
     "postal_code",
     "description",
     "region",
     "cover_image_url",
+    "gallery_image_urls",
     "facilities",
     "nearby_tags",
     "room_count",
     "bath_count",
     "amenity_details",
     "extra_fees",
-    "settlement_bank",
-    "settlement_account_number",
-    "settlement_account_holder",
     "latitude",
     "longitude",
     "location_verified_at",
@@ -207,6 +208,37 @@
     alert(error.message || "주소 위치를 확인하지 못했습니다.");
   });
 
+  window.motfVerifyBusinessNumber = async function verifyBusinessNumber() {
+    const number = String(document.getElementById("motfBusinessNumber")?.value || "").replace(/\D/g, "");
+    const status = document.getElementById("motfBusinessNumberStatus");
+    const button = document.getElementById("motfVerifyBusinessNumberButton");
+    if (number.length !== 10) {
+      alert("사업자등록번호 숫자 10자리를 입력해주세요.");
+      return;
+    }
+    const { data: sessionData } = await client().auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error("로그인이 만료되었습니다.");
+    if (status) status.textContent = "국세청 사업자 상태를 확인하는 중입니다.";
+    button?.setAttribute("disabled", "disabled");
+    try {
+      const response = await fetch("/api/verify-business-number", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ businessNumber: number, businessId: window.motfCurrentBusiness?.id }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.message || "사업자 상태를 확인하지 못했습니다.");
+      if (status) status.textContent = "영업 중인 사업자로 확인되었습니다. 운영팀 서류 대조 후 최종 인증됩니다.";
+    } catch (error) {
+      const message = error.message || "사업자 상태를 확인하지 못했습니다.";
+      if (status) status.textContent = message;
+      alert(message);
+    } finally {
+      button?.removeAttribute("disabled");
+    }
+  };
+
   function ensurePartnerFields() {
     let fields = document.querySelector("#motfBusinessFields");
     populateOwnerAccountFields();
@@ -226,9 +258,14 @@
       </label>
       <label>업장 연락처
         <input id="motfBusinessPhone" maxlength="30" autocomplete="tel" />
+        <small class="motf-field-status">휴대폰 본인확인은 KG이니시스 통합인증 연결 후 활성화됩니다.</small>
       </label>
       <label>사업자등록번호
-        <input id="motfBusinessNumber" maxlength="30" />
+        <span class="motf-address-search-row">
+          <input id="motfBusinessNumber" maxlength="30" inputmode="numeric" placeholder="숫자 10자리" />
+          <button type="button" id="motfVerifyBusinessNumberButton" class="motf-address-search-button" onclick="motfVerifyBusinessNumber()">상태 확인</button>
+        </span>
+        <small id="motfBusinessNumberStatus" class="motf-field-status">국세청 영업 상태 확인 후 운영팀이 서류와 대조해 최종 인증합니다.</small>
       </label>
       <label>지역
         <input id="motfBusinessRegion" maxlength="50" placeholder="예: 가평" />
@@ -252,6 +289,7 @@
           </button>
           <small id="motfBusinessLocationStatus" class="motf-location-status" data-state="pending">지도에 표시할 위치를 확인해주세요.</small>
         </span>
+        <small class="motf-field-status">위치 확인은 도로명주소로만 진행하며 상세주소는 좌표 검색에 사용하지 않습니다.</small>
       </label>
     `;
     editSection.insertBefore(fields, editSection.firstElementChild);
@@ -270,26 +308,25 @@
     const values = {
       motfOwnerEmail: profile.email || "",
       motfOwnerPhone: profile.phone || business.phone || "",
-      motfSettlementBank: business.settlement_bank || "",
-      motfSettlementAccount: business.settlement_account_number || "",
-      motfSettlementHolder: business.settlement_account_holder || business.representative_name || profile.full_name || "",
+      motfSettlementHolder: business.representative_name || profile.full_name || "",
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
-      if (input) input.value = value || "";
+      if (input && !input.value) input.value = value || "";
     });
   }
 
-  function updatePhotoPreview(url = window.motfGetCurrentPhotoUrl?.()) {
+  function updatePhotoPreview() {
     const preview = document.getElementById("motfPhotoUploadPreview");
     if (!preview) return;
-    if (!url) {
+    const urls = window.motfGetCurrentPhotoUrls?.() || [];
+    if (!urls.length) {
       preview.classList.remove("active");
       preview.innerHTML = "";
       return;
     }
     preview.classList.add("active");
-    preview.innerHTML = `<img src="${escapeHtml(url)}" alt="등록된 사진"><span>현재 등록된 사진</span>`;
+    preview.innerHTML = urls.map((url, index) => `<figure><img src="${escapeHtml(url)}" alt="등록된 사진 ${index + 1}"><figcaption>${index === 0 ? "대표사진" : `사진 ${index + 1}`}</figcaption></figure>`).join("");
   }
 
   window.motfRefreshPhotoPreview = updatePhotoPreview;
@@ -299,53 +336,58 @@
     if (!input || input.dataset.storageBound) return;
     input.dataset.storageBound = "true";
     input.addEventListener("change", async () => {
-      const file = input.files?.[0];
+      const files = [...(input.files || [])];
       const business = window.motfCurrentBusiness;
       const profile = window.motfCurrentProfile;
       const target = window.motfGetCurrentPhotoTarget?.();
-      if (!file || !business || !profile || !target) return;
-      if (!file.type.startsWith("image/")) {
+      if (!files.length || !business || !profile || !target) return;
+      if (files.length > 10) {
+        alert("사진은 한 번에 최대 10장까지 업로드할 수 있습니다.");
+        input.value = "";
+        return;
+      }
+      if (files.some((file) => !file.type.startsWith("image/"))) {
         alert("이미지 파일만 업로드할 수 있습니다.");
         input.value = "";
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
+      if (files.some((file) => file.size > 5 * 1024 * 1024)) {
         alert("사진은 한 장당 5MB 이하만 업로드할 수 있습니다.");
         input.value = "";
         return;
       }
 
       input.disabled = true;
-      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const objectPath = `${profile.id}/${business.id}/${crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await client().storage
-        .from("catalog-images")
-        .upload(objectPath, file, { cacheControl: "3600", upsert: false });
-
-      if (uploadError) {
-        console.error(uploadError);
-        input.disabled = false;
-        input.value = "";
-        alert("사진을 업로드하지 못했습니다.");
-        return;
+      const uploadedUrls = [];
+      for (const file of files) {
+        const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const objectPath = `${profile.id}/${business.id}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await client().storage
+          .from("catalog-images")
+          .upload(objectPath, file, { cacheControl: "3600", upsert: false });
+        if (uploadError) {
+          console.error(uploadError);
+          input.disabled = false;
+          input.value = "";
+          alert(`${file.name} 사진을 업로드하지 못했습니다.`);
+          return;
+        }
+        const { data: publicData } = client().storage.from("catalog-images").getPublicUrl(objectPath);
+        if (publicData?.publicUrl) uploadedUrls.push(publicData.publicUrl);
       }
-
-      const { data: publicData } = client().storage
-        .from("catalog-images")
-        .getPublicUrl(objectPath);
-      const publicUrl = publicData.publicUrl;
       let saveError = null;
 
       if (target.type === "business") {
+        const gallery = [...new Set([...(business.gallery_image_urls || []), ...uploadedUrls])];
         const result = await client().from("businesses")
-          .update({ cover_image_url: publicUrl, updated_at: new Date().toISOString() })
+          .update({ cover_image_url: gallery[0] || null, gallery_image_urls: gallery, updated_at: new Date().toISOString() })
           .eq("id", business.id)
           .select(businessSelect)
           .single();
         saveError = result.error;
         if (!saveError) window.motfCurrentBusiness = result.data;
       } else {
-        window.motfSetCurrentPhotoUrl?.(publicUrl);
+        window.motfSetCurrentPhotoUrls?.(uploadedUrls);
         const result = await client().rpc("save_business_offerings", {
           target_business_id: business.id,
           items: window.motfReadOfferingsFromDashboard?.() || [],
@@ -360,8 +402,8 @@
         alert("사진 주소를 업장 정보에 저장하지 못했습니다.");
         return;
       }
-      updatePhotoPreview(publicUrl);
-      alert("사진이 저장되었습니다. 이용자 화면에도 반영됩니다.");
+      updatePhotoPreview();
+      alert(`${uploadedUrls.length}장의 사진이 저장되었습니다. 이용자 화면에도 반영됩니다.`);
     });
   }
 
@@ -388,6 +430,14 @@
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    const businessNumberStatus = document.getElementById("motfBusinessNumberStatus");
+    if (businessNumberStatus) {
+      businessNumberStatus.textContent = business.business_number_verification_status === "verified"
+        ? "사업자등록번호 최종 인증이 완료되었습니다."
+        : business.business_number_verification_status === "active_checked"
+          ? "영업 중인 사업자로 확인되었습니다. 운영팀 서류 대조 후 최종 인증됩니다."
+          : "국세청 영업 상태 확인 후 운영팀이 서류와 대조해 최종 인증합니다.";
+    }
     const stayDetailFields = document.getElementById("motfStayDetailFields");
     if (stayDetailFields) stayDetailFields.hidden = business.business_type !== "stay";
     window.motfApplyAmenityDetailsToDashboard?.(business.amenity_details || []);
@@ -405,19 +455,32 @@
     }
     bindPhotoUpload();
     updatePhotoPreview(business.cover_image_url || null);
-    client().from("offerings")
-      .select("id, name, description, price, max_people, min_people, unit, category, image_url, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity")
-      .eq("business_id", business.id)
-      .order("sort_order")
-      .then(({ data, error }) => {
-        if (!error) {
-          const offerings = data || [];
-          window.motfApplyOfferingsToDashboard?.(offerings);
-          updatePhotoPreview();
-          const needsOnboarding = !business.region || !business.address || !business.description || !offerings.length;
-          window.motfSetPartnerOnboarding?.(needsOnboarding);
-        }
-      });
+    const loadOfferings = async () => {
+      let result = await client().from("offerings")
+        .select("id, name, description, price, max_people, min_people, unit, category, image_url, image_urls, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity")
+        .eq("business_id", business.id)
+        .order("sort_order");
+
+      // Keep the operating portal usable while optional detail columns are being migrated.
+      if (result.error) {
+        result = await client().from("offerings")
+          .select("id, name, description, price, max_people, min_people, unit, category, image_url, sort_order")
+          .eq("business_id", business.id)
+          .order("sort_order");
+      }
+
+      if (result.error) {
+        console.error("Failed to load offerings", result.error);
+        return;
+      }
+
+      const offerings = result.data || [];
+      window.motfApplyOfferingsToDashboard?.(offerings);
+      updatePhotoPreview();
+      const needsOnboarding = !business.region || !business.address || !business.description || !offerings.length;
+      window.motfSetPartnerOnboarding?.(needsOnboarding);
+    };
+    loadOfferings();
   };
 
   window.saveMypageData = async function saveMypageDataToDatabase() {
@@ -442,9 +505,6 @@
       bath_count: Number(document.getElementById("motfBathCount")?.value || 0),
       amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
       extra_fees: (document.getElementById("motfExtraFees")?.value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [label, amount, detail] = line.split("|").map((item) => item.trim()); return { label, amount: Number(amount) || null, detail: detail || null }; }),
-      settlement_bank: document.getElementById("motfSettlementBank")?.value.trim() || null,
-      settlement_account_number: document.getElementById("motfSettlementAccount")?.value.trim() || null,
-      settlement_account_holder: document.getElementById("motfSettlementHolder")?.value.trim() || null,
       updated_at: new Date().toISOString(),
     };
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
@@ -496,7 +556,7 @@
       if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
       window.motfApplyBusinessToDashboard?.(data);
       window.motfSetPartnerOnboarding?.(false);
-      alert("업장 기본정보와 객실·상품, 지도 위치, 정산 정보가 저장되었습니다.");
+      alert("업장 기본정보와 객실·상품, 지도 위치가 저장되었습니다.");
     } catch (error) {
       console.error(error);
       alert(error.message || "업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");

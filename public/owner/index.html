@@ -4,15 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="icon" type="image/svg+xml" href="assets/motf-favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/motf-favicon-32.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="assets/motf-apple-touch-icon.png">
-  <meta property="og:site_name" content="moTF 사장님·운영팀">
-  <meta property="og:title" content="moTF - 사장님 및 본사 통합 관리 대시보드">
-  <meta property="og:image" content="https://motfowner.co.kr/owner/assets/motf-logo-icon.png">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:image" content="https://motfowner.co.kr/owner/assets/motf-logo-icon.png">
-  <meta itemprop="image" content="https://motfowner.co.kr/owner/assets/motf-logo-icon.png">
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
@@ -53,33 +44,14 @@
     .login-logo-wrapper {
       background-color: var(--cream);
       margin: -40px -40px 24px -40px; 
-      padding: 34px 20px;
+      padding: 36px 20px;
       border-bottom: 1px solid var(--line);
       display: flex;
       justify-content: center;
       align-items: center;
     }
     
-    /* 이용자 사이트와 동일한 브랜드 로고 이미지 */
-    .motf-brand-logo {
-      display: block;
-      width: auto;
-      height: 38px;
-      object-fit: contain;
-      image-rendering: auto;
-    }
-    .login-logo-wrapper .motf-brand-logo {
-      height: 48px;
-      max-width: 210px;
-    }
-    .sidebar-header .motf-brand-logo {
-      height: 26px;
-      max-width: 120px;
-      flex: 0 0 auto;
-      margin: 0;
-    }
-
-    /* 기존 텍스트 로고 fallback */
+    /* 깔끔한 텍스트 기반 로고 스타일 */
     .motf-simple-text-logo {
       font-size: 32px;
       font-weight: 800;
@@ -157,11 +129,11 @@
     
     .sidebar-header {
       height: var(--topbar-height);
-      padding: 0 18px;
+      padding: 0 20px;
       background-color: var(--paper); 
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
       box-sizing: border-box;
     }
     .sidebar-header .motf-simple-text-logo {
@@ -717,7 +689,7 @@
   <section id="login-view">
     <div class="login-card">
       <div class="login-logo-wrapper">
-        <img class="motf-brand-logo" src="assets/motf-logo-header.png" alt="moTF 모두의 TF">
+        <div class="motf-simple-text-logo">moTF</div>
       </div>
       <h2>moTF 대시보드 로그인</h2>
       <p class="login-subtitle">파트너와 운영팀을 위한 통합 관리 서비스</p>
@@ -761,7 +733,7 @@
   <main id="admin-main">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <img class="motf-brand-logo" src="assets/motf-logo-header.png" alt="moTF 모두의 TF">
+        <div class="motf-simple-text-logo">moTF</div>
         <h3 id="sidebar-owner-name" class="owner-title">업장 정보를 불러오는 중...</h3>
       </div>
       
@@ -904,13 +876,13 @@
           <label class="motf-field-wide">정산 예금주
             <input id="motfSettlementHolder" maxlength="50" placeholder="사업자 또는 대표자명과 동일하게 입력" />
           </label>
-          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 저장 후 운영팀 정산 관리에 활용됩니다.</p>
+          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 입력 화면만 먼저 준비된 상태입니다. 실제 저장은 정산 DB 컬럼 연결 후 활성화됩니다.</p>
         </div>
 
         <h3>서비스 제공 유저화면 미리보기</h3>
         <div class="preview-box">
           <h4 id="preview-display-name" style="margin:0 0 8px 0; font-size:18px; color:var(--teal-dark);">업장명</h4>
-          <p id="preview-display-desc" style="margin:0 0 12px 0; font-size:14px; color:var(--ink);">소개 문구를 입력해주세요.</p>
+          <p id="preview-display-desc" class="owner-description-preview">소개 문구를 입력해주세요.</p>
           <div id="preview-room-prices-summary" style="font-size:13px; color:var(--muted); line-height:1.6;"></div>
         </div>
 
@@ -918,7 +890,7 @@
         <div class="edit-section">
           <div>
             <label style="display:block; font-weight:600; margin-bottom:6px;">소개 문구 편집</label>
-            <textarea id="editDescInput" rows="3" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--line); font-family:inherit;"></textarea>
+            <textarea id="editDescInput" rows="6" maxlength="1000" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--line); font-family:inherit;" placeholder="단체 이용에 중요한 공간, 이동, 소음 규칙과 장점을 구체적으로 적어주세요."></textarea>
           </div>
 
           <div id="priceSettingWrapperSector">
@@ -937,11 +909,12 @@
           </div>
 
           <div>
-            <label style="display:block; font-weight:600; margin-bottom:4px;" id="mypage-upload-title">구역별 대표 사진 업로드 관리</label>
+            <label style="display:block; font-weight:600; margin-bottom:4px;" id="mypage-upload-title">구역별 사진 여러 장 관리</label>
             <div class="photo-tab-wrapper" id="photoCategoryContainer"></div>
             <div style="background-color: var(--cream); border:1px solid var(--line); padding:16px; border-radius:8px; margin-top:12px;">
               <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 구역: 전체 외관</span>
-              <input type="file" id="motfPhotoUploadInput" accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
+              <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
+              <small style="display:block;margin-top:7px;color:var(--muted);">한 번에 최대 10장 · 첫 번째 사진이 대표사진으로 표시됩니다.</small>
               <div id="motfPhotoUploadPreview" class="motf-photo-upload-preview"></div>
             </div>
           </div>
@@ -2226,7 +2199,8 @@
           max_people: item.max_people || null,
           unit: item.unit || null,
           category: item.category || null,
-          image_url: item.image_url || null
+          image_url: item.image_url || null,
+          image_urls: item.image_urls || (item.image_url ? [item.image_url] : [])
           ,feature_summary: item.feature_summary || []
           ,amenity_details: item.amenity_details || []
           ,detail_sections: item.detail_sections || {}
@@ -2251,6 +2225,7 @@
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null,
+          image_urls: item.image_urls || (item.image_url ? [item.image_url] : []),
           sort_order: index,
           feature_summary: item.feature_summary || [],
           amenity_details: item.amenity_details || [],
@@ -2271,18 +2246,30 @@
           : currentSelectedPhotoIndex;
         return { type: 'offering', index: roomIndex };
       };
-      window.motfSetCurrentPhotoUrl = function(url) {
+      window.motfSetCurrentPhotoUrls = function(urls) {
         const target = window.motfGetCurrentPhotoTarget();
         if (!target) return;
         if (target.type === 'business') return;
         const item = mockData[currentOwnerType].rooms[target.index];
-        if (item) item.image_url = url;
+        if (item) {
+          item.image_urls = [...new Set([...(item.image_urls || []), ...urls])];
+          item.image_url = item.image_urls[0] || null;
+        }
+      };
+      window.motfSetCurrentPhotoUrl = function(url) {
+        window.motfSetCurrentPhotoUrls?.([url]);
+      };
+      window.motfGetCurrentPhotoUrls = function() {
+        const target = window.motfGetCurrentPhotoTarget();
+        if (!target) return [];
+        if (target.type === 'business') return window.motfCurrentBusiness?.gallery_image_urls?.length
+          ? window.motfCurrentBusiness.gallery_image_urls
+          : window.motfCurrentBusiness?.cover_image_url ? [window.motfCurrentBusiness.cover_image_url] : [];
+        const item = mockData[currentOwnerType].rooms[target.index];
+        return item?.image_urls?.length ? item.image_urls : item?.image_url ? [item.image_url] : [];
       };
       window.motfGetCurrentPhotoUrl = function() {
-        const target = window.motfGetCurrentPhotoTarget();
-        if (!target) return null;
-        if (target.type === 'business') return window.motfCurrentBusiness?.cover_image_url || null;
-        return mockData[currentOwnerType].rooms[target.index]?.image_url || null;
+        return window.motfGetCurrentPhotoUrls?.()[0] || null;
       };
       window.motfReadFacilitiesFromDashboard = function() {
         if (currentOwnerType === 'admin') return [];
@@ -2342,11 +2329,23 @@
           throw new Error('사장님 또는 운영팀 계정으로 로그인해 주세요.');
         }
 
-        const { data: business } = await supabaseClient
+        const coreBusinessFields = 'id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, region, cover_image_url, facilities, latitude, longitude, approval_status, rejection_reason';
+        const { data: coreBusiness, error: businessError } = await supabaseClient
           .from('businesses')
-          .select('id, owner_id, business_type, business_name, representative_name, phone, business_number, address, address_detail, postal_code, description, region, cover_image_url, facilities, latitude, longitude, location_verified_at, approval_status, rejection_reason')
+          .select(coreBusinessFields)
           .eq('owner_id', user.id)
           .maybeSingle();
+
+        if (businessError) throw new Error(`업장 정보를 불러오지 못했습니다: ${businessError.message}`);
+        let business = coreBusiness;
+        if (business) {
+          const { data: extendedBusiness, error: extendedError } = await supabaseClient
+            .from('businesses')
+            .select('id, address_detail, postal_code, gallery_image_urls, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
+            .eq('id', business.id)
+            .maybeSingle();
+          if (!extendedError && extendedBusiness) business = { ...business, ...extendedBusiness };
+        }
 
         if (!business) throw new Error('연결된 업장 정보를 찾을 수 없습니다.');
         if (business.approval_status !== 'approved') {
