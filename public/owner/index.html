@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260721-catalog1">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -682,7 +682,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="owner-data.css?v=20260621-data4">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260721-catalog1">
 </head>
 <body>
 
@@ -772,7 +772,7 @@
           <div class="calendar-detail-sidebar-box" id="calendarClickDetailLayer">
             <h4 style="margin-top:0; color:var(--teal-dark); font-size:15px; border-bottom:1px solid var(--line); padding-bottom:8px;"><i data-lucide="info" style="width:14px; display:inline; vertical-align:middle;"></i> 일별 상세 정보</h4>
             <div id="calendarLayerDynamicContent" style="font-size:13px; color:var(--muted); line-height:1.6;">
-              캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보 레이아웃이 로드됩니다.
+              날짜를 누르면 객실별 예약·입금 대기·수동 방막기 상태를 확인하고 바로 관리할 수 있습니다.
             </div>
           </div>
         </div>
@@ -886,11 +886,23 @@
           <div id="preview-room-prices-summary" style="font-size:13px; color:var(--muted); line-height:1.6;"></div>
         </div>
 
-        <h3>⚙️ 데이터 상세 편집</h3>
+        <h3 class="owner-section-title"><i data-lucide="settings-2"></i>데이터 상세 편집</h3>
         <div class="edit-section">
           <div>
-            <label style="display:block; font-weight:600; margin-bottom:6px;">소개 문구 편집</label>
-            <textarea id="editDescInput" rows="6" maxlength="1000" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--line); font-family:inherit;" placeholder="단체 이용에 중요한 공간, 이동, 소음 규칙과 장점을 구체적으로 적어주세요."></textarea>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">목록에 보이는 한 줄 소개 <span class="field-optional">최대 140자</span></label>
+            <textarea id="motfShortDescription" rows="2" maxlength="140" class="owner-textarea" placeholder="예: 대성리역 차량 5분, 40명 단체가 한 공간에서 이용하는 독채 펜션"></textarea>
+            <small class="motf-field-status">숙소 목록과 지도 옆 카드에는 이 문구만 간결하게 표시됩니다.</small>
+            <label style="display:block; font-weight:600; margin:18px 0 6px;">상세 소개</label>
+            <textarea id="editDescInput" rows="8" maxlength="3000" class="owner-textarea" placeholder="공간 구성, 단체 이용 장점, 체크인 안내와 주변 환경을 충분히 설명해주세요."></textarea>
+            <div class="owner-highlight-editor">
+              <strong>카드 핵심 정보 <span class="field-optional">최대 3개</span></strong>
+              <p>이용자가 숙소를 비교할 때 가장 먼저 볼 짧은 정보입니다.</p>
+              <div class="owner-highlight-grid">
+                <input id="motfHighlight1" maxlength="28" placeholder="예: 대성리역 차량 5분" />
+                <input id="motfHighlight2" maxlength="28" placeholder="예: 최대 40명 독채" />
+                <input id="motfHighlight3" maxlength="28" placeholder="예: 야외바베큐 가능" />
+              </div>
+            </div>
           </div>
 
           <div id="priceSettingWrapperSector">
@@ -898,8 +910,11 @@
             <table class="room-price-table">
               <thead>
                 <tr>
-                  <th id="tableHeaderNameTitle">객실명 (수정 시 아래 사진탭 자동 연동)</th>
-                  <th style="width:180px;">설정 가격 (원)</th>
+                  <th id="tableHeaderNameTitle">객실명</th>
+                  <th>기본요금</th>
+                  <th>기준인원</th>
+                  <th>최대인원</th>
+                  <th>추가 1인 요금</th>
                   <th style="width:80px; text-align:center;">관리</th>
                 </tr>
               </thead>
@@ -914,7 +929,7 @@
             <div style="background-color: var(--cream); border:1px solid var(--line); padding:16px; border-radius:8px; margin-top:12px;">
               <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 구역: 전체 외관</span>
               <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
-              <small style="display:block;margin-top:7px;color:var(--muted);">한 번에 최대 10장 · 첫 번째 사진이 대표사진으로 표시됩니다.</small>
+              <small style="display:block;margin-top:7px;color:var(--muted);">새 사진은 기존 사진 뒤에 추가됩니다. 대표 지정·순서 이동·개별 삭제가 가능합니다.</small>
               <div id="motfPhotoUploadPreview" class="motf-photo-upload-preview"></div>
             </div>
           </div>
@@ -929,10 +944,17 @@
             <div class="motf-business-fields">
               <label>전체 객실 수<input id="motfRoomCount" type="number" min="0" /></label>
               <label>전체 화장실 수<input id="motfBathCount" type="number" min="0" /></label>
-              <label class="motf-field-wide">주변 환경 태그<input id="motfNearbyTags" placeholder="예: seaside, valley" /></label>
-              <label class="motf-field-wide">추가요금 상세<textarea id="motfExtraFees" rows="5" placeholder="바베큐 요금|120000|최대 30명\n숯/그릴|50000|1세트\n추가 인원|20000|1인 기준\n수영장|100000|하계 시즌"></textarea></label>
+              <div class="motf-field-wide owner-choice-section">
+                <strong>주변 환경</strong>
+                <p>해당되는 항목을 눌러주세요. 이용자 필터와 상세 화면에 연결됩니다.</p>
+                <div id="motfNearbyTagChoices" class="owner-choice-grid"></div>
+              </div>
+              <div class="motf-field-wide owner-fee-section">
+                <div class="owner-section-row"><div><strong>추가요금</strong><p>필수 또는 선택 요금을 한 줄씩 등록해주세요.</p></div><button type="button" class="secondary-btn compact" onclick="motfAddExtraFeeRow()"><i data-lucide="plus"></i>요금 추가</button></div>
+                <div id="motfExtraFeeRows" class="owner-fee-rows"></div>
+              </div>
             </div>
-            <p style="margin:7px 0 0;color:var(--muted);font-size:12px;">항목명 | 금액 | 설명 순서로 한 줄씩 입력하세요. 이용자 숙소 상세 화면에 그대로 연결됩니다.</p>
+            <p style="margin:7px 0 0;color:var(--muted);font-size:12px;">입력한 시설과 요금은 이용자 숙소 상세 화면에 자동으로 정리됩니다.</p>
           </div>
 
           <div style="margin-top:10px;">
@@ -1156,6 +1178,12 @@
     let masterSelectedChatUser = '';
     let masterContentTab = 'reviews';
     let currentRegisteredProfile = null;
+
+    function escapeDashboardHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[character]));
+    }
 
     const COMMISSION_RATES = {
       stay: 7,    
@@ -1711,14 +1739,25 @@
       tbody.innerHTML = '';
       const data = mockData[currentOwnerType];
 
+      const attr = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
       data.rooms.forEach((room, idx) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>
-            <input type="text" value="${room.name}" style="padding:6px; border:1px solid var(--line); border-radius:4px; width:92%; font-family:inherit; font-weight:550;" oninput="syncRoomName(${idx}, this.value)">
+            <input type="text" value="${attr(room.name)}" class="owner-table-input room-name" oninput="syncRoomName(${idx}, this.value)">
           </td>
           <td>
-            <input type="number" value="${room.price}" class="room-price-input" oninput="syncRoomPrice(${idx}, this.value)"> <span style="font-size:13px;">원</span>
+            <div class="money-input-wrap"><input type="text" inputmode="numeric" value="${Number(room.price || 0).toLocaleString('ko-KR')}" class="owner-table-input" oninput="syncRoomMoney(${idx}, 'price', this)"><span>원</span></div>
+          </td>
+          <td>
+            <div class="number-input-wrap"><input type="number" min="1" value="${room.base_people || room.min_people || ''}" class="owner-table-input" oninput="syncRoomNumber(${idx}, 'base_people', this.value)"><span>명</span></div>
+          </td>
+          <td>
+            <div class="number-input-wrap"><input type="number" min="1" value="${room.max_people || ''}" class="owner-table-input" oninput="syncRoomNumber(${idx}, 'max_people', this.value)"><span>명</span></div>
+          </td>
+          <td>
+            <div class="money-input-wrap"><input type="text" inputmode="numeric" value="${Number(room.extra_person_fee || 0).toLocaleString('ko-KR')}" class="owner-table-input" oninput="syncRoomMoney(${idx}, 'extra_person_fee', this)"><span>원</span></div>
           </td>
           <td style="text-align:center;">
             <button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">삭제</button>
@@ -1736,7 +1775,7 @@
       data.photoTabs.forEach((tabName, idx) => {
         const btn = document.createElement('button');
         btn.className = `photo-tab-btn ${idx === currentSelectedPhotoIndex ? 'active' : ''}`;
-        btn.innerHTML = `<i data-lucide="image" style="width:14px;"></i> <span>${tabName}</span>`;
+        btn.innerHTML = `<i data-lucide="image" style="width:14px;"></i> <span>${escapeDashboardHtml(tabName)}</span>`;
         btn.onclick = () => {
           currentSelectedPhotoIndex = idx;
           renderPhotoTabs();
@@ -1761,7 +1800,7 @@
         if (fac.placeholder) {
           inputHtml = `
             <div class="facility-input-box-area">
-              <textarea class="facility-desc-input" rows="2" placeholder="✏️ 가이드 입력 안내: [${fac.name}] 항목의 ${fac.placeholder}" oninput="syncFacilityDesc(${idx}, this.value)">${fac.desc}</textarea>
+          <textarea class="facility-desc-input" rows="2" placeholder="[${escapeDashboardHtml(fac.name)}] ${escapeDashboardHtml(fac.placeholder)}" oninput="syncFacilityDesc(${idx}, this.value)">${escapeDashboardHtml(fac.desc)}</textarea>
             </div>
           `;
         }
@@ -1769,7 +1808,7 @@
         row.innerHTML = `
           <div class="facility-header-interactive" onclick="toggleFacilityRow(${idx}, this)">
             <input type="checkbox" class="facility-custom-checkbox" ${fac.checked ? 'checked' : ''} onclick="event.stopPropagation(); toggleFacilityRow(${idx}, this.parentElement)">
-            <span class="facility-label-text">${fac.name}</span>
+            <span class="facility-label-text">${escapeDashboardHtml(fac.name)}</span>
           </div>
           ${inputHtml}
         `;
@@ -1802,10 +1841,21 @@
       mockData[currentOwnerType].rooms[idx].price = Number(val) || 0;
     }
 
+    function syncRoomNumber(idx, key, val) {
+      mockData[currentOwnerType].rooms[idx][key] = Number(val) || null;
+    }
+
+    function syncRoomMoney(idx, key, input) {
+      const digits = String(input.value || '').replace(/\D/g, '');
+      const amount = Number(digits) || 0;
+      mockData[currentOwnerType].rooms[idx][key] = amount;
+      input.value = amount ? amount.toLocaleString('ko-KR') : '';
+    }
+
     function addTableRow() {
       const data = mockData[currentOwnerType];
       const defaultName = currentOwnerType === 'stay' ? `신규 객실 ${data.rooms.length + 1}` : `신규 단품 항목 ${data.rooms.length + 1}`;
-      data.rooms.push({ name: defaultName, price: 15000 });
+      data.rooms.push({ name: defaultName, price: 15000, base_people: null, max_people: null, extra_person_fee: 0, image_urls: [], feature_summary: [] });
       
       rebuildPhotoTabsArray();
       renderRoomPriceTable();
@@ -1893,6 +1943,7 @@
       }
 
       const data = mockData[currentOwnerType];
+      const availability = window.motfAvailabilityCalendarData || { offerings: [], blocks: [] };
       const daysInMonth = new Date(currentCalendarYear, currentCalendarMonth, 0).getDate();
       for(let i=1; i<=daysInMonth; i++) {
         const cell = document.createElement('div');
@@ -1900,9 +1951,24 @@
         cell.innerHTML = `<div class="calendar-date-num">${i}</div>`;
         
         const dayStr = `${currentCalendarYear}-${String(currentCalendarMonth).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        cell.dataset.calendarDay = dayStr;
+        const dayBlocks = availability.blocks.filter(block => dayStr >= block.start_date && dayStr < block.end_date);
+        dayBlocks.slice(0, 3).forEach(block => {
+          const badge = document.createElement('div');
+          badge.className = `cal-badge availability ${block.source === 'manual' ? 'manual' : block.source === 'pending_payment' ? 'pending' : 'confirm'}`;
+            badge.innerText = `${block.offerings?.name || '객실'} · ${block.source === 'manual' ? '수동' : block.source === 'pending_payment' ? '입금대기' : '예약'}`;
+          cell.appendChild(badge);
+        });
+        if (dayBlocks.length > 3) {
+          const more = document.createElement('small');
+          more.className = 'calendar-more-count';
+          more.textContent = `+${dayBlocks.length - 3}건`;
+          cell.appendChild(more);
+        }
         data.orders.forEach(order => {
           if(order.date === dayStr) {
             if(['reject', 'rejected', 'cancelled'].includes(order.status)) return;
+            if (dayBlocks.some(block => block.offerings?.name === order.target)) return;
             
             const b = document.createElement('div');
             const isConfirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
@@ -1916,9 +1982,32 @@
             cell.appendChild(b);
           }
         });
+        cell.onclick = () => showCalendarDayDetail(dayStr, dayBlocks, availability.offerings);
         grid.appendChild(cell);
       }
     }
+
+    function showCalendarDayDetail(dayStr, blocks = [], offerings = []) {
+      const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
+      const blockByOffering = new Map(blocks.map(block => [String(block.offering_id), block]));
+      sidebarLayer.innerHTML = `
+        <div class="calendar-selected-date"><strong>${dayStr}</strong><span>${blocks.length ? `${blocks.length}개 객실 일정 있음` : '등록된 일정 없음'}</span></div>
+        <div class="calendar-room-status-list">
+          ${offerings.length ? offerings.map(room => {
+            const block = blockByOffering.get(String(room.id));
+            const label = !block ? '예약 가능' : block.source === 'manual' ? '수동 방막기' : block.source === 'pending_payment' ? '입금 대기' : '예약됨';
+            return `<div class="calendar-room-status ${block ? 'blocked' : 'open'}"><span><strong>${escapeDashboardHtml(room.name)}</strong><small>${escapeDashboardHtml(label)}${block?.note ? ` · ${escapeDashboardHtml(block.note)}` : ''}</small></span>${!block ? `<button type="button" onclick="motfOpenAvailabilityForDate('${dayStr}','${room.id}')">방막기</button>` : block.source === 'manual' ? `<button type="button" onclick="motfCancelAvailabilityBlock('${block.id}','partner')">해제</button>` : ''}</div>`;
+          }).join('') : '<p>등록된 객실이 없습니다.</p>'}
+        </div>
+        <button type="button" class="secondary-btn" style="width:100%;justify-content:center;margin-top:12px;" onclick="motfOpenAvailabilityForDate('${dayStr}')"><i data-lucide="calendar-cog"></i>상세 방막기 관리</button>
+      `;
+      lucide.createIcons();
+    }
+
+    window.motfApplyAvailabilityCalendarData = function(data) {
+      window.motfAvailabilityCalendarData = data || { offerings: [], blocks: [] };
+      renderCalendar();
+    };
 
     function showCalendarDetailPopup(order) {
       const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
@@ -2184,7 +2273,7 @@
         if (!business || currentOwnerType === 'admin') return;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
         mockData[currentOwnerType].displayName = business.business_name;
-        mockData[currentOwnerType].desc = business.description || '';
+        mockData[currentOwnerType].desc = business.short_description || business.description?.slice(0, 140) || '';
         document.getElementById('sidebar-owner-name').innerText = `${business.business_name} 님 홈`;
         document.getElementById('preview-display-name').innerText = business.business_name;
         updatePreviewDisplay();
@@ -2197,6 +2286,9 @@
           price: Number(item.price) || 0,
           description: item.description || null,
           max_people: item.max_people || null,
+          min_people: item.min_people || null,
+          base_people: item.base_people || item.min_people || null,
+          extra_person_fee: Number(item.extra_person_fee) || 0,
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null,
@@ -2222,6 +2314,9 @@
           price: Number(item.price) || 0,
           description: item.description || null,
           max_people: item.max_people || null,
+          min_people: item.min_people || null,
+          base_people: item.base_people || item.min_people || null,
+          extra_person_fee: Number(item.extra_person_fee) || 0,
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null,
@@ -2252,8 +2347,25 @@
         if (target.type === 'business') return;
         const item = mockData[currentOwnerType].rooms[target.index];
         if (item) {
-          item.image_urls = [...new Set([...(item.image_urls || []), ...urls])];
+          const existingUrls = item.image_urls?.length ? item.image_urls : item.image_url ? [item.image_url] : [];
+          item.image_urls = [...new Set([...existingUrls, ...urls])];
           item.image_url = item.image_urls[0] || null;
+        }
+      };
+      window.motfReplaceCurrentPhotoUrls = function(urls) {
+        const target = window.motfGetCurrentPhotoTarget();
+        if (!target) return;
+        if (target.type === 'business') {
+          if (window.motfCurrentBusiness) {
+            window.motfCurrentBusiness.gallery_image_urls = [...urls];
+            window.motfCurrentBusiness.cover_image_url = urls[0] || null;
+          }
+          return;
+        }
+        const item = mockData[currentOwnerType].rooms[target.index];
+        if (item) {
+          item.image_urls = [...urls];
+          item.image_url = urls[0] || null;
         }
       };
       window.motfSetCurrentPhotoUrl = function(url) {
@@ -2341,7 +2453,7 @@
         if (business) {
           const { data: extendedBusiness, error: extendedError } = await supabaseClient
             .from('businesses')
-            .select('id, address_detail, postal_code, gallery_image_urls, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
+            .select('id, address_detail, postal_code, gallery_image_urls, short_description, highlight_summary, nearby_tags, room_count, bath_count, amenity_details, extra_fees, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
             .eq('id', business.id)
             .maybeSingle();
           if (!extendedError && extendedBusiness) business = { ...business, ...extendedBusiness };
@@ -2358,7 +2470,7 @@
         window.motfCurrentBusiness = business;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
         mockData[currentOwnerType].displayName = business.business_name;
-        mockData[currentOwnerType].desc = business.description || '';
+        mockData[currentOwnerType].desc = business.short_description || business.description?.slice(0, 140) || '';
         mockData[currentOwnerType].rooms = [];
         mockData[currentOwnerType].orders = [];
         mockData[currentOwnerType].chats = [];
@@ -2458,6 +2570,6 @@
       }, 0);
     })();
   </script>
-  <script src="owner-data.js?v=20260713-chat-presence1"></script>
+  <script src="/owner/owner-data.js?v=20260721-catalog1"></script>
 </body>
 </html>

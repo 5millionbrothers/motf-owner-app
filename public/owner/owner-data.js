@@ -21,6 +21,8 @@
     "address_detail",
     "postal_code",
     "description",
+    "short_description",
+    "highlight_summary",
     "region",
     "cover_image_url",
     "gallery_image_urls",
@@ -52,6 +54,18 @@
 
   let naverMapsPromise;
   let postcodePromise;
+  const nearbyOptions = [
+    { key: "station", label: "역과 가까움" },
+    { key: "convenience", label: "편의점과 가까움" },
+    { key: "river", label: "강가" },
+    { key: "seaside", label: "바다" },
+    { key: "valley", label: "계곡" },
+    { key: "mountain", label: "산·숲" },
+    { key: "quiet", label: "조용한 주변" },
+    { key: "bus", label: "대형버스 진입" },
+  ];
+  let selectedNearbyTags = new Set();
+  let extraFeeRows = [];
 
   function hasCoordinates(business) {
     if (business?.latitude == null || business?.longitude == null || business.latitude === "" || business.longitude === "") return false;
@@ -115,6 +129,7 @@
         if (regionInput && !regionInput.value.trim()) regionInput.value = region;
         detailInput?.focus();
         clearVerifiedLocation("주소가 선택되었습니다. 저장 시 지도 위치를 확인합니다.");
+        window.setTimeout(() => verifyBusinessLocation().catch(() => {}), 0);
       },
     }).open();
   }
@@ -156,6 +171,23 @@
   }
 
   async function geocodeAddress(address) {
+    try {
+      const { data: sessionData } = await client().auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (accessToken) {
+        const response = await fetch("/api/geocode-address", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ address }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && Number.isFinite(Number(result.latitude)) && Number.isFinite(Number(result.longitude))) {
+          return { latitude: Number(result.latitude), longitude: Number(result.longitude), matchedAddress: result.matchedAddress || address };
+        }
+      }
+    } catch (error) {
+      console.warn("Server geocoding fallback failed.", error);
+    }
     const naver = await loadNaverGeocoder();
     return new Promise((resolve, reject) => {
       naver.maps.Service.geocode({ address }, (status, response) => {
@@ -265,7 +297,7 @@
           <input id="motfBusinessNumber" maxlength="30" inputmode="numeric" placeholder="숫자 10자리" />
           <button type="button" id="motfVerifyBusinessNumberButton" class="motf-address-search-button" onclick="motfVerifyBusinessNumber()">상태 확인</button>
         </span>
-        <small id="motfBusinessNumberStatus" class="motf-field-status">국세청 영업 상태 확인 후 운영팀이 서류와 대조해 최종 인증합니다.</small>
+        <small id="motfBusinessNumberStatus" class="motf-field-status">공공데이터포털의 무료 국세청 상태조회로 영업 여부를 확인합니다. 최종 인증은 운영팀이 서류와 대조합니다.</small>
       </label>
       <label>지역
         <input id="motfBusinessRegion" maxlength="50" placeholder="예: 가평" />
@@ -326,10 +358,98 @@
       return;
     }
     preview.classList.add("active");
-    preview.innerHTML = urls.map((url, index) => `<figure><img src="${escapeHtml(url)}" alt="등록된 사진 ${index + 1}"><figcaption>${index === 0 ? "대표사진" : `사진 ${index + 1}`}</figcaption></figure>`).join("");
+    preview.innerHTML = urls.map((url, index) => `<figure class="owner-photo-item">
+      <img src="${escapeHtml(url)}" alt="등록된 사진 ${index + 1}">
+      <figcaption>${index === 0 ? "대표사진" : `사진 ${index + 1}`}</figcaption>
+      <div class="owner-photo-actions">
+        ${index > 0 ? `<button type="button" title="대표사진으로 지정" onclick="motfMakeCoverPhoto(${index})"><i data-lucide="star"></i></button>` : ""}
+        <button type="button" title="앞으로 이동" onclick="motfMovePhoto(${index},-1)" ${index === 0 ? "disabled" : ""}><i data-lucide="chevron-left"></i></button>
+        <button type="button" title="뒤로 이동" onclick="motfMovePhoto(${index},1)" ${index === urls.length - 1 ? "disabled" : ""}><i data-lucide="chevron-right"></i></button>
+        <button type="button" class="danger" title="사진 삭제" onclick="motfRemovePhoto(${index})"><i data-lucide="trash-2"></i></button>
+      </div>
+    </figure>`).join("");
+    window.lucide?.createIcons();
   }
 
   window.motfRefreshPhotoPreview = updatePhotoPreview;
+
+  async function persistCurrentPhotoUrls(urls) {
+    const business = window.motfCurrentBusiness;
+    const target = window.motfGetCurrentPhotoTarget?.();
+    if (!business || !target) return;
+    window.motfReplaceCurrentPhotoUrls?.(urls);
+    if (target.type === "business") {
+      const result = await client().from("businesses")
+        .update({ cover_image_url: urls[0] || null, gallery_image_urls: urls, updated_at: new Date().toISOString() })
+        .eq("id", business.id)
+        .select(businessSelect)
+        .single();
+      if (result.error) throw result.error;
+      window.motfCurrentBusiness = result.data;
+    } else {
+      const result = await client().rpc("save_business_offerings", {
+        target_business_id: business.id,
+        items: window.motfReadOfferingsFromDashboard?.() || [],
+      });
+      if (result.error) throw result.error;
+    }
+    updatePhotoPreview();
+  }
+
+  window.motfMovePhoto = async function movePhoto(index, direction) {
+    const urls = [...(window.motfGetCurrentPhotoUrls?.() || [])];
+    const nextIndex = index + direction;
+    if (!urls[index] || nextIndex < 0 || nextIndex >= urls.length) return;
+    [urls[index], urls[nextIndex]] = [urls[nextIndex], urls[index]];
+    try { await persistCurrentPhotoUrls(urls); } catch (error) { console.error(error); alert("사진 순서를 저장하지 못했습니다."); }
+  };
+  window.motfMakeCoverPhoto = async function makeCoverPhoto(index) {
+    const urls = [...(window.motfGetCurrentPhotoUrls?.() || [])];
+    if (!urls[index]) return;
+    urls.unshift(...urls.splice(index, 1));
+    try { await persistCurrentPhotoUrls(urls); } catch (error) { console.error(error); alert("대표사진을 저장하지 못했습니다."); }
+  };
+  window.motfRemovePhoto = async function removePhoto(index) {
+    const urls = [...(window.motfGetCurrentPhotoUrls?.() || [])];
+    if (!urls[index] || !confirm("이 사진을 목록에서 삭제할까요?")) return;
+    urls.splice(index, 1);
+    try { await persistCurrentPhotoUrls(urls); } catch (error) { console.error(error); alert("사진을 삭제하지 못했습니다."); }
+  };
+
+  function renderNearbyChoices() {
+    const area = document.getElementById("motfNearbyTagChoices");
+    if (!area) return;
+    area.innerHTML = nearbyOptions.map((item) => `<label class="owner-choice-chip ${selectedNearbyTags.has(item.key) ? "selected" : ""}"><input type="checkbox" value="${item.key}" ${selectedNearbyTags.has(item.key) ? "checked" : ""}><span>${item.label}</span></label>`).join("");
+    area.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => {
+      if (input.checked) selectedNearbyTags.add(input.value); else selectedNearbyTags.delete(input.value);
+      renderNearbyChoices();
+    }));
+  }
+
+  function renderExtraFeeRows() {
+    const area = document.getElementById("motfExtraFeeRows");
+    if (!area) return;
+    if (!extraFeeRows.length) extraFeeRows = [{ label: "", amount: null, detail: "", category: "optional" }];
+    area.innerHTML = extraFeeRows.map((fee, index) => `<div class="owner-fee-row">
+      <input value="${escapeHtml(fee.label || "")}" maxlength="40" placeholder="요금명 예: 바베큐장" data-fee-field="label" data-fee-index="${index}">
+      <div class="money-input-wrap"><input value="${fee.amount ? Number(fee.amount).toLocaleString("ko-KR") : ""}" inputmode="numeric" placeholder="금액" data-fee-field="amount" data-fee-index="${index}"><span>원</span></div>
+      <select data-fee-field="category" data-fee-index="${index}"><option value="optional" ${fee.category === "optional" ? "selected" : ""}>선택 요금</option><option value="confirmed" ${fee.category === "confirmed" ? "selected" : ""}>필수 요금</option><option value="onsite" ${fee.category === "onsite" ? "selected" : ""}>현장 확인</option></select>
+      <input value="${escapeHtml(fee.detail || "")}" maxlength="100" placeholder="설명 예: 최대 30명" data-fee-field="detail" data-fee-index="${index}">
+      <button type="button" class="icon-danger" onclick="motfRemoveExtraFeeRow(${index})" aria-label="요금 삭제"><i data-lucide="trash-2"></i></button>
+    </div>`).join("");
+    area.querySelectorAll("[data-fee-field]").forEach((input) => input.addEventListener("input", () => {
+      const index = Number(input.dataset.feeIndex);
+      const field = input.dataset.feeField;
+      if (field === "amount") {
+        const amount = Number(String(input.value).replace(/\D/g, "")) || null;
+        extraFeeRows[index][field] = amount;
+        input.value = amount ? amount.toLocaleString("ko-KR") : "";
+      } else extraFeeRows[index][field] = input.value;
+    }));
+    window.lucide?.createIcons();
+  }
+  window.motfAddExtraFeeRow = () => { extraFeeRows.push({ label: "", amount: null, detail: "", category: "optional" }); renderExtraFeeRows(); };
+  window.motfRemoveExtraFeeRow = (index) => { extraFeeRows.splice(index, 1); renderExtraFeeRows(); };
 
   function bindPhotoUpload() {
     const input = document.getElementById("motfPhotoUploadInput");
@@ -378,7 +498,7 @@
       let saveError = null;
 
       if (target.type === "business") {
-        const gallery = [...new Set([...(business.gallery_image_urls || []), ...uploadedUrls])];
+        const gallery = [...new Set([business.cover_image_url, ...(business.gallery_image_urls || []), ...uploadedUrls].filter(Boolean))];
         const result = await client().from("businesses")
           .update({ cover_image_url: gallery[0] || null, gallery_image_urls: gallery, updated_at: new Date().toISOString() })
           .eq("id", business.id)
@@ -421,10 +541,12 @@
       motfBusinessAddress: business.address,
       motfBusinessAddressDetail: business.address_detail,
       editDescInput: business.description,
+      motfShortDescription: business.short_description,
       motfRoomCount: business.room_count,
       motfBathCount: business.bath_count,
-      motfNearbyTags: (business.nearby_tags || []).join(", "),
-      motfExtraFees: (business.extra_fees || []).map((item) => `${item.label || ""}|${item.amount || ""}|${item.detail || ""}`).join("\n"),
+      motfHighlight1: business.highlight_summary?.[0] || "",
+      motfHighlight2: business.highlight_summary?.[1] || "",
+      motfHighlight3: business.highlight_summary?.[2] || "",
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
@@ -441,6 +563,10 @@
     const stayDetailFields = document.getElementById("motfStayDetailFields");
     if (stayDetailFields) stayDetailFields.hidden = business.business_type !== "stay";
     window.motfApplyAmenityDetailsToDashboard?.(business.amenity_details || []);
+    selectedNearbyTags = new Set(business.nearby_tags || []);
+    extraFeeRows = Array.isArray(business.extra_fees) ? business.extra_fees.map((item) => ({ ...item, category: item.category || "optional" })) : [];
+    renderNearbyChoices();
+    renderExtraFeeRows();
     const fields = document.getElementById("motfBusinessFields");
     if (fields && hasCoordinates(business)) {
       fields.dataset.latitude = String(business.latitude);
@@ -457,8 +583,9 @@
     updatePhotoPreview(business.cover_image_url || null);
     const loadOfferings = async () => {
       let result = await client().from("offerings")
-        .select("id, name, description, price, max_people, min_people, unit, category, image_url, image_urls, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity")
+        .select("id, name, description, price, max_people, min_people, base_people, extra_person_fee, unit, category, image_url, image_urls, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity, is_active")
         .eq("business_id", business.id)
+        .eq("is_active", true)
         .order("sort_order");
 
       // Keep the operating portal usable while optional detail columns are being migrated.
@@ -499,12 +626,16 @@
       address: document.getElementById("motfBusinessAddress")?.value.trim() || null,
       address_detail: document.getElementById("motfBusinessAddressDetail")?.value.trim() || null,
       description: document.getElementById("editDescInput")?.value.trim() || null,
+      short_description: document.getElementById("motfShortDescription")?.value.trim()
+        || document.getElementById("editDescInput")?.value.trim().slice(0, 140)
+        || null,
+      highlight_summary: ["motfHighlight1", "motfHighlight2", "motfHighlight3"].map((id) => document.getElementById(id)?.value.trim()).filter(Boolean).slice(0, 3),
       facilities: window.motfReadFacilitiesFromDashboard?.() || [],
-      nearby_tags: (document.getElementById("motfNearbyTags")?.value || "").split(",").map((item) => item.trim()).filter(Boolean),
+      nearby_tags: [...selectedNearbyTags],
       room_count: Number(document.getElementById("motfRoomCount")?.value || 0),
       bath_count: Number(document.getElementById("motfBathCount")?.value || 0),
       amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
-      extra_fees: (document.getElementById("motfExtraFees")?.value || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [label, amount, detail] = line.split("|").map((item) => item.trim()); return { label, amount: Number(amount) || null, detail: detail || null }; }),
+      extra_fees: extraFeeRows.filter((item) => item.label).map((item) => ({ label: item.label.trim(), amount: Number(item.amount) || null, detail: item.detail?.trim() || null, category: item.category || "optional" })),
       updated_at: new Date().toISOString(),
     };
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
@@ -967,9 +1098,24 @@
     }
     const { offerings, blocks } = await loadStayAvailabilityData(businessId);
     box.innerHTML = availabilityBoxHtml(scope, offerings, blocks);
+    if (scope === "partner") window.motfApplyAvailabilityCalendarData?.({ offerings, blocks });
   }
 
   window.motfRenderAvailabilityManager = renderAvailabilityManager;
+
+  window.motfOpenAvailabilityForDate = async function openAvailabilityForDate(date, offeringId = "") {
+    window.switchPanel?.("availability");
+    await renderAvailabilityManager("partner", window.motfCurrentBusiness?.id);
+    const start = document.getElementById("partnerAvailabilityStart");
+    const end = document.getElementById("partnerAvailabilityEnd");
+    const offering = document.getElementById("partnerAvailabilityOffering");
+    const next = new Date(`${date}T00:00:00`);
+    next.setDate(next.getDate() + 1);
+    if (start) start.value = date;
+    if (end) end.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+    if (offeringId && offering) offering.value = offeringId;
+    document.getElementById("partnerAvailabilityManager")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   window.motfCreateAvailabilityBlock = async function motfCreateAvailabilityBlock(scope) {
     const offeringId = document.getElementById(`${scope}AvailabilityOffering`)?.value;
@@ -1071,6 +1217,10 @@
       const node = document.getElementById(id);
       if (node) node.textContent = `${value.toLocaleString()}원`;
     });
+    if (business.business_type === "stay") {
+      const availability = await loadStayAvailabilityData(business.id);
+      window.motfApplyAvailabilityCalendarData?.(availability);
+    }
     window.renderCalendar?.();
     window.renderOrders();
   };
@@ -1320,12 +1470,12 @@
   let partnerPresenceTimer = 0;
   let partnerPresenceConversationId = "";
 
-  function mapMessages(messages = []) {
+  function mapMessages(messages = [], support = false) {
     return [...messages]
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       .map((message) => ({
         id: message.id,
-        type: message.sender_role === "user" ? "in" : "out",
+        type: support ? (message.sender_role === "admin" ? "in" : "out") : (message.sender_role === "user" ? "in" : "out"),
         role: message.sender_role,
         text: message.body,
         createdAt: message.created_at,
@@ -1398,12 +1548,18 @@
   window.loadMotfPartnerChats = async function loadMotfPartnerChats(business = window.motfCurrentBusiness) {
     if (!client() || !business) return;
     const selectedConversationId = selectedPartnerConversationId();
-    const { data, error } = await client().from("conversations")
+    const { data: supportConversationId, error: supportStartError } = await client().rpc("start_support_conversation");
+    if (supportStartError) console.warn("Could not prepare support conversation.", supportStartError);
+    const businessQuery = client().from("conversations")
       .select("id, customer_name, group_name, last_message_at, messages(id, sender_role, body, created_at)")
       .eq("business_id", business.id)
       .order("last_message_at", { ascending: false });
-    if (error) return console.error(error);
-    const chats = (data || []).map((conversation) => {
+    const supportQuery = supportConversationId
+      ? client().from("conversations").select("id, customer_name, group_name, last_message_at, messages(id, sender_role, body, created_at)").eq("id", supportConversationId).limit(1)
+      : Promise.resolve({ data: [], error: null });
+    const [businessResult, supportResult] = await Promise.all([businessQuery, supportQuery]);
+    if (businessResult.error || supportResult.error) return console.error(businessResult.error || supportResult.error);
+    const businessChats = (businessResult.data || []).map((conversation) => {
       const messages = mapMessages(conversation.messages);
       const userLabel = conversation.group_name
         ? `${conversation.customer_name} (${conversation.group_name})`
@@ -1416,6 +1572,18 @@
         messages,
       };
     });
+    const supportChats = (supportResult.data || []).map((conversation) => {
+      const messages = mapMessages(conversation.messages, true);
+      return {
+        conversationId: conversation.id,
+        user: "모티프 운영팀",
+        status: "항상 상단 고정",
+        preview: messages.at(-1)?.text || "운영 관련 문의를 남겨주세요.",
+        messages,
+        isSupport: true,
+      };
+    });
+    const chats = [...supportChats, ...businessChats];
     mockData[currentOwnerType].chats = chats;
     currentSelectedChatUser = chats.find((item) => item.conversationId === selectedConversationId)?.user
       || chats[0]?.user
@@ -1587,6 +1755,28 @@
     else stopPartnerPresence();
   });
   window.addEventListener("pagehide", stopPartnerPresence);
+
+  function formatPhoneInput(value = "") {
+    const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+    if (digits.startsWith("02")) {
+      if (digits.length <= 2) return digits;
+      if (digits.length <= 6) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+      return `${digits.slice(0, 2)}-${digits.slice(2, digits.length - 4)}-${digits.slice(-4)}`;
+    }
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+
+  document.addEventListener("input", (event) => {
+    if (event.target.matches('input[type="tel"], #motfBusinessPhone, #motfOwnerPhone, [data-phone-input]')) {
+      event.target.value = formatPhoneInput(event.target.value);
+    }
+    if (event.target.matches("[data-money-input]")) {
+      const amount = Number(String(event.target.value || "").replace(/\D/g, "")) || 0;
+      event.target.value = amount ? amount.toLocaleString("ko-KR") : "";
+    }
+  });
 
   window.setTimeout(() => {
     if (!client()) return;
