@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 type TransactionKind = "stay" | "market";
+type RefundAccount = {
+  bank: string;
+  number: string;
+  holderName: string;
+  holderPhoneNumber?: string;
+};
 
 const REQUIRED_ENV = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -96,7 +102,7 @@ async function rejectTransaction(kind: TransactionKind, id: string, reason: stri
 async function paymentIntentFor(kind: TransactionKind, id: string) {
   const query = [
     "/rest/v1/payment_intents",
-    "?select=order_id,kind,amount,status,transaction_id,refund_status,refund_amount,refund_reason",
+    "?select=order_id,customer_id,kind,amount,status,transaction_id,refund_status,refund_amount,refund_reason",
     `&kind=eq.${encodeURIComponent(kind)}`,
     `&transaction_id=eq.${encodeURIComponent(id)}`,
     "&status=eq.confirmed",
@@ -104,6 +110,19 @@ async function paymentIntentFor(kind: TransactionKind, id: string) {
   ].join("");
   const rows = await supabaseRequest(query, env("SUPABASE_SERVICE_ROLE_KEY"));
   return Array.isArray(rows) ? rows[0] : null;
+}
+
+async function refundAccountFor(customerId: string): Promise<RefundAccount | null> {
+  const query = `/rest/v1/customer_refund_accounts?select=bank,account_number,holder_name,phone&user_id=eq.${encodeURIComponent(customerId)}&limit=1`;
+  const rows = await supabaseRequest(query, env("SUPABASE_SERVICE_ROLE_KEY"));
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row?.bank || !row?.account_number || !row?.holder_name) return null;
+  return {
+    bank: String(row.bank),
+    number: String(row.account_number).replace(/\D/g, ""),
+    holderName: String(row.holder_name),
+    ...(row.phone ? { holderPhoneNumber: String(row.phone).replace(/\D/g, "") } : {}),
+  };
 }
 
 function transactionTable(kind: TransactionKind) {
@@ -166,8 +185,15 @@ function portoneRefundStatus(data: unknown): "processing" | "refunded" | "failed
   return "processing";
 }
 
-async function cancelPortOnePayment(paymentId: string, reason: string) {
-  const payload: Record<string, unknown> = { reason };
+function portOnePaymentId(orderId: string) {
+  return String(orderId || "")
+    .replace(/^MOTF-STAY-/, "MS-")
+    .replace(/^MOTF-MARKET-/, "MM-")
+    .slice(0, 40);
+}
+
+async function cancelPortOnePayment(paymentId: string, reason: string, refundAccount: RefundAccount) {
+  const payload: Record<string, unknown> = { reason, refundAccount };
   const storeId = env("PORTONE_STORE_ID");
   if (storeId) payload.storeId = storeId;
 
@@ -218,10 +244,23 @@ export async function POST(request: NextRequest) {
     }
 
     const amount = Number(intent.refund_amount || intent.amount || 0);
+    const refundAccount = await refundAccountFor(String(intent.customer_id || ""));
+    if (!refundAccount) {
+      await markRefundState(kind, id, intent.order_id, "failed", amount, reason, {
+        code: "REFUND_ACCOUNT_REQUIRED",
+        message: "이용자 환불계좌가 등록되지 않았습니다.",
+      });
+      return json(409, {
+        ok: false,
+        rejected: true,
+        refundStatus: "failed",
+        message: "거절은 완료됐지만 이용자 환불계좌가 없어 자동 환불을 시작하지 못했습니다. 운영팀이 이용자에게 환불계좌를 확인해주세요.",
+      });
+    }
     await markRefundState(kind, id, intent.order_id, "processing", amount, reason, { requested: true });
 
     try {
-      const cancelResponse = await cancelPortOnePayment(intent.order_id, reason);
+      const cancelResponse = await cancelPortOnePayment(portOnePaymentId(intent.order_id), reason, refundAccount);
       const refundStatus = portoneRefundStatus(cancelResponse);
       await markRefundState(kind, id, intent.order_id, refundStatus, amount, reason, cancelResponse);
       return json(200, {

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="stylesheet" href="/owner/styles.css?v=20260721-catalog1">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260728-extra1">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -787,6 +787,15 @@
           <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
         </div>
         <div id="orderListArea" class="item-list"></div>
+        <section id="partnerExtraChargeSection" class="owner-extra-charge-section" hidden>
+          <div class="owner-section-row">
+            <div>
+              <h3>추가 이용금 요청</h3>
+              <p>추가인원·바베큐 등 현장에서 확정된 금액을 운영팀에 검토 요청합니다.</p>
+            </div>
+          </div>
+          <div id="partnerExtraChargeList" class="item-list"></div>
+        </section>
       </section>
 
       <section id="panel-availability" class="panel">
@@ -896,30 +905,24 @@
             <textarea id="editDescInput" rows="8" maxlength="3000" class="owner-textarea" placeholder="공간 구성, 단체 이용 장점, 체크인 안내와 주변 환경을 충분히 설명해주세요."></textarea>
             <div class="owner-highlight-editor">
               <strong>카드 핵심 정보 <span class="field-optional">최대 3개</span></strong>
-              <p>이용자가 숙소를 비교할 때 가장 먼저 볼 짧은 정보입니다.</p>
-              <div class="owner-highlight-grid">
-                <input id="motfHighlight1" maxlength="28" placeholder="예: 대성리역 차량 5분" />
-                <input id="motfHighlight2" maxlength="28" placeholder="예: 최대 40명 독채" />
-                <input id="motfHighlight3" maxlength="28" placeholder="예: 야외바베큐 가능" />
-              </div>
+              <p>직접 문구를 쓰지 않고 실제 등록한 정보 중에서 고릅니다.</p>
+              <div id="motfHighlightChoices" class="owner-choice-grid"></div>
             </div>
           </div>
 
           <div id="priceSettingWrapperSector">
-            <label style="display:block; font-weight:600; margin-bottom:6px;" id="dynamic-price-section-title">객실별 단가 및 상품 요금 설정</label>
-            <table class="room-price-table">
-              <thead>
-                <tr>
-                  <th id="tableHeaderNameTitle">객실명</th>
-                  <th>기본요금</th>
-                  <th>기준인원</th>
-                  <th>최대인원</th>
-                  <th>추가 1인 요금</th>
-                  <th style="width:80px; text-align:center;">관리</th>
-                </tr>
-              </thead>
-              <tbody id="roomPriceTableBody"></tbody>
-            </table>
+            <div class="owner-section-row">
+              <div>
+                <label style="display:block; font-weight:600; margin-bottom:6px;" id="dynamic-price-section-title">객실별 인원·기간 요금</label>
+                <p class="owner-field-help">숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.</p>
+              </div>
+            </div>
+            <div id="motfSeasonDateFields" class="season-date-fields">
+              <div><strong>준성수기 기간</strong><label>시작<input id="motfShoulderStart" type="date" /></label><label>종료<input id="motfShoulderEnd" type="date" /></label></div>
+              <div><strong>성수기 기간</strong><label>시작<input id="motfPeakStart" type="date" /></label><label>종료<input id="motfPeakEnd" type="date" /></label></div>
+              <small>기간을 비워두면 해당 시즌 요금은 적용되지 않습니다. 비수기는 나머지 모든 날짜입니다.</small>
+            </div>
+            <div id="roomPriceTableBody" class="owner-room-editor-list"></div>
             <button class="secondary-btn" style="margin-top:10px; padding:6px 12px; font-size:13px;" onclick="addTableRow()"><i data-lucide="plus" style="width:14px; display:inline;"></i> <span id="addBtnDynamicText">객실 추가</span></button>
           </div>
 
@@ -942,15 +945,19 @@
           <div id="motfStayDetailFields">
             <label style="display:block; font-weight:600; margin-bottom:6px;">숙소 공간 및 추가요금</label>
             <div class="motf-business-fields">
-              <label>전체 객실 수<input id="motfRoomCount" type="number" min="0" /></label>
-              <label>전체 화장실 수<input id="motfBathCount" type="number" min="0" /></label>
+              <label>전체 객실 수<input id="motfRoomCount" type="number" min="0" readonly /><small>등록된 객실 수로 자동 계산</small></label>
+              <label>전체 화장실 수<input id="motfBathCount" type="number" min="0" readonly /><small>객실별·야외 공용 화장실 합계</small></label>
+              <label>야외 공용화장실 수<input id="motfSharedBathCount" type="number" min="0" value="0" /></label>
+              <label class="owner-check-label"><input id="motfSharedBathSeparated" type="checkbox" /> 남녀 구분</label>
+              <label class="motf-field-wide">야외 공용화장실 특이사항<input id="motfSharedBathNote" maxlength="160" placeholder="예: 운동장 옆, 샤워실 없음" /></label>
               <div class="motf-field-wide owner-choice-section">
                 <strong>주변 환경</strong>
-                <p>해당되는 항목을 눌러주세요. 이용자 필터와 상세 화면에 연결됩니다.</p>
+                <p>역·편의점은 저장된 좌표로 자동 계산합니다. 나머지만 선택해주세요.</p>
+                <div id="motfAutomaticDistances" class="owner-distance-readout"></div>
                 <div id="motfNearbyTagChoices" class="owner-choice-grid"></div>
               </div>
               <div class="motf-field-wide owner-fee-section">
-                <div class="owner-section-row"><div><strong>추가요금</strong><p>필수 또는 선택 요금을 한 줄씩 등록해주세요.</p></div><button type="button" class="secondary-btn compact" onclick="motfAddExtraFeeRow()"><i data-lucide="plus"></i>요금 추가</button></div>
+                <div class="owner-section-row"><div><strong>기타 특이 추가요금</strong><p>시설 항목에 없는 예외 요금만 등록해주세요.</p></div><button type="button" class="secondary-btn compact" onclick="motfAddExtraFeeRow()"><i data-lucide="plus"></i>요금 추가</button></div>
                 <div id="motfExtraFeeRows" class="owner-fee-rows"></div>
               </div>
             </div>
@@ -1104,6 +1111,10 @@
           <select id="masterOrderStatusFilter" onchange="renderMasterOrders()"><option value="all">전체 상태</option><option value="pending">확정 대기</option><option value="confirm">예약 확정</option><option value="past">지난 예약</option><option value="reject">거절</option></select>
         </div>
         <div id="masterOrderListArea" class="item-list"></div>
+        <section class="owner-extra-charge-section">
+          <div class="owner-section-row"><div><h3>추가 이용금 검토</h3><p>사장님이 제출한 항목과 금액을 확인한 뒤 이용자에게 결제를 요청합니다.</p></div></div>
+          <div id="adminExtraChargeList" class="item-list"></div>
+        </section>
       </section>
 
       <section id="panel-master-content" class="panel">
@@ -1162,6 +1173,27 @@
     </div>
   </main>
 
+  <dialog id="motfExtraChargeDialog" class="motf-form-dialog">
+    <form id="motfExtraChargeForm" method="dialog">
+      <div class="motf-dialog-head">
+        <div><small>확정 예약</small><h3>추가 이용금 요청</h3></div>
+        <button type="button" class="motf-dialog-close" onclick="document.getElementById('motfExtraChargeDialog').close()" aria-label="닫기"><i data-lucide="x"></i></button>
+      </div>
+      <input id="motfExtraChargeReservationId" type="hidden" />
+      <div id="motfExtraChargeReservationSummary" class="extra-charge-reservation-summary"></div>
+      <div class="extra-charge-guide"><i data-lucide="shield-check"></i><span>운영팀이 항목과 금액을 확인한 뒤 이용자에게 결제 요청을 보냅니다.</span></div>
+      <div id="motfExtraChargeRows" class="extra-charge-form-rows"></div>
+      <button type="button" class="secondary-btn compact" onclick="motfAddExtraChargeRow()"><i data-lucide="plus"></i>항목 추가</button>
+      <label class="motf-dialog-field">사장님 메모<textarea id="motfExtraChargeNote" rows="3" maxlength="500" placeholder="운영팀이 확인해야 할 특이사항"></textarea></label>
+      <label class="motf-dialog-field">결제 기한 <span class="field-optional">선택</span><input id="motfExtraChargeDueAt" type="datetime-local" /></label>
+      <div class="extra-charge-total"><span>요청 합계</span><strong id="motfExtraChargeTotal">0원</strong></div>
+      <div class="motf-dialog-actions">
+        <button type="button" class="secondary-btn" onclick="document.getElementById('motfExtraChargeDialog').close()">취소</button>
+        <button type="submit" class="primary-btn"><i data-lucide="send"></i>운영팀에 검토 요청</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
     let currentOwnerType = 'stay'; 
     let currentActivePanel = 'calendar';
@@ -1209,13 +1241,14 @@
         rooms: [],
         photoTabs: ["전체 외관"],
         facilities: [
-          { key: "barbecue", name: "야외바베큐", checked: true, desc: "30명 동시 수용 가능, 숯/그릴 세트 유료 제공", placeholder: "가능 인원, 숯·그릴 제공 여부와 비용을 적어주세요" },
-          { key: "karaoke", name: "노래방/마이크", checked: true, desc: "무선 마이크 2개 구비", placeholder: "장비와 이용 가능 시간을 적어주세요" },
-          { key: "field", name: "야외운동장", checked: false, desc: "", placeholder: "구장 크기와 이용 가능 종목을 적어주세요" },
-          { key: "pool", name: "수영장", checked: true, desc: "7~8월 하계 시즌 개장", placeholder: "크기, 깊이, 운영 기간과 요금을 적어주세요" },
-          { key: "screen", name: "TV/화면", checked: false, desc: "", placeholder: "TV, 빔프로젝터, 스크린 정보를 적어주세요" },
-          { key: "wifi", name: "무료 와이파이", checked: true, desc: "", placeholder: "" }, 
-          { key: "parking", name: "주차", checked: true, desc: "버스 1대 및 승용차 최대 8대", placeholder: "버스 진입 여부와 주차 대수를 적어주세요" }
+          { key: "barbecue", name: "야외바베큐", checked: false, desc: "", params: {} },
+          { key: "karaoke", name: "노래방/마이크", checked: false, desc: "", params: {} },
+          { key: "field", name: "야외운동장", checked: false, desc: "", params: { equipment: [] } },
+          { key: "pool", name: "수영장", checked: false, desc: "", params: {} },
+          { key: "screen", name: "TV/화면", checked: false, desc: "", params: {} },
+          { key: "wifi", name: "무료 와이파이", checked: false, desc: "", params: {} },
+          { key: "parking", name: "주차", checked: false, desc: "", params: {} },
+          { key: "pickup", name: "픽업", checked: false, desc: "", params: {} }
         ],
         orders: [],
         chats: []
@@ -1742,29 +1775,49 @@
       const attr = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
       data.rooms.forEach((room, idx) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>
-            <input type="text" value="${attr(room.name)}" class="owner-table-input room-name" oninput="syncRoomName(${idx}, this.value)">
-          </td>
-          <td>
-            <div class="money-input-wrap"><input type="text" inputmode="numeric" value="${Number(room.price || 0).toLocaleString('ko-KR')}" class="owner-table-input" oninput="syncRoomMoney(${idx}, 'price', this)"><span>원</span></div>
-          </td>
-          <td>
-            <div class="number-input-wrap"><input type="number" min="1" value="${room.base_people || room.min_people || ''}" class="owner-table-input" oninput="syncRoomNumber(${idx}, 'base_people', this.value)"><span>명</span></div>
-          </td>
-          <td>
-            <div class="number-input-wrap"><input type="number" min="1" value="${room.max_people || ''}" class="owner-table-input" oninput="syncRoomNumber(${idx}, 'max_people', this.value)"><span>명</span></div>
-          </td>
-          <td>
-            <div class="money-input-wrap"><input type="text" inputmode="numeric" value="${Number(room.extra_person_fee || 0).toLocaleString('ko-KR')}" class="owner-table-input" oninput="syncRoomMoney(${idx}, 'extra_person_fee', this)"><span>원</span></div>
-          </td>
-          <td style="text-align:center;">
-            <button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">삭제</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
+        const card = document.createElement('article');
+        card.className = 'owner-room-editor';
+        if (currentOwnerType !== 'stay') {
+          card.innerHTML = `
+            <div class="owner-room-editor-head"><input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)"><button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">삭제</button></div>
+            <div class="owner-room-editor-body owner-room-basic-grid">
+              <label><span>판매가</span><input type="text" inputmode="numeric" value="${Number(room.price || 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, 'price', this)"></label>
+              <label><span>단위</span><input type="text" value="${attr(room.unit || '')}" oninput="syncRoomText(${idx}, 'unit', this.value)" placeholder="예: 1kg"></label>
+              <label><span>재고</span><input type="number" min="0" value="${room.stock_quantity ?? ''}" oninput="syncRoomNumber(${idx}, 'stock_quantity', this.value)"></label>
+            </div>`;
+          tbody.appendChild(card);
+          return;
+        }
+        const moneyField = (key, label) => `<label><span>${label}</span><input type="text" inputmode="numeric" value="${Number(room[key] ?? room.price ?? 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, '${key}', this)"></label>`;
+        card.innerHTML = `
+          <div class="owner-room-editor-head">
+            <input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)" aria-label="객실명">
+            <button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">객실 삭제</button>
+          </div>
+          <div class="owner-room-editor-body">
+            <div class="owner-room-basic-grid">
+              <label><span>기준인원</span><input type="number" min="1" value="${room.base_people || room.min_people || ''}" oninput="syncRoomNumber(${idx}, 'base_people', this.value)"></label>
+              <label><span>최대인원</span><input type="number" min="1" value="${room.max_people || ''}" oninput="syncRoomNumber(${idx}, 'max_people', this.value)"></label>
+              <label><span>추가 1인 요금 <small>별도결제 기준</small></span><input type="text" inputmode="numeric" value="${Number(room.extra_person_fee || 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, 'extra_person_fee', this)"></label>
+            </div>
+            <p class="owner-room-price-title"><strong>시즌별 1박 객실요금</strong> · 금·토 숙박은 주말 요금으로 계산합니다.</p>
+            <div class="owner-room-price-grid">
+              ${moneyField('offseason_weekday_price', '비수기 평일')}
+              ${moneyField('offseason_weekend_price', '비수기 주말')}
+              ${moneyField('shoulder_weekday_price', '준성수기 평일')}
+              ${moneyField('shoulder_weekend_price', '준성수기 주말')}
+              ${moneyField('peak_weekday_price', '성수기 평일')}
+              ${moneyField('peak_weekend_price', '성수기 주말')}
+            </div>
+            <div class="owner-room-bath-grid">
+              <label><span>객실 내 화장실</span><input type="number" min="0" value="${room.bathroom_count || 0}" oninput="syncRoomNumber(${idx}, 'bathroom_count', this.value)"></label>
+              <label class="owner-check-label"><input type="checkbox" ${room.bathroom_gender_separated ? 'checked' : ''} onchange="syncRoomBoolean(${idx}, 'bathroom_gender_separated', this.checked)"><span>남녀 구분</span></label>
+              <label><span>화장실 특이사항</span><input type="text" maxlength="160" value="${attr(room.bathroom_note || '')}" oninput="syncRoomText(${idx}, 'bathroom_note', this.value)" placeholder="예: 객실 내부 2개, 샤워 가능"></label>
+            </div>
+          </div>`;
+        tbody.appendChild(card);
       });
+      renderHighlightChoices();
     }
 
     function renderPhotoTabs() {
@@ -1796,39 +1849,75 @@
         const row = document.createElement('div');
         row.className = `facility-row-item ${fac.checked ? 'checked' : ''}`;
         
-        let inputHtml = '';
-        if (fac.placeholder) {
-          inputHtml = `
-            <div class="facility-input-box-area">
-          <textarea class="facility-desc-input" rows="2" placeholder="[${escapeDashboardHtml(fac.name)}] ${escapeDashboardHtml(fac.placeholder)}" oninput="syncFacilityDesc(${idx}, this.value)">${escapeDashboardHtml(fac.desc)}</textarea>
-            </div>
-          `;
-        }
+        const inputHtml = currentOwnerType === 'stay' ? facilityParamsHtml(fac, idx) : `
+          <div class="facility-input-box-area"><textarea class="facility-desc-input" rows="2" oninput="syncFacilityDesc(${idx}, this.value)">${escapeDashboardHtml(fac.desc)}</textarea></div>`;
 
         row.innerHTML = `
           <div class="facility-header-interactive" onclick="toggleFacilityRow(${idx}, this)">
-            <input type="checkbox" class="facility-custom-checkbox" ${fac.checked ? 'checked' : ''} onclick="event.stopPropagation(); toggleFacilityRow(${idx}, this.parentElement)">
+            <input type="checkbox" class="facility-custom-checkbox" ${fac.checked ? 'checked' : ''} onclick="event.stopPropagation(); setFacilityRow(${idx}, this.checked, this.closest('.facility-row-item'))">
             <span class="facility-label-text">${escapeDashboardHtml(fac.name)}</span>
           </div>
           ${inputHtml}
         `;
         container.appendChild(row);
       });
+      renderHighlightChoices();
+    }
+
+    function facilityParamsHtml(fac, idx) {
+      const p = fac.params || {};
+      const val = (key) => escapeDashboardHtml(p[key] ?? '');
+      const moneyVal = (key) => Number(p[key] || 0) ? Number(p[key]).toLocaleString('ko-KR') : '';
+      const fields = {
+        barbecue: `<label>최대 인원<input type="number" min="1" value="${val('capacity')}" oninput="syncFacilityParam(${idx},'capacity',this.value,'number')"></label><label>세팅<input type="text" value="${val('setup')}" oninput="syncFacilityParam(${idx},'setup',this.value)" placeholder="숯·그릴·집게"></label><label>이용 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        karaoke: `<label>이용 마감<input type="time" value="${val('available_until')}" oninput="syncFacilityParam(${idx},'available_until',this.value)"></label><label>마이크 개수<input type="number" min="0" value="${val('mic_count')}" oninput="syncFacilityParam(${idx},'mic_count',this.value,'number')"></label><label>포함 객실<input type="text" value="${val('included_rooms')}" oninput="syncFacilityParam(${idx},'included_rooms',this.value)" placeholder="예: 201호, 단체실"></label>`,
+        field: `<div class="wide"><span>설치 장비</span><div class="facility-equipment-grid">${[['soccer','축구 골대'],['basketball','농구 골대'],['footvolley','족구장']].map(([key,label])=>`<label><input type="checkbox" ${(p.equipment || []).includes(key)?'checked':''} onchange="syncFacilityEquipment(${idx},'${key}',this.checked)">${label}</label>`).join('')}</div></div>`,
+        pool: `<label>개장 시작<input type="date" value="${val('open_start')}" oninput="syncFacilityParam(${idx},'open_start',this.value)"></label><label>개장 종료<input type="date" value="${val('open_end')}" oninput="syncFacilityParam(${idx},'open_end',this.value)"></label><label>최대 인원<input type="number" min="1" value="${val('capacity')}" oninput="syncFacilityParam(${idx},'capacity',this.value,'number')"></label><label>이용 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        screen: `<label>포함 객실<input type="text" value="${val('included_rooms')}" oninput="syncFacilityParam(${idx},'included_rooms',this.value)" placeholder="예: 대강당, 201호"></label><label>연결 포트<input type="text" value="${val('ports')}" oninput="syncFacilityParam(${idx},'ports',this.value)" placeholder="HDMI, USB-C"></label><label>추가 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        wifi: `<label class="wide">안내<input type="text" value="${val('note')}" oninput="syncFacilityParam(${idx},'note',this.value)" placeholder="예: 전 객실 무료, 비밀번호 현장 안내"></label>`,
+        parking: `<label>승용차 주차 대수<input type="number" min="0" value="${val('spaces')}" oninput="syncFacilityParam(${idx},'spaces',this.value,'number')"></label><label class="owner-check-label"><input type="checkbox" ${p.bus_allowed?'checked':''} onchange="syncFacilityParam(${idx},'bus_allowed',this.checked,'boolean')"><span>대형버스 진입</span></label>`,
+        pickup: `<label>픽업 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label><label>운영 시간<input type="text" value="${val('hours')}" oninput="syncFacilityParam(${idx},'hours',this.value)" placeholder="예: 14:00~18:00"></label><label>장소<input type="text" value="${val('place')}" oninput="syncFacilityParam(${idx},'place',this.value)" placeholder="예: 대성리역 2번 출구"></label>`,
+      }[fac.key] || '';
+      return `<div class="facility-input-box-area"><div class="facility-param-grid">${fields}<label class="wide">특이사항<input type="text" maxlength="200" value="${escapeDashboardHtml(fac.desc || '')}" oninput="syncFacilityDesc(${idx},this.value)" placeholder="정해진 항목 외 안내가 있을 때만 입력"></label></div></div>`;
     }
 
     function toggleFacilityRow(idx, element) {
       const data = mockData[currentOwnerType];
       const rowItem = element.closest('.facility-row-item');
       const cb = rowItem.querySelector('.facility-custom-checkbox');
-      
-      const nextState = !cb.checked;
-      cb.checked = nextState;
-      data.facilities[idx].checked = nextState;
-      rowItem.classList.toggle('checked', nextState);
+      setFacilityRow(idx, !cb.checked, rowItem);
+    }
+
+    function setFacilityRow(idx, nextState, rowItem) {
+      const data = mockData[currentOwnerType];
+      const cb = rowItem.querySelector('.facility-custom-checkbox');
+      cb.checked = Boolean(nextState);
+      data.facilities[idx].checked = Boolean(nextState);
+      rowItem.classList.toggle('checked', Boolean(nextState));
+      renderHighlightChoices();
     }
 
     function syncFacilityDesc(idx, val) {
       mockData[currentOwnerType].facilities[idx].desc = val;
+    }
+
+    function syncFacilityParam(idx, key, value, type = 'text') {
+      const facility = mockData[currentOwnerType].facilities[idx];
+      facility.params ||= {};
+      if (type === 'number' || type === 'money') facility.params[key] = Number(String(value).replace(/\D/g,'')) || null;
+      else if (type === 'boolean') facility.params[key] = Boolean(value);
+      else facility.params[key] = value;
+      const activeInput = document.activeElement;
+      if (type === 'money' && activeInput?.tagName === 'INPUT') activeInput.value = facility.params[key] ? facility.params[key].toLocaleString('ko-KR') : '';
+      renderHighlightChoices();
+    }
+
+    function syncFacilityEquipment(idx, key, checked) {
+      const facility = mockData[currentOwnerType].facilities[idx];
+      facility.params ||= {};
+      const equipment = new Set(facility.params.equipment || []);
+      checked ? equipment.add(key) : equipment.delete(key);
+      facility.params.equipment = [...equipment];
     }
 
     function syncRoomName(idx, val) {
@@ -1843,23 +1932,63 @@
 
     function syncRoomNumber(idx, key, val) {
       mockData[currentOwnerType].rooms[idx][key] = Number(val) || null;
+      renderHighlightChoices();
     }
+
+    function syncRoomText(idx, key, val) { mockData[currentOwnerType].rooms[idx][key] = val; }
+    function syncRoomBoolean(idx, key, val) { mockData[currentOwnerType].rooms[idx][key] = Boolean(val); }
 
     function syncRoomMoney(idx, key, input) {
       const digits = String(input.value || '').replace(/\D/g, '');
       const amount = Number(digits) || 0;
       mockData[currentOwnerType].rooms[idx][key] = amount;
       input.value = amount ? amount.toLocaleString('ko-KR') : '';
+      if (key === 'offseason_weekday_price') mockData[currentOwnerType].rooms[idx].price = amount;
     }
 
     function addTableRow() {
       const data = mockData[currentOwnerType];
       const defaultName = currentOwnerType === 'stay' ? `신규 객실 ${data.rooms.length + 1}` : `신규 단품 항목 ${data.rooms.length + 1}`;
-      data.rooms.push({ name: defaultName, price: 15000, base_people: null, max_people: null, extra_person_fee: 0, image_urls: [], feature_summary: [] });
+      data.rooms.push({ name: defaultName, price: 15000, base_people: null, max_people: null, extra_person_fee: 0, image_urls: [], feature_summary: [], offseason_weekday_price: 15000, offseason_weekend_price: 15000, shoulder_weekday_price: 15000, shoulder_weekend_price: 15000, peak_weekday_price: 15000, peak_weekend_price: 15000, bathroom_count: 0, bathroom_gender_separated: false, bathroom_note: '' });
       
       rebuildPhotoTabsArray();
       renderRoomPriceTable();
       renderPhotoTabs();
+    }
+
+    const highlightLabels = {
+      capacity: '최대 수용인원', rooms: '객실 수', barbecue: '야외바베큐', pool: '수영장',
+      karaoke: '노래방/마이크', field: '야외운동장', screen: 'TV/화면', wifi: '와이파이',
+      parking: '주차', pickup: '픽업', station: '가까운 역', convenience: '가까운 편의점'
+    };
+
+    function availableHighlightKeys() {
+      if (currentOwnerType !== 'stay') return [];
+      const data = mockData.stay;
+      const keys = ['capacity', 'rooms'];
+      data.facilities.filter(item => item.checked).forEach(item => keys.push(item.key));
+      const business = window.motfCurrentBusiness || {};
+      if (business.station_distance_m != null) keys.push('station');
+      if (business.convenience_distance_m != null) keys.push('convenience');
+      return [...new Set(keys)];
+    }
+
+    function renderHighlightChoices() {
+      const container = document.getElementById('motfHighlightChoices');
+      if (!container || currentOwnerType !== 'stay') return;
+      const data = mockData.stay;
+      data.highlightKeys ||= [];
+      const available = availableHighlightKeys();
+      data.highlightKeys = data.highlightKeys.filter(key => available.includes(key)).slice(0, 3);
+      container.innerHTML = available.map(key => `<label class="owner-choice-chip ${data.highlightKeys.includes(key)?'active':''}"><input type="checkbox" value="${key}" ${data.highlightKeys.includes(key)?'checked':''} onchange="toggleHighlightKey('${key}',this.checked)"><span>${highlightLabels[key] || key}</span></label>`).join('');
+    }
+
+    function toggleHighlightKey(key, checked) {
+      const selected = new Set(mockData.stay.highlightKeys || []);
+      if (checked && selected.size >= 3) { alert('카드 핵심 정보는 최대 3개까지 선택할 수 있습니다.'); renderHighlightChoices(); return; }
+      checked ? selected.add(key) : selected.delete(key);
+      mockData.stay.highlightKeys = [...selected];
+      renderHighlightChoices();
     }
 
     function removeTableRow(idx) {
@@ -2289,6 +2418,15 @@
           min_people: item.min_people || null,
           base_people: item.base_people || item.min_people || null,
           extra_person_fee: Number(item.extra_person_fee) || 0,
+          offseason_weekday_price: Number(item.offseason_weekday_price ?? item.price) || 0,
+          offseason_weekend_price: Number(item.offseason_weekend_price ?? item.price) || 0,
+          shoulder_weekday_price: Number(item.shoulder_weekday_price ?? item.price) || 0,
+          shoulder_weekend_price: Number(item.shoulder_weekend_price ?? item.price) || 0,
+          peak_weekday_price: Number(item.peak_weekday_price ?? item.price) || 0,
+          peak_weekend_price: Number(item.peak_weekend_price ?? item.price) || 0,
+          bathroom_count: Number(item.bathroom_count) || 0,
+          bathroom_gender_separated: Boolean(item.bathroom_gender_separated),
+          bathroom_note: item.bathroom_note || '',
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null,
@@ -2317,6 +2455,15 @@
           min_people: item.min_people || null,
           base_people: item.base_people || item.min_people || null,
           extra_person_fee: Number(item.extra_person_fee) || 0,
+          offseason_weekday_price: Number(item.offseason_weekday_price ?? item.price) || 0,
+          offseason_weekend_price: Number(item.offseason_weekend_price ?? item.price) || 0,
+          shoulder_weekday_price: Number(item.shoulder_weekday_price ?? item.price) || 0,
+          shoulder_weekend_price: Number(item.shoulder_weekend_price ?? item.price) || 0,
+          peak_weekday_price: Number(item.peak_weekday_price ?? item.price) || 0,
+          peak_weekend_price: Number(item.peak_weekend_price ?? item.price) || 0,
+          bathroom_count: Number(item.bathroom_count) || 0,
+          bathroom_gender_separated: Boolean(item.bathroom_gender_separated),
+          bathroom_note: item.bathroom_note || null,
           unit: item.unit || null,
           category: item.category || null,
           image_url: item.image_url || null,
@@ -2391,16 +2538,24 @@
       };
       window.motfReadAmenityDetailsFromDashboard = function() {
         if (currentOwnerType !== 'stay') return [];
-        return mockData.stay.facilities.map(item => ({ key: item.key || item.name, label: item.name, available: Boolean(item.checked), detail: item.desc || null }));
+        return mockData.stay.facilities.map(item => ({ key: item.key || item.name, label: item.name, available: Boolean(item.checked), params: item.params || {}, detail: item.desc || null }));
       };
       window.motfApplyAmenityDetailsToDashboard = function(items) {
         if (currentOwnerType !== 'stay' || !Array.isArray(items)) return;
         const details = new Map(items.map(item => [item.key, item]));
         mockData.stay.facilities.forEach(facility => {
           const saved = details.get(facility.key);
-          if (saved) { facility.checked = saved.available !== false; facility.desc = saved.detail || ""; }
+          if (saved) { facility.checked = saved.available !== false; facility.desc = saved.detail || ""; facility.params = saved.params || {}; }
         });
         renderFacilityChips();
+      };
+      window.motfReadHighlightKeysFromDashboard = function() {
+        return currentOwnerType === 'stay' ? (mockData.stay.highlightKeys || []).slice(0, 3) : [];
+      };
+      window.motfApplyHighlightKeysToDashboard = function(keys) {
+        if (currentOwnerType !== 'stay') return;
+        mockData.stay.highlightKeys = Array.isArray(keys) ? keys.slice(0, 3) : [];
+        renderHighlightChoices();
       };
 
       window.motfSetPartnerOnboarding = function(needsOnboarding) {
@@ -2570,6 +2725,6 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260721-catalog1"></script>
+  <script src="/owner/owner-data.js?v=20260728-extra1"></script>
 </body>
 </html>

@@ -20,6 +20,167 @@
   --shadow: 0 10px 24px rgba(70, 87, 57, 0.055);
 }
 
+/* Structured stay inventory and post-booking extra charges */
+.owner-field-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.season-date-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 18px;
+}
+
+.season-date-fields > div {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  align-items: end;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.season-date-fields strong { align-self: center; font-size: 14px; }
+.season-date-fields label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+.season-date-fields input,
+.owner-room-editor input,
+.owner-room-editor select,
+.facility-param-grid input,
+.facility-param-grid select,
+.motf-dialog-field input,
+.motf-dialog-field textarea,
+.extra-charge-form-row input,
+.extra-charge-form-row select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  box-sizing: border-box;
+}
+.season-date-fields > small { grid-column: 1 / -1; color: var(--muted); }
+
+.owner-room-editor-list { display: grid; gap: 14px; }
+.owner-room-editor {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.owner-room-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--warm);
+}
+.owner-room-editor-head input { max-width: 320px; font-weight: 700; }
+.owner-room-editor-body { padding: 16px; }
+.owner-room-basic-grid,
+.owner-room-price-grid,
+.owner-room-bath-grid {
+  display: grid;
+  gap: 10px;
+}
+.owner-room-basic-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.owner-room-price-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+.owner-room-bath-grid { grid-template-columns: 180px 160px minmax(240px, 1fr); margin-top: 14px; }
+.owner-room-editor label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.owner-room-editor label span { color: var(--ink); font-weight: 600; }
+.owner-room-price-title { margin: 16px 0 0; font-size: 13px; color: var(--ink); }
+
+.facility-row-item { padding: 0 !important; overflow: hidden; }
+.facility-header-interactive { padding: 14px 16px; }
+.facility-input-box-area { padding: 0 16px 16px; }
+.facility-param-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.facility-param-grid label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.facility-param-grid .wide { grid-column: 1 / -1; }
+.facility-equipment-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 8px 0; }
+.facility-equipment-grid label { display: inline-flex; flex-direction: row; align-items: center; gap: 5px; color: var(--ink); }
+
+.owner-check-label { display: flex !important; align-items: center; gap: 8px; }
+.owner-check-label input { width: 18px; height: 18px; }
+.owner-distance-readout { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.owner-distance-readout span { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--warm); font-size: 12px; }
+
+.owner-extra-charge-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.owner-extra-charge-section h3 { margin: 0 0 5px; }
+.owner-extra-charge-section p { margin: 0; color: var(--muted); font-size: 13px; }
+.extra-charge-status-line { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.extra-charge-items { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+.motf-form-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(31, 38, 29, .16);
+  overflow: auto;
+}
+.motf-form-dialog::backdrop { background: rgba(24, 30, 22, .4); }
+.motf-form-dialog form { padding: 22px; }
+.motf-dialog-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.motf-dialog-head small { color: var(--teal); font-weight: 700; }
+.motf-dialog-head h3 { margin: 3px 0 0; font-size: 22px; }
+.motf-dialog-close { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--warm); cursor: pointer; }
+.motf-dialog-close svg { width: 18px; }
+.extra-charge-reservation-summary,
+.extra-charge-guide { padding: 12px 14px; border-radius: 7px; background: var(--warm); font-size: 13px; line-height: 1.6; }
+.extra-charge-guide { display: flex; gap: 8px; margin: 10px 0 16px; color: var(--teal-dark); }
+.extra-charge-guide svg { width: 18px; flex: 0 0 auto; }
+.extra-charge-form-rows { display: grid; gap: 10px; margin-bottom: 10px; }
+.extra-charge-form-row {
+  display: grid;
+  grid-template-columns: 150px minmax(130px, 1fr) 82px 130px 40px;
+  gap: 8px;
+  align-items: center;
+}
+.extra-charge-form-row button { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+.motf-dialog-field { display: grid; gap: 6px; margin-top: 14px; font-size: 13px; font-weight: 600; }
+.extra-charge-total { display: flex; justify-content: space-between; margin-top: 16px; padding: 15px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.extra-charge-total strong { font-size: 20px; color: var(--teal-dark); }
+.motf-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 900px) {
+  .season-date-fields,
+  .owner-room-price-grid { grid-template-columns: 1fr 1fr; }
+  .season-date-fields > div { grid-template-columns: 1fr 1fr; }
+  .season-date-fields strong { grid-column: 1 / -1; }
+  .owner-room-basic-grid,
+  .owner-room-bath-grid,
+  .facility-param-grid { grid-template-columns: 1fr 1fr; }
+  .extra-charge-form-row { grid-template-columns: 1fr 1fr; padding: 12px; border: 1px solid var(--line); border-radius: 7px; }
+  .extra-charge-form-row button { justify-self: end; }
+}
+
+@media (max-width: 620px) {
+  .season-date-fields,
+  .owner-room-basic-grid,
+  .owner-room-price-grid,
+  .owner-room-bath-grid,
+  .facility-param-grid { grid-template-columns: 1fr; }
+  .facility-param-grid .wide { grid-column: auto; }
+  .motf-dialog-actions { display: grid; grid-template-columns: 1fr; }
+}
+
 /* Partner catalog editor */
 .owner-textarea {
   width: 100%;
@@ -271,8 +432,7 @@
   .owner-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .owner-fee-row { grid-template-columns: 1fr 1fr; }
   .owner-fee-row > :nth-child(4) { grid-column: 1 / -1; }
-  .room-price-table { min-width: 860px; }
-  #priceSettingWrapperSector { overflow-x: auto; }
+  #priceSettingWrapperSector { overflow: visible; }
 }
 
 @media (max-width: 560px) {

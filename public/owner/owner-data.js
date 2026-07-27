@@ -23,6 +23,7 @@
     "description",
     "short_description",
     "highlight_summary",
+    "highlight_keys",
     "region",
     "cover_image_url",
     "gallery_image_urls",
@@ -30,10 +31,17 @@
     "nearby_tags",
     "room_count",
     "bath_count",
+    "shared_bathroom_count",
+    "shared_bathroom_gender_separated",
+    "shared_bathroom_note",
+    "shoulder_season_ranges",
+    "peak_season_ranges",
     "amenity_details",
     "extra_fees",
     "latitude",
     "longitude",
+    "station_distance_m",
+    "convenience_distance_m",
     "location_verified_at",
     "approval_status",
     "rejection_reason",
@@ -55,8 +63,6 @@
   let naverMapsPromise;
   let postcodePromise;
   const nearbyOptions = [
-    { key: "station", label: "역과 가까움" },
-    { key: "convenience", label: "편의점과 가까움" },
     { key: "river", label: "강가" },
     { key: "seaside", label: "바다" },
     { key: "valley", label: "계곡" },
@@ -544,9 +550,8 @@
       motfShortDescription: business.short_description,
       motfRoomCount: business.room_count,
       motfBathCount: business.bath_count,
-      motfHighlight1: business.highlight_summary?.[0] || "",
-      motfHighlight2: business.highlight_summary?.[1] || "",
-      motfHighlight3: business.highlight_summary?.[2] || "",
+      motfSharedBathCount: business.shared_bathroom_count,
+      motfSharedBathNote: business.shared_bathroom_note,
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
@@ -562,11 +567,28 @@
     }
     const stayDetailFields = document.getElementById("motfStayDetailFields");
     if (stayDetailFields) stayDetailFields.hidden = business.business_type !== "stay";
+    const firstShoulder = Array.isArray(business.shoulder_season_ranges) ? business.shoulder_season_ranges[0] : null;
+    const firstPeak = Array.isArray(business.peak_season_ranges) ? business.peak_season_ranges[0] : null;
+    const seasonValues = {
+      motfShoulderStart: firstShoulder?.start_date,
+      motfShoulderEnd: firstShoulder?.end_date,
+      motfPeakStart: firstPeak?.start_date,
+      motfPeakEnd: firstPeak?.end_date,
+    };
+    Object.entries(seasonValues).forEach(([id, value]) => { const input = document.getElementById(id); if (input) input.value = value || ""; });
+    const sharedBathSeparated = document.getElementById("motfSharedBathSeparated");
+    if (sharedBathSeparated) sharedBathSeparated.checked = Boolean(business.shared_bathroom_gender_separated);
     window.motfApplyAmenityDetailsToDashboard?.(business.amenity_details || []);
+    window.motfApplyHighlightKeysToDashboard?.(business.highlight_keys || []);
     selectedNearbyTags = new Set(business.nearby_tags || []);
     extraFeeRows = Array.isArray(business.extra_fees) ? business.extra_fees.map((item) => ({ ...item, category: item.category || "optional" })) : [];
     renderNearbyChoices();
     renderExtraFeeRows();
+    const automaticDistances = document.getElementById("motfAutomaticDistances");
+    if (automaticDistances) automaticDistances.innerHTML = [
+      `<span>가까운 역: ${business.station_distance_m == null ? "기준 좌표 등록 후 자동 계산" : `${Number(business.station_distance_m).toLocaleString()}m`}</span>`,
+      `<span>가까운 편의점: ${business.convenience_distance_m == null ? "기준 좌표 등록 후 자동 계산" : `${Number(business.convenience_distance_m).toLocaleString()}m`}</span>`,
+    ].join("");
     const fields = document.getElementById("motfBusinessFields");
     if (fields && hasCoordinates(business)) {
       fields.dataset.latitude = String(business.latitude);
@@ -583,7 +605,7 @@
     updatePhotoPreview(business.cover_image_url || null);
     const loadOfferings = async () => {
       let result = await client().from("offerings")
-        .select("id, name, description, price, max_people, min_people, base_people, extra_person_fee, unit, category, image_url, image_urls, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity, is_active")
+        .select("id, name, description, price, max_people, min_people, base_people, extra_person_fee, unit, category, image_url, image_urls, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity, is_active, offseason_weekday_price, offseason_weekend_price, shoulder_weekday_price, shoulder_weekend_price, peak_weekday_price, peak_weekend_price, bathroom_count, bathroom_gender_separated, bathroom_note")
         .eq("business_id", business.id)
         .eq("is_active", true)
         .order("sort_order");
@@ -616,6 +638,22 @@
       return originalSaveMypageData?.();
     }
 
+    const dateRange = (startId, endId) => {
+      const start = document.getElementById(startId)?.value;
+      const end = document.getElementById(endId)?.value;
+      if (!start && !end) return [];
+      if (!start || !end || start > end) throw new Error("준성수기·성수기 시작일과 종료일을 확인해주세요.");
+      return [{ start_date: start, end_date: end }];
+    };
+    let shoulderRanges;
+    let peakRanges;
+    try {
+      shoulderRanges = dateRange("motfShoulderStart", "motfShoulderEnd");
+      peakRanges = dateRange("motfPeakStart", "motfPeakEnd");
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
     const payload = {
       business_name: document.getElementById("motfBusinessName")?.value.trim(),
       representative_name: document.getElementById("motfRepresentativeName")?.value.trim(),
@@ -629,11 +667,14 @@
       short_description: document.getElementById("motfShortDescription")?.value.trim()
         || document.getElementById("editDescInput")?.value.trim().slice(0, 140)
         || null,
-      highlight_summary: ["motfHighlight1", "motfHighlight2", "motfHighlight3"].map((id) => document.getElementById(id)?.value.trim()).filter(Boolean).slice(0, 3),
+      highlight_keys: window.motfReadHighlightKeysFromDashboard?.() || [],
       facilities: window.motfReadFacilitiesFromDashboard?.() || [],
       nearby_tags: [...selectedNearbyTags],
-      room_count: Number(document.getElementById("motfRoomCount")?.value || 0),
-      bath_count: Number(document.getElementById("motfBathCount")?.value || 0),
+      shared_bathroom_count: Number(document.getElementById("motfSharedBathCount")?.value || 0),
+      shared_bathroom_gender_separated: Boolean(document.getElementById("motfSharedBathSeparated")?.checked),
+      shared_bathroom_note: document.getElementById("motfSharedBathNote")?.value.trim() || null,
+      shoulder_season_ranges: shoulderRanges,
+      peak_season_ranges: peakRanges,
       amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
       extra_fees: extraFeeRows.filter((item) => item.label).map((item) => ({ label: item.label.trim(), amount: Number(item.amount) || null, detail: item.detail?.trim() || null, category: item.category || "optional" })),
       updated_at: new Date().toISOString(),
@@ -667,12 +708,13 @@
       payload.location_verified_at = new Date().toISOString();
 
       if (saveButton) saveButton.textContent = "저장 중...";
-      const [{ data, error }, offeringResult, profileResult] = await Promise.all([
-        client().from("businesses")
-          .update(payload)
-          .eq("id", business.id)
-          .select(businessSelect)
-          .single(),
+      const businessResult = await client().from("businesses")
+        .update(payload)
+        .eq("id", business.id)
+        .select(businessSelect)
+        .single();
+      if (businessResult.error) throw businessResult.error;
+      const [offeringResult, profileResult] = await Promise.all([
         client().rpc("save_business_offerings", {
           target_business_id: business.id,
           items: offeringItems,
@@ -681,8 +723,15 @@
           ? client().from("profiles").update({ phone: ownerPhone, updated_at: new Date().toISOString() }).eq("id", window.motfCurrentProfile?.id)
           : Promise.resolve({ error: null }),
       ]);
-      if (error || offeringResult.error || profileResult.error) throw error || offeringResult.error || profileResult.error;
+      if (offeringResult.error || profileResult.error) throw offeringResult.error || profileResult.error;
+      await Promise.all([
+        client().rpc("refresh_business_nearby_distances", { target_business_id: business.id }),
+        client().rpc("refresh_business_highlights", { target_business_id: business.id }),
+      ]);
+      const refreshed = await client().from("businesses").select(businessSelect).eq("id", business.id).single();
+      if (refreshed.error) throw refreshed.error;
 
+      const data = refreshed.data;
       window.motfCurrentBusiness = data;
       if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
       window.motfApplyBusinessToDashboard?.(data);
@@ -944,6 +993,9 @@
     const pending = item.status === "pending";
     const refundLabel = item.refundStatus && item.refundStatus !== "none" ? refundStatus[item.refundStatus] || item.refundStatus : "";
     const readOnlyPaymentIntent = item.kind === "payment_intent" || item.status === "virtual_account_issued";
+    const extraChargeButton = item.kind === "stay" && ["confirmed", "completed"].includes(item.status)
+      ? `<button class="secondary-btn compact" onclick="motfOpenExtraChargeDialog('${item.id}')"><i data-lucide="receipt-text"></i>추가금 요청</button>`
+      : "";
     const actions = readOnlyPaymentIntent ? `
       <span class="master-status-badge master-badge-waiting">입금 대기</span>
     ` : pending ? `
@@ -951,7 +1003,7 @@
         <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
       </div>
-    ` : `<span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span>`;
+    ` : `<div class="item-actions"><span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span>${extraChargeButton}</div>`;
     return `
       <div class="item-card">
         <div style="flex:1;">
@@ -1223,6 +1275,7 @@
     }
     window.renderCalendar?.();
     window.renderOrders();
+    window.loadMotfPartnerExtraCharges?.();
   };
 
   window.renderOrders = function renderDatabaseOrders() {
@@ -1250,7 +1303,7 @@
     const businesses = businessResult.data || [];
     const nameOf = (id) => businesses.find((item) => item.id === id)?.business_name || "업장";
     adminTransactions = [
-      ...(intentResult.data || []).map((item) => pendingIntentToTransaction(item, nameOf(pendingIntentBusinessId(item)))),
+      ...(intentResult.data || []).filter((item) => item.kind !== "extra_charge").map((item) => pendingIntentToTransaction(item, nameOf(pendingIntentBusinessId(item)))),
       ...(reservationResult.data || []).map((item) => ({ kind:"stay", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name, date:item.event_date, target:item.offering_name, amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
       ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
     ];
@@ -1259,6 +1312,7 @@
     renderAdminTransactionSummary();
     window.renderMasterOrders();
     loadMotfAdminSettlements();
+    window.loadMotfAdminExtraCharges?.();
   };
 
   function renderAdminTransactionSummary() {
@@ -1330,7 +1384,7 @@
     body.innerHTML = rows.length
       ? rows.map((item) => {
           const rate = `${(Number(item.commission_rate || 0) * 100).toFixed(0)}%`;
-          const label = item.transaction_kind === "market" ? "공판장" : "숙소";
+          const label = item.transaction_kind === "market" ? "공판장" : item.transaction_kind === "extra_charge" ? "숙소 추가금" : "숙소";
           const status = item.status === "paid"
             ? `<span class="master-status-badge master-badge-active">정산 완료</span>`
             : `<button class="primary-btn" style="padding:6px 12px; font-size:13px; background-color:#d97706;" onclick="motfMarkSettlementPaid('${item.id}')">정산 완료처리</button>`;
@@ -1735,6 +1789,162 @@
     await window.loadMotfAdminSupportCases();
   };
 
+  const extraChargeStatusLabels = {
+    submitted: "운영팀 검토 중",
+    approved: "이용자 결제 요청",
+    payment_prepared: "결제 준비",
+    payment_pending: "입금 대기",
+    paid: "입금 완료",
+    rejected: "검토 반려",
+    cancelled: "취소",
+    expired: "기한 만료",
+  };
+
+  const extraChargeCategories = [
+    ["additional_person", "추가인원"],
+    ["barbecue", "야외바베큐"],
+    ["pool", "수영장"],
+    ["karaoke", "노래방/마이크"],
+    ["screen", "TV/화면"],
+    ["pickup", "픽업"],
+    ["other", "기타"],
+  ];
+
+  function extraChargeItemsHtml(items = []) {
+    return `<ul class="extra-charge-items">${items.map((item) => `<li>${escapeHtml(item.label || "추가 이용금")} · ${Number(item.quantity || 1).toLocaleString()} × ${Number(item.unit_amount || 0).toLocaleString()}원${item.note ? ` · ${escapeHtml(item.note)}` : ""}</li>`).join("")}</ul>`;
+  }
+
+  function extraChargeCard(item, admin = false) {
+    const statusClass = ["paid", "approved"].includes(item.status) ? "master-badge-active" : ["rejected", "expired", "cancelled"].includes(item.status) ? "master-badge-terminated" : "master-badge-waiting";
+    const reviewActions = admin && item.status === "submitted" ? `
+      <div class="item-actions">
+        <button class="primary-btn" onclick="motfReviewExtraCharge('${item.id}','approved')">승인·결제 요청</button>
+        <button class="motf-reject-action-btn" onclick="motfReviewExtraCharge('${item.id}','rejected')">반려</button>
+      </div>` : `<span class="master-status-badge ${statusClass}">${extraChargeStatusLabels[item.status] || item.status}</span>`;
+    return `<article class="item-card">
+      <div class="item-info" style="flex:1;">
+        <div style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:5px;">${escapeHtml(item.businesses?.business_name || window.motfCurrentBusiness?.business_name || "숙소")}</div>
+        <h4>${escapeHtml(item.reservations?.customer_name || "이용자")} · ${escapeHtml(item.reservations?.offering_name || "객실")}</h4>
+        <p>${escapeHtml(item.reservations?.event_date || "")} · 요청 ${new Date(item.created_at).toLocaleString("ko-KR")}</p>
+        ${extraChargeItemsHtml(item.items)}
+        ${item.owner_note ? `<p>사장님 메모: ${escapeHtml(item.owner_note)}</p>` : ""}
+        ${item.review_note ? `<p style="color:#b45309;">운영팀 메모: ${escapeHtml(item.review_note)}</p>` : ""}
+        <div class="extra-charge-status-line"><strong>${Number(item.total_amount || 0).toLocaleString()}원</strong>${item.due_at ? `<span>결제 기한 ${new Date(item.due_at).toLocaleString("ko-KR")}</span>` : ""}</div>
+      </div>${reviewActions}
+    </article>`;
+  }
+
+  async function loadExtraCharges(targetBusinessId = null) {
+    let query = client().from("reservation_extra_charge_requests")
+      .select("id, reservation_id, business_id, customer_id, items, total_amount, owner_note, review_note, status, due_at, paid_at, created_at, businesses(business_name), reservations(customer_name, offering_name, event_date)")
+      .order("created_at", { ascending: false });
+    if (targetBusinessId) query = query.eq("business_id", targetBusinessId);
+    const { data, error } = await query;
+    if (error) { console.error("Failed to load extra charges", error); return []; }
+    return data || [];
+  }
+
+  window.loadMotfPartnerExtraCharges = async function loadMotfPartnerExtraCharges() {
+    if (!client() || !window.motfCurrentBusiness || window.motfCurrentProfile?.role !== "partner") return;
+    const section = document.getElementById("partnerExtraChargeSection");
+    const list = document.getElementById("partnerExtraChargeList");
+    if (!section || !list || window.motfCurrentBusiness.business_type !== "stay") return;
+    section.hidden = false;
+    const rows = await loadExtraCharges(window.motfCurrentBusiness.id);
+    list.innerHTML = rows.length ? rows.map((item) => extraChargeCard(item)).join("") : '<p style="padding:18px 0;color:var(--muted);">아직 요청한 추가 이용금이 없습니다.</p>';
+    window.lucide?.createIcons();
+  };
+
+  window.loadMotfAdminExtraCharges = async function loadMotfAdminExtraCharges() {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const list = document.getElementById("adminExtraChargeList");
+    if (!list) return;
+    const rows = await loadExtraCharges();
+    list.innerHTML = rows.length ? rows.map((item) => extraChargeCard(item, true)).join("") : '<p style="padding:18px 0;color:var(--muted);">검토할 추가 이용금 요청이 없습니다.</p>';
+    window.lucide?.createIcons();
+  };
+
+  window.motfOpenExtraChargeDialog = function motfOpenExtraChargeDialog(reservationId) {
+    const source = [...partnerTransactions, ...adminTransactions].find((item) => item.kind === "stay" && item.id === reservationId);
+    if (!source) return alert("확정 예약 정보를 찾지 못했습니다.");
+    document.getElementById("motfExtraChargeReservationId").value = reservationId;
+    document.getElementById("motfExtraChargeReservationSummary").innerHTML = `<strong>${escapeHtml(source.businessName)} · ${escapeHtml(source.target)}</strong><br>${escapeHtml(source.customerName)} · ${escapeHtml(source.date)}`;
+    document.getElementById("motfExtraChargeRows").innerHTML = "";
+    document.getElementById("motfExtraChargeNote").value = "";
+    document.getElementById("motfExtraChargeDueAt").value = "";
+    window.motfAddExtraChargeRow("additional_person", "추가인원");
+    document.getElementById("motfExtraChargeDialog").showModal();
+    window.lucide?.createIcons();
+  };
+
+  window.motfAddExtraChargeRow = function motfAddExtraChargeRow(category = "other", label = "") {
+    const rows = document.getElementById("motfExtraChargeRows");
+    if (!rows) return;
+    const row = document.createElement("div");
+    row.className = "extra-charge-form-row";
+    row.innerHTML = `
+      <select data-extra-category>${extraChargeCategories.map(([value, text]) => `<option value="${value}" ${value === category ? "selected" : ""}>${text}</option>`).join("")}</select>
+      <input data-extra-label maxlength="60" value="${escapeHtml(label)}" placeholder="항목명">
+      <input data-extra-quantity type="number" min="1" value="1" aria-label="수량">
+      <input data-extra-money inputmode="numeric" placeholder="단가">
+      <button type="button" onclick="this.parentElement.remove(); motfUpdateExtraChargeTotal()" aria-label="항목 삭제"><i data-lucide="trash-2"></i></button>`;
+    rows.appendChild(row);
+    row.querySelectorAll("input,select").forEach((input) => input.addEventListener("input", window.motfUpdateExtraChargeTotal));
+    window.motfUpdateExtraChargeTotal();
+    window.lucide?.createIcons();
+  };
+
+  window.motfUpdateExtraChargeTotal = function motfUpdateExtraChargeTotal() {
+    let total = 0;
+    document.querySelectorAll("#motfExtraChargeRows .extra-charge-form-row").forEach((row) => {
+      total += Math.max(1, Number(row.querySelector("[data-extra-quantity]")?.value || 1)) * (Number(String(row.querySelector("[data-extra-money]")?.value || "").replace(/\D/g, "")) || 0);
+    });
+    const node = document.getElementById("motfExtraChargeTotal");
+    if (node) node.textContent = `${total.toLocaleString()}원`;
+  };
+
+  window.motfReviewExtraCharge = async function motfReviewExtraCharge(id, decision) {
+    const note = prompt(decision === "approved" ? "이용자에게 함께 전달할 메모가 있다면 입력해주세요." : "반려 사유를 입력해주세요.") || "";
+    if (decision === "rejected" && !note.trim()) return;
+    const { error } = await client().rpc("review_reservation_extra_charge_request", {
+      target_request_id: id,
+      review_decision: decision,
+      note,
+    });
+    if (error) return alert(error.message || "추가금 요청을 처리하지 못했습니다.");
+    await window.loadMotfAdminExtraCharges();
+    alert(decision === "approved" ? "이용자에게 추가금 결제 요청을 보냈습니다." : "추가금 요청을 반려했습니다.");
+  };
+
+  document.getElementById("motfExtraChargeForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const items = [...document.querySelectorAll("#motfExtraChargeRows .extra-charge-form-row")].map((row) => ({
+      category: row.querySelector("[data-extra-category]")?.value || "other",
+      label: row.querySelector("[data-extra-label]")?.value.trim() || "",
+      quantity: Math.max(1, Number(row.querySelector("[data-extra-quantity]")?.value || 1)),
+      unit_amount: Number(String(row.querySelector("[data-extra-money]")?.value || "").replace(/\D/g, "")) || 0,
+    })).filter((item) => item.label && item.unit_amount > 0);
+    if (!items.length) return alert("추가금 항목명과 단가를 입력해주세요.");
+    const submit = event.target.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      const dueValue = document.getElementById("motfExtraChargeDueAt").value;
+      const { error } = await client().rpc("create_reservation_extra_charge_request", {
+        target_reservation_id: document.getElementById("motfExtraChargeReservationId").value,
+        charge_items: items,
+        request_note: document.getElementById("motfExtraChargeNote").value.trim() || null,
+        payment_due_at: dueValue ? new Date(dueValue).toISOString() : null,
+      });
+      if (error) throw error;
+      document.getElementById("motfExtraChargeDialog").close();
+      if (window.motfCurrentProfile?.role === "admin") await window.loadMotfAdminExtraCharges();
+      else await window.loadMotfPartnerExtraCharges();
+      alert(window.motfCurrentProfile?.role === "admin" ? "추가금 결제 요청을 등록했습니다." : "운영팀에 추가금 검토를 요청했습니다.");
+    } catch (error) {
+      alert(error.message || "추가금 요청을 등록하지 못했습니다.");
+    } finally { submit.disabled = false; }
+  });
+
   function scheduleChatReload() {
     window.clearTimeout(chatReloadTimer);
     chatReloadTimer = window.setTimeout(() => {
@@ -1772,9 +1982,10 @@
     if (event.target.matches('input[type="tel"], #motfBusinessPhone, #motfOwnerPhone, [data-phone-input]')) {
       event.target.value = formatPhoneInput(event.target.value);
     }
-    if (event.target.matches("[data-money-input]")) {
+    if (event.target.matches("[data-money-input], [data-extra-money]")) {
       const amount = Number(String(event.target.value || "").replace(/\D/g, "")) || 0;
       event.target.value = amount ? amount.toLocaleString("ko-KR") : "";
+      if (event.target.matches("[data-extra-money]")) window.motfUpdateExtraChargeTotal?.();
     }
   });
 
