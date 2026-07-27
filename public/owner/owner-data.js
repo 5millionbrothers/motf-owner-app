@@ -567,15 +567,10 @@
     }
     const stayDetailFields = document.getElementById("motfStayDetailFields");
     if (stayDetailFields) stayDetailFields.hidden = business.business_type !== "stay";
-    const firstShoulder = Array.isArray(business.shoulder_season_ranges) ? business.shoulder_season_ranges[0] : null;
-    const firstPeak = Array.isArray(business.peak_season_ranges) ? business.peak_season_ranges[0] : null;
-    const seasonValues = {
-      motfShoulderStart: firstShoulder?.start_date,
-      motfShoulderEnd: firstShoulder?.end_date,
-      motfPeakStart: firstPeak?.start_date,
-      motfPeakEnd: firstPeak?.end_date,
-    };
-    Object.entries(seasonValues).forEach(([id, value]) => { const input = document.getElementById(id); if (input) input.value = value || ""; });
+    window.motfApplySeasonRangesToDashboard?.(
+      business.shoulder_season_ranges || [],
+      business.peak_season_ranges || []
+    );
     const sharedBathSeparated = document.getElementById("motfSharedBathSeparated");
     if (sharedBathSeparated) sharedBathSeparated.checked = Boolean(business.shared_bathroom_gender_separated);
     window.motfApplyAmenityDetailsToDashboard?.(business.amenity_details || []);
@@ -638,22 +633,7 @@
       return originalSaveMypageData?.();
     }
 
-    const dateRange = (startId, endId) => {
-      const start = document.getElementById(startId)?.value;
-      const end = document.getElementById(endId)?.value;
-      if (!start && !end) return [];
-      if (!start || !end || start > end) throw new Error("준성수기·성수기 시작일과 종료일을 확인해주세요.");
-      return [{ start_date: start, end_date: end }];
-    };
-    let shoulderRanges;
-    let peakRanges;
-    try {
-      shoulderRanges = dateRange("motfShoulderStart", "motfShoulderEnd");
-      peakRanges = dateRange("motfPeakStart", "motfPeakEnd");
-    } catch (error) {
-      alert(error.message);
-      return;
-    }
+    const seasonRanges = window.motfReadSeasonRangesFromDashboard?.() || { shoulder: [], peak: [] };
     const payload = {
       business_name: document.getElementById("motfBusinessName")?.value.trim(),
       representative_name: document.getElementById("motfRepresentativeName")?.value.trim(),
@@ -673,8 +653,8 @@
       shared_bathroom_count: Number(document.getElementById("motfSharedBathCount")?.value || 0),
       shared_bathroom_gender_separated: Boolean(document.getElementById("motfSharedBathSeparated")?.checked),
       shared_bathroom_note: document.getElementById("motfSharedBathNote")?.value.trim() || null,
-      shoulder_season_ranges: shoulderRanges,
-      peak_season_ranges: peakRanges,
+      shoulder_season_ranges: seasonRanges.shoulder,
+      peak_season_ranges: seasonRanges.peak,
       amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
       extra_fees: extraFeeRows.filter((item) => item.label).map((item) => ({ label: item.label.trim(), amount: Number(item.amount) || null, detail: item.detail?.trim() || null, category: item.category || "optional" })),
       updated_at: new Date().toISOString(),

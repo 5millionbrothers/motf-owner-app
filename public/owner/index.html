@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="stylesheet" href="/owner/styles.css?v=20260728-extra1">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260728-season3">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -917,10 +917,25 @@
                 <p class="owner-field-help">숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.</p>
               </div>
             </div>
-            <div id="motfSeasonDateFields" class="season-date-fields">
-              <div><strong>준성수기 기간</strong><label>시작<input id="motfShoulderStart" type="date" /></label><label>종료<input id="motfShoulderEnd" type="date" /></label></div>
-              <div><strong>성수기 기간</strong><label>시작<input id="motfPeakStart" type="date" /></label><label>종료<input id="motfPeakEnd" type="date" /></label></div>
-              <small>기간을 비워두면 해당 시즌 요금은 적용되지 않습니다. 비수기는 나머지 모든 날짜입니다.</small>
+            <div id="motfSeasonCalendarEditor" class="season-calendar-editor">
+              <div class="season-calendar-toolbar">
+                <div>
+                  <strong>시즌 달력 설정</strong>
+                  <p>시즌을 고른 뒤 날짜를 누르거나 드래그하세요. 여러 기간을 반복해서 설정할 수 있습니다.</p>
+                </div>
+                <div class="season-mode-buttons" role="group" aria-label="적용할 시즌">
+                  <button type="button" data-season-mode="offseason" onclick="setSeasonCalendarMode('offseason')">비수기</button>
+                  <button type="button" data-season-mode="shoulder" class="active" onclick="setSeasonCalendarMode('shoulder')">준성수기</button>
+                  <button type="button" data-season-mode="peak" onclick="setSeasonCalendarMode('peak')">성수기</button>
+                </div>
+              </div>
+              <div class="season-calendar-year-nav">
+                <button type="button" onclick="shiftSeasonCalendarYear(-1)" aria-label="이전 연도"><i data-lucide="chevron-left"></i></button>
+                <strong id="motfSeasonCalendarYear"></strong>
+                <button type="button" onclick="shiftSeasonCalendarYear(1)" aria-label="다음 연도"><i data-lucide="chevron-right"></i></button>
+              </div>
+              <div id="motfSeasonCalendarGrid" class="season-calendar-grid"></div>
+              <div id="motfSeasonCalendarSummary" class="season-calendar-summary"></div>
             </div>
             <div id="roomPriceTableBody" class="owner-room-editor-list"></div>
             <button class="secondary-btn" style="margin-top:10px; padding:6px 12px; font-size:13px;" onclick="addTableRow()"><i data-lucide="plus" style="width:14px; display:inline;"></i> <span id="addBtnDynamicText">객실 추가</span></button>
@@ -1210,12 +1225,135 @@
     let masterSelectedChatUser = '';
     let masterContentTab = 'reviews';
     let currentRegisteredProfile = null;
+    let seasonCalendarYear = initialCalendarDate.getFullYear();
+    let seasonCalendarMode = 'shoulder';
+    let seasonPaintActive = false;
+    const seasonAssignments = new Map();
 
     function escapeDashboardHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, character => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }[character]));
     }
+
+    function seasonDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function seasonRangesToAssignments(ranges, mode) {
+      (Array.isArray(ranges) ? ranges : []).forEach(range => {
+        const start = new Date(`${range?.start_date || ''}T12:00:00`);
+        const end = new Date(`${range?.end_date || ''}T12:00:00`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return;
+        for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+          seasonAssignments.set(seasonDateKey(cursor), mode);
+        }
+      });
+    }
+
+    function seasonAssignmentsToRanges(mode) {
+      const dates = [...seasonAssignments.entries()]
+        .filter(([, value]) => value === mode)
+        .map(([date]) => date)
+        .sort();
+      if (!dates.length) return [];
+      const ranges = [];
+      let start = dates[0];
+      let previous = dates[0];
+      for (let index = 1; index < dates.length; index += 1) {
+        const nextExpectedDate = new Date(`${previous}T12:00:00`);
+        nextExpectedDate.setDate(nextExpectedDate.getDate() + 1);
+        if (dates[index] !== seasonDateKey(nextExpectedDate)) {
+          ranges.push({ start_date: start, end_date: previous });
+          start = dates[index];
+        }
+        previous = dates[index];
+      }
+      ranges.push({ start_date: start, end_date: previous });
+      return ranges;
+    }
+
+    function setSeasonCalendarMode(mode) {
+      seasonCalendarMode = ['offseason', 'shoulder', 'peak'].includes(mode) ? mode : 'shoulder';
+      document.querySelectorAll('[data-season-mode]').forEach(button => {
+        const active = button.dataset.seasonMode === seasonCalendarMode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+    }
+
+    function shiftSeasonCalendarYear(amount) {
+      seasonCalendarYear += Number(amount || 0);
+      renderSeasonCalendar();
+    }
+
+    function applySeasonToDate(dateKey, button) {
+      if (!dateKey) return;
+      if (seasonCalendarMode === 'offseason') seasonAssignments.delete(dateKey);
+      else seasonAssignments.set(dateKey, seasonCalendarMode);
+      if (button) {
+        button.classList.remove('shoulder', 'peak');
+        const assigned = seasonAssignments.get(dateKey);
+        if (assigned) button.classList.add(assigned);
+        button.setAttribute('aria-label', `${dateKey} ${assigned === 'peak' ? '성수기' : assigned === 'shoulder' ? '준성수기' : '비수기'}`);
+      }
+      renderSeasonCalendarSummary();
+    }
+
+    function beginSeasonPaint(event, button) {
+      if (event.button != null && event.button !== 0) return;
+      seasonPaintActive = true;
+      applySeasonToDate(button.dataset.seasonDate, button);
+      event.preventDefault();
+    }
+
+    function continueSeasonPaint(button) {
+      if (!seasonPaintActive || !button) return;
+      applySeasonToDate(button.dataset.seasonDate, button);
+    }
+
+    function renderSeasonCalendarSummary() {
+      const summary = document.getElementById('motfSeasonCalendarSummary');
+      if (!summary) return;
+      const shoulder = seasonAssignmentsToRanges('shoulder');
+      const peak = seasonAssignmentsToRanges('peak');
+      summary.innerHTML = `<span><b>준성수기</b> ${shoulder.length ? `${shoulder.length}개 기간` : '미설정'}</span><span><b>성수기</b> ${peak.length ? `${peak.length}개 기간` : '미설정'}</span><small>색이 없는 날짜는 비수기로 계산됩니다.</small>`;
+    }
+
+    function renderSeasonCalendar() {
+      const grid = document.getElementById('motfSeasonCalendarGrid');
+      const title = document.getElementById('motfSeasonCalendarYear');
+      if (!grid || !title) return;
+      title.textContent = `${seasonCalendarYear}년`;
+      const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+      grid.innerHTML = Array.from({ length: 12 }, (_, monthIndex) => {
+        const firstDay = new Date(seasonCalendarYear, monthIndex, 1).getDay();
+        const lastDate = new Date(seasonCalendarYear, monthIndex + 1, 0).getDate();
+        const blanks = Array.from({ length: firstDay }, () => '<span class="season-calendar-blank"></span>').join('');
+        const days = Array.from({ length: lastDate }, (_, dayIndex) => {
+          const date = new Date(seasonCalendarYear, monthIndex, dayIndex + 1);
+          const dateKey = seasonDateKey(date);
+          const assigned = seasonAssignments.get(dateKey) || '';
+          const label = assigned === 'peak' ? '성수기' : assigned === 'shoulder' ? '준성수기' : '비수기';
+          return `<button type="button" class="season-calendar-day ${assigned}" data-season-date="${dateKey}" aria-label="${dateKey} ${label}" onpointerdown="beginSeasonPaint(event,this)" onpointerenter="continueSeasonPaint(this)">${dayIndex + 1}</button>`;
+        }).join('');
+        return `<section class="season-month"><h4>${monthIndex + 1}월</h4><div class="season-weekdays">${weekdays.map(day => `<span>${day}</span>`).join('')}</div><div class="season-days">${blanks}${days}</div></section>`;
+      }).join('');
+      renderSeasonCalendarSummary();
+      setSeasonCalendarMode(seasonCalendarMode);
+      lucide.createIcons();
+    }
+
+    document.addEventListener('pointerup', () => { seasonPaintActive = false; });
+    document.addEventListener('pointercancel', () => { seasonPaintActive = false; });
+    document.addEventListener('pointermove', event => {
+      if (!seasonPaintActive) return;
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-season-date]');
+      if (target) continueSeasonPaint(target);
+    });
 
     const COMMISSION_RATES = {
       stay: 7,    
@@ -1739,10 +1877,11 @@
       currentSelectedPhotoIndex = 0; 
       document.getElementById('calendarLayerDynamicContent').innerHTML = "캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보 레이아웃이 로드됩니다.";
 
-      rebuildPhotoTabsArray(); 
+      rebuildPhotoTabsArray();
       renderRoomPriceTable();
       renderPhotoTabs();
       renderFacilityChips();
+      renderSeasonCalendar();
 
       if(data.chats.length > 0) {
         currentSelectedChatUser = data.chats[0].user;
@@ -1870,15 +2009,24 @@
       const moneyVal = (key) => Number(p[key] || 0) ? Number(p[key]).toLocaleString('ko-KR') : '';
       const fields = {
         barbecue: `<label>최대 인원<input type="number" min="1" value="${val('capacity')}" oninput="syncFacilityParam(${idx},'capacity',this.value,'number')"></label><label>세팅<input type="text" value="${val('setup')}" oninput="syncFacilityParam(${idx},'setup',this.value)" placeholder="숯·그릴·집게"></label><label>이용 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
-        karaoke: `<label>이용 마감<input type="time" value="${val('available_until')}" oninput="syncFacilityParam(${idx},'available_until',this.value)"></label><label>마이크 개수<input type="number" min="0" value="${val('mic_count')}" oninput="syncFacilityParam(${idx},'mic_count',this.value,'number')"></label><label>포함 객실<input type="text" value="${val('included_rooms')}" oninput="syncFacilityParam(${idx},'included_rooms',this.value)" placeholder="예: 201호, 단체실"></label>`,
-        field: `<div class="wide"><span>설치 장비</span><div class="facility-equipment-grid">${[['soccer','축구 골대'],['basketball','농구 골대'],['footvolley','족구장']].map(([key,label])=>`<label><input type="checkbox" ${(p.equipment || []).includes(key)?'checked':''} onchange="syncFacilityEquipment(${idx},'${key}',this.checked)">${label}</label>`).join('')}</div></div>`,
+        karaoke: `<label>이용 마감<input type="time" value="${val('available_until')}" oninput="syncFacilityParam(${idx},'available_until',this.value)"></label><label>마이크 개수<input type="number" min="0" value="${val('mic_count')}" oninput="syncFacilityParam(${idx},'mic_count',this.value,'number')"></label>${facilityRoomSelectorHtml(idx, p.included_rooms)}`,
+        field: `<div class="wide"><span>운동장 장비</span><div class="facility-equipment-grid">${[['soccer','축구 골대'],['basketball','농구 골대'],['footvolley','족구장'],['soccer_ball','축구공'],['basketball_ball','농구공'],['footvolley_ball','족구공']].map(([key,label])=>`<label><input type="checkbox" ${(p.equipment || []).includes(key)?'checked':''} onchange="syncFacilityEquipment(${idx},'${key}',this.checked)"><span>${label}</span></label>`).join('')}</div></div>`,
         pool: `<label>개장 시작<input type="date" value="${val('open_start')}" oninput="syncFacilityParam(${idx},'open_start',this.value)"></label><label>개장 종료<input type="date" value="${val('open_end')}" oninput="syncFacilityParam(${idx},'open_end',this.value)"></label><label>최대 인원<input type="number" min="1" value="${val('capacity')}" oninput="syncFacilityParam(${idx},'capacity',this.value,'number')"></label><label>이용 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
-        screen: `<label>포함 객실<input type="text" value="${val('included_rooms')}" oninput="syncFacilityParam(${idx},'included_rooms',this.value)" placeholder="예: 대강당, 201호"></label><label>연결 포트<input type="text" value="${val('ports')}" oninput="syncFacilityParam(${idx},'ports',this.value)" placeholder="HDMI, USB-C"></label><label>추가 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        screen: `${facilityRoomSelectorHtml(idx, p.included_rooms)}<label>연결 포트<input type="text" value="${val('ports')}" oninput="syncFacilityParam(${idx},'ports',this.value)" placeholder="HDMI, USB-C"></label><label>추가 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
         wifi: `<label class="wide">안내<input type="text" value="${val('note')}" oninput="syncFacilityParam(${idx},'note',this.value)" placeholder="예: 전 객실 무료, 비밀번호 현장 안내"></label>`,
         parking: `<label>승용차 주차 대수<input type="number" min="0" value="${val('spaces')}" oninput="syncFacilityParam(${idx},'spaces',this.value,'number')"></label><label class="owner-check-label"><input type="checkbox" ${p.bus_allowed?'checked':''} onchange="syncFacilityParam(${idx},'bus_allowed',this.checked,'boolean')"><span>대형버스 진입</span></label>`,
         pickup: `<label>픽업 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label><label>운영 시간<input type="text" value="${val('hours')}" oninput="syncFacilityParam(${idx},'hours',this.value)" placeholder="예: 14:00~18:00"></label><label>장소<input type="text" value="${val('place')}" oninput="syncFacilityParam(${idx},'place',this.value)" placeholder="예: 대성리역 2번 출구"></label>`,
       }[fac.key] || '';
       return `<div class="facility-input-box-area"><div class="facility-param-grid">${fields}<label class="wide">특이사항<input type="text" maxlength="200" value="${escapeDashboardHtml(fac.desc || '')}" oninput="syncFacilityDesc(${idx},this.value)" placeholder="정해진 항목 외 안내가 있을 때만 입력"></label></div></div>`;
+    }
+
+    function facilityRoomSelectorHtml(facilityIndex, selectedValue) {
+      const selected = new Set(Array.isArray(selectedValue)
+        ? selectedValue
+        : String(selectedValue || '').split(',').map(value => value.trim()).filter(Boolean));
+      const rooms = mockData.stay.rooms || [];
+      if (!rooms.length) return '<div class="wide facility-room-selector"><span>포함 객실</span><small>객실을 먼저 등록하면 여기에서 복수 선택할 수 있습니다.</small></div>';
+      return `<div class="wide facility-room-selector"><span>포함 객실 <small>복수 선택 가능</small></span><div class="facility-room-grid">${rooms.map((room, roomIndex) => `<label><input type="checkbox" ${selected.has(room.name) ? 'checked' : ''} onchange="syncFacilityRoom(${facilityIndex},${roomIndex},this.checked)"><span>${escapeDashboardHtml(room.name || `객실 ${roomIndex + 1}`)}</span></label>`).join('')}</div></div>`;
     }
 
     function toggleFacilityRow(idx, element) {
@@ -1920,9 +2068,29 @@
       facility.params.equipment = [...equipment];
     }
 
+    function syncFacilityRoom(facilityIndex, roomIndex, checked) {
+      const facility = mockData.stay.facilities[facilityIndex];
+      const roomName = mockData.stay.rooms[roomIndex]?.name;
+      if (!facility || !roomName) return;
+      facility.params ||= {};
+      const includedRooms = new Set(Array.isArray(facility.params.included_rooms)
+        ? facility.params.included_rooms
+        : String(facility.params.included_rooms || '').split(',').map(value => value.trim()).filter(Boolean));
+      checked ? includedRooms.add(roomName) : includedRooms.delete(roomName);
+      facility.params.included_rooms = [...includedRooms];
+    }
+
     function syncRoomName(idx, val) {
+      const previousName = mockData[currentOwnerType].rooms[idx].name;
       mockData[currentOwnerType].rooms[idx].name = val;
-      rebuildPhotoTabsArray(); 
+      if (currentOwnerType === 'stay' && previousName !== val) {
+        mockData.stay.facilities.forEach(facility => {
+          const includedRooms = Array.isArray(facility.params?.included_rooms) ? facility.params.included_rooms : [];
+          facility.params.included_rooms = includedRooms.map(name => name === previousName ? val : name);
+        });
+        renderFacilityChips();
+      }
+      rebuildPhotoTabsArray();
       renderPhotoTabs(); 
     }
 
@@ -1954,6 +2122,7 @@
       rebuildPhotoTabsArray();
       renderRoomPriceTable();
       renderPhotoTabs();
+      renderFacilityChips();
     }
 
     const highlightLabels = {
@@ -1980,13 +2149,16 @@
       data.highlightKeys ||= [];
       const available = availableHighlightKeys();
       data.highlightKeys = data.highlightKeys.filter(key => available.includes(key)).slice(0, 3);
-      container.innerHTML = available.map(key => `<label class="owner-choice-chip ${data.highlightKeys.includes(key)?'active':''}"><input type="checkbox" value="${key}" ${data.highlightKeys.includes(key)?'checked':''} onchange="toggleHighlightKey('${key}',this.checked)"><span>${highlightLabels[key] || key}</span></label>`).join('');
+      container.innerHTML = available.map(key => {
+        const selected = data.highlightKeys.includes(key);
+        return `<button type="button" class="owner-choice-chip ${selected ? 'active' : ''}" aria-pressed="${selected}" onclick="toggleHighlightKey('${key}')">${highlightLabels[key] || key}</button>`;
+      }).join('');
     }
 
-    function toggleHighlightKey(key, checked) {
+    function toggleHighlightKey(key) {
       const selected = new Set(mockData.stay.highlightKeys || []);
-      if (checked && selected.size >= 3) { alert('카드 핵심 정보는 최대 3개까지 선택할 수 있습니다.'); renderHighlightChoices(); return; }
-      checked ? selected.add(key) : selected.delete(key);
+      if (!selected.has(key) && selected.size >= 3) { alert('카드 핵심 정보는 최대 3개까지 선택할 수 있습니다.'); return; }
+      selected.has(key) ? selected.delete(key) : selected.add(key);
       mockData.stay.highlightKeys = [...selected];
       renderHighlightChoices();
     }
@@ -2005,6 +2177,7 @@
       }
       renderRoomPriceTable();
       renderPhotoTabs();
+      renderFacilityChips();
     }
 
     function saveMypageData() {
@@ -2557,6 +2730,20 @@
         mockData.stay.highlightKeys = Array.isArray(keys) ? keys.slice(0, 3) : [];
         renderHighlightChoices();
       };
+      window.motfReadSeasonRangesFromDashboard = function() {
+        return {
+          shoulder: seasonAssignmentsToRanges('shoulder'),
+          peak: seasonAssignmentsToRanges('peak')
+        };
+      };
+      window.motfApplySeasonRangesToDashboard = function(shoulderRanges, peakRanges) {
+        seasonAssignments.clear();
+        seasonRangesToAssignments(shoulderRanges, 'shoulder');
+        seasonRangesToAssignments(peakRanges, 'peak');
+        const firstConfiguredDate = [...seasonAssignments.keys()].sort()[0];
+        if (firstConfiguredDate) seasonCalendarYear = Number(firstConfiguredDate.slice(0, 4));
+        renderSeasonCalendar();
+      };
 
       window.motfSetPartnerOnboarding = function(needsOnboarding) {
         const notice = document.getElementById('motfPartnerOnboardingNotice');
@@ -2608,7 +2795,7 @@
         if (business) {
           const { data: extendedBusiness, error: extendedError } = await supabaseClient
             .from('businesses')
-            .select('id, address_detail, postal_code, gallery_image_urls, short_description, highlight_summary, nearby_tags, room_count, bath_count, amenity_details, extra_fees, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
+            .select('id, address_detail, postal_code, gallery_image_urls, short_description, highlight_summary, highlight_keys, nearby_tags, room_count, bath_count, shared_bathroom_count, shared_bathroom_gender_separated, shared_bathroom_note, shoulder_season_ranges, peak_season_ranges, amenity_details, extra_fees, station_distance_m, convenience_distance_m, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
             .eq('id', business.id)
             .maybeSingle();
           if (!extendedError && extendedBusiness) business = { ...business, ...extendedBusiness };
@@ -2725,6 +2912,6 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260728-extra1"></script>
+  <script src="/owner/owner-data.js?v=20260728-season3"></script>
 </body>
 </html>
