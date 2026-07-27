@@ -279,6 +279,24 @@
     setLocationReferenceStatus("주소를 검색하면 위도와 경도가 자동으로 입력됩니다.");
   };
 
+  function applyLocationReferenceCoordinates(result) {
+    const latitudeInput = document.getElementById("motfLocationReferenceLatitude");
+    const longitudeInput = document.getElementById("motfLocationReferenceLongitude");
+    const latitude = Number(result?.latitude);
+    const longitude = Number(result?.longitude);
+    if (!latitudeInput || !longitudeInput || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      throw new Error("주소의 좌표를 입력칸에 반영하지 못했습니다.");
+    }
+    latitudeInput.value = latitude.toFixed(7);
+    longitudeInput.value = longitude.toFixed(7);
+    latitudeInput.setAttribute("value", latitudeInput.value);
+    longitudeInput.setAttribute("value", longitudeInput.value);
+    [latitudeInput, longitudeInput].forEach((input) => {
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
   window.motfSearchLocationReferenceAddress = async function searchLocationReferenceAddress() {
     try {
       const daum = await loadPostcodeApi();
@@ -291,8 +309,8 @@
           if (region && !region.value.trim()) region.value = data.sigungu || data.sido || "";
           setLocationReferenceStatus("주소에서 좌표를 찾는 중입니다...");
           geocodeAddress(address).then((result) => {
-            document.getElementById("motfLocationReferenceLatitude").value = result.latitude.toFixed(7);
-            document.getElementById("motfLocationReferenceLongitude").value = result.longitude.toFixed(7);
+            applyLocationReferenceCoordinates(result);
+            if (addressInput && result.matchedAddress) addressInput.value = result.matchedAddress;
             setLocationReferenceStatus(`좌표 확인 완료 · ${result.matchedAddress}`, "success");
           }).catch((error) => setLocationReferenceStatus(error.message || "좌표를 찾지 못했습니다.", "error"));
         },

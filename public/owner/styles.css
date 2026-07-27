@@ -153,6 +153,14 @@
 .owner-room-editor label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .owner-room-editor label span { color: var(--ink); font-weight: 600; }
 .owner-room-price-title { margin: 16px 0 0; font-size: 13px; color: var(--ink); }
+.owner-market-product-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; }
+.owner-market-product-grid .market-product-origin { grid-column: span 2; }
+.owner-market-product-grid .market-product-wide { grid-column: 1 / -1; }
+.owner-market-product-grid input,
+.owner-market-product-grid select,
+.owner-market-product-grid textarea { width: 100%; min-width: 0; }
+.owner-market-product-grid textarea { resize: vertical; line-height: 1.55; }
+.owner-market-product-grid .market-product-alcohol { min-height: 40px; align-self: end; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 
 .facility-row-item { padding: 0 !important; overflow: hidden; }
 .facility-header-interactive { padding: 14px 16px; }
@@ -228,6 +236,7 @@
   .season-calendar-toolbar { align-items: flex-start; flex-direction: column; }
   .owner-room-basic-grid,
   .owner-room-bath-grid,
+  .owner-market-product-grid,
   .facility-param-grid { grid-template-columns: 1fr 1fr; }
   .location-reference-layout { grid-template-columns: 1fr; }
   .extra-charge-form-row { grid-template-columns: 1fr 1fr; padding: 12px; border: 1px solid var(--line); border-radius: 7px; }
@@ -238,7 +247,10 @@
   .owner-room-basic-grid,
   .owner-room-price-grid,
   .owner-room-bath-grid,
+  .owner-market-product-grid,
   .facility-param-grid { grid-template-columns: 1fr; }
+  .owner-market-product-grid .market-product-origin,
+  .owner-market-product-grid .market-product-wide { grid-column: auto; }
   .season-calendar-grid { grid-template-columns: 1fr; max-height: 540px; }
   .season-mode-buttons { width: 100%; }
   .season-mode-buttons button { flex: 1; padding-inline: 7px; }

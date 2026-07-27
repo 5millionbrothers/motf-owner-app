@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="stylesheet" href="/owner/styles.css?v=20260728-location1">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260728-market1">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -903,7 +903,7 @@
             <small class="motf-field-status">숙소 목록과 지도 옆 카드에는 이 문구만 간결하게 표시됩니다.</small>
             <label style="display:block; font-weight:600; margin:18px 0 6px;">상세 소개</label>
             <textarea id="editDescInput" rows="8" maxlength="3000" class="owner-textarea" placeholder="공간 구성, 단체 이용 장점, 체크인 안내와 주변 환경을 충분히 설명해주세요."></textarea>
-            <div class="owner-highlight-editor">
+            <div id="motfHighlightEditor" class="owner-highlight-editor">
               <strong>카드 핵심 정보 <span class="field-optional">최대 3개</span></strong>
               <p>직접 문구를 쓰지 않고 실제 등록한 정보 중에서 고릅니다.</p>
               <div id="motfHighlightChoices" class="owner-choice-grid"></div>
@@ -914,7 +914,7 @@
             <div class="owner-section-row">
               <div>
                 <label style="display:block; font-weight:600; margin-bottom:6px;" id="dynamic-price-section-title">객실별 인원·기간 요금</label>
-                <p class="owner-field-help">숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.</p>
+                <p id="dynamic-price-section-help" class="owner-field-help">숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.</p>
               </div>
             </div>
             <div id="motfSeasonCalendarEditor" class="season-calendar-editor">
@@ -1461,9 +1461,9 @@
         rooms: [],
         photoTabs: [],
         facilities: [
-          { name: "신선 냉장육 유통 보증", checked: true, desc: "당일 가공 입고 원칙", placeholder: "가공 품질 및 신선도 마킹 기준 기입" },
-          { name: "대형 주류 쿨러 창고 상시 가동", checked: true, desc: "출고 직전까지 상시 극저온 보관 유지", placeholder: "냉장 상태 및 인도 한도" },
-          { name: "펜션 입구 지정 배송 차량 지원", checked: true, desc: "탑차 상시 대기", placeholder: "가평 전역 무료 운행 요건 명시" }
+          { key: "delivery", name: "숙소 배송", checked: false, desc: "", placeholder: "배송 가능 지역, 최소 주문금액과 시간을 입력" },
+          { key: "pickup", name: "매장 픽업", checked: false, desc: "", placeholder: "픽업 가능 시간과 수령 위치를 입력" },
+          { key: "cold_storage", name: "냉장·냉동 보관", checked: false, desc: "", placeholder: "보관 및 포장 방식을 입력" }
         ],
         orders: [],
         chats: []
@@ -1982,12 +1982,21 @@
         const card = document.createElement('article');
         card.className = 'owner-room-editor';
         if (currentOwnerType !== 'stay') {
+          const categories = ['식재료', '주류/음료', '일회용품', '냉동식품', '기타'];
+          const category = room.category || '식재료';
           card.innerHTML = `
-            <div class="owner-room-editor-head"><input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)"><button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">삭제</button></div>
-            <div class="owner-room-editor-body owner-room-basic-grid">
-              <label><span>판매가</span><input type="text" inputmode="numeric" value="${Number(room.price || 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, 'price', this)"></label>
-              <label><span>단위</span><input type="text" value="${attr(room.unit || '')}" oninput="syncRoomText(${idx}, 'unit', this.value)" placeholder="예: 1kg"></label>
-              <label><span>재고</span><input type="number" min="0" value="${room.stock_quantity ?? ''}" oninput="syncRoomNumber(${idx}, 'stock_quantity', this.value)"></label>
+            <div class="owner-room-editor-head"><input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)" placeholder="상품명" aria-label="상품명"><button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">상품 삭제</button></div>
+            <div class="owner-room-editor-body owner-market-product-grid">
+              <label><span>상품 분류</span><select onchange="syncRoomText(${idx}, 'category', this.value)">${categories.map(item => `<option value="${item}" ${item === category ? 'selected' : ''}>${item}</option>`).join('')}</select></label>
+              <label><span>판매가</span><input type="text" inputmode="numeric" value="${Number(room.price || 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, 'price', this)" placeholder="0"></label>
+              <label><span>판매 단위</span><input type="text" value="${attr(room.unit || '')}" oninput="syncRoomText(${idx}, 'unit', this.value)" placeholder="예: 1kg, 20개입"></label>
+              <label><span>재고 수량</span><input type="number" min="0" value="${room.stock_quantity ?? ''}" oninput="syncRoomNumber(${idx}, 'stock_quantity', this.value)" placeholder="비워두면 수량 미표시"></label>
+              <label class="market-product-origin"><span>원산지·제조국</span><input type="text" value="${attr(room.origin || '')}" oninput="syncRoomText(${idx}, 'origin', this.value)" placeholder="예: 돼지고기 국내산"></label>
+              <label class="owner-check-label market-product-alcohol"><input type="checkbox" ${room.is_alcohol ? 'checked' : ''} onchange="syncRoomBoolean(${idx}, 'is_alcohol', this.checked)"><span>주류 상품</span></label>
+              <label class="market-product-wide"><span>상품 설명</span><textarea rows="3" maxlength="1000" oninput="syncRoomText(${idx}, 'description', this.value)" placeholder="구성, 용량, 특징과 수령 시 확인할 내용을 적어주세요.">${attr(room.description || '')}</textarea></label>
+              <label><span>보관 방법</span><input type="text" value="${attr(room.detail_sections?.storage || '')}" oninput="syncRoomObjectText(${idx}, 'detail_sections', 'storage', this.value)" placeholder="예: 냉장 보관"></label>
+              <label><span>판매자 안내</span><input type="text" value="${attr(room.detail_sections?.sellerNote || '')}" oninput="syncRoomObjectText(${idx}, 'detail_sections', 'sellerNote', this.value)" placeholder="예: 재고에 따라 브랜드 변경 가능"></label>
+              <label><span>영양·알레르기 정보</span><input type="text" value="${attr(room.nutrition_info?.description || '')}" oninput="syncRoomObjectText(${idx}, 'nutrition_info', 'description', this.value)" placeholder="포장지 표기 또는 주요 정보를 입력"></label>
             </div>`;
           tbody.appendChild(card);
           return;
@@ -2164,12 +2173,16 @@
     }
 
     function syncRoomNumber(idx, key, val) {
-      mockData[currentOwnerType].rooms[idx][key] = Number(val) || null;
+      mockData[currentOwnerType].rooms[idx][key] = val === '' ? null : Math.max(0, Number(val) || 0);
       renderHighlightChoices();
     }
 
     function syncRoomText(idx, key, val) { mockData[currentOwnerType].rooms[idx][key] = val; }
     function syncRoomBoolean(idx, key, val) { mockData[currentOwnerType].rooms[idx][key] = Boolean(val); }
+    function syncRoomObjectText(idx, key, nestedKey, val) {
+      const room = mockData[currentOwnerType].rooms[idx];
+      room[key] = { ...(room[key] || {}), [nestedKey]: val };
+    }
 
     function syncRoomMoney(idx, key, input) {
       const digits = String(input.value || '').replace(/\D/g, '');
@@ -2181,8 +2194,11 @@
 
     function addTableRow() {
       const data = mockData[currentOwnerType];
-      const defaultName = currentOwnerType === 'stay' ? `신규 객실 ${data.rooms.length + 1}` : `신규 단품 항목 ${data.rooms.length + 1}`;
-      data.rooms.push({ name: defaultName, price: 15000, base_people: null, max_people: null, extra_person_fee: 0, image_urls: [], feature_summary: [], offseason_weekday_price: 15000, offseason_weekend_price: 15000, shoulder_weekday_price: 15000, shoulder_weekend_price: 15000, peak_weekday_price: 15000, peak_weekend_price: 15000, bathroom_count: 0, bathroom_gender_separated: false, bathroom_note: '' });
+      if (currentOwnerType === 'stay') {
+        data.rooms.push({ name: `신규 객실 ${data.rooms.length + 1}`, price: 15000, base_people: null, max_people: null, extra_person_fee: 0, image_urls: [], feature_summary: [], offseason_weekday_price: 15000, offseason_weekend_price: 15000, shoulder_weekday_price: 15000, shoulder_weekend_price: 15000, peak_weekday_price: 15000, peak_weekend_price: 15000, bathroom_count: 0, bathroom_gender_separated: false, bathroom_note: '' });
+      } else {
+        data.rooms.push({ name: `신규 상품 ${data.rooms.length + 1}`, price: 0, unit: '', category: '식재료', stock_quantity: null, origin: '', description: '', is_alcohol: false, image_urls: [], feature_summary: [], amenity_details: [], detail_sections: {}, nutrition_info: {} });
+      }
       
       rebuildPhotoTabsArray();
       renderRoomPriceTable();
@@ -2352,6 +2368,24 @@
         cell.onclick = () => showCalendarDayDetail(dayStr, dayBlocks, availability.offerings);
         grid.appendChild(cell);
       }
+    }
+
+    function applyOwnerTypeEditorLayout() {
+      const isMarket = currentOwnerType === 'market';
+      const highlightEditor = document.getElementById('motfHighlightEditor');
+      const seasonEditor = document.getElementById('motfSeasonCalendarEditor');
+      if (highlightEditor) highlightEditor.hidden = isMarket;
+      if (seasonEditor) seasonEditor.hidden = isMarket;
+      const title = document.getElementById('dynamic-price-section-title');
+      const help = document.getElementById('dynamic-price-section-help');
+      const addText = document.getElementById('addBtnDynamicText');
+      const uploadTitle = document.getElementById('mypage-upload-title');
+      if (title) title.textContent = isMarket ? '판매 상품 등록' : '객실별 인원·기간 요금';
+      if (help) help.textContent = isMarket
+        ? '상품을 추가한 뒤 분류·가격·단위·원산지와 상세 정보를 입력하세요. 저장된 활성 상품만 이용자 화면에 공개됩니다.'
+        : '숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.';
+      if (addText) addText.textContent = isMarket ? '상품 추가' : '객실 추가';
+      if (uploadTitle) uploadTitle.textContent = isMarket ? '상품별 사진 여러 장 관리' : '구역별 사진 여러 장 관리';
     }
 
     function showCalendarDayDetail(dayStr, blocks = [], offerings = []) {
@@ -2874,6 +2908,7 @@
         document.getElementById('login-view').style.display = 'none';
         document.getElementById('admin-main').style.display = 'flex';
         currentOwnerType = business.business_type === 'market' ? 'market' : 'stay';
+        applyOwnerTypeEditorLayout();
         window.motfCurrentBusiness = business;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
         mockData[currentOwnerType].displayName = business.business_name;
@@ -2977,6 +3012,6 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260728-location1"></script>
+  <script src="/owner/owner-data.js?v=20260728-market1"></script>
 </body>
 </html>
