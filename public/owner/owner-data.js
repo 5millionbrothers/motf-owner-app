@@ -72,6 +72,7 @@
   ];
   let selectedNearbyTags = new Set();
   let extraFeeRows = [];
+  let locationReferencePoints = [];
 
   function hasCoordinates(business) {
     if (business?.latitude == null || business?.longitude == null || business.latitude === "" || business.longitude === "") return false;
@@ -212,6 +213,157 @@
       });
     });
   }
+
+  function setLocationReferenceStatus(message, state = "pending") {
+    const status = document.getElementById("motfLocationReferenceStatus");
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.state = state;
+  }
+
+  function renderLocationReferencePoints() {
+    const list = document.getElementById("motfLocationReferenceList");
+    const count = document.getElementById("motfLocationReferenceCount");
+    if (!list || !count) return;
+    count.textContent = `${locationReferencePoints.length}개`;
+    if (!locationReferencePoints.length) {
+      list.innerHTML = '<div class="location-reference-empty">등록된 기준 장소가 없습니다. 왼쪽에서 첫 장소를 등록해주세요.</div>';
+      return;
+    }
+    list.innerHTML = locationReferencePoints.map((point) => {
+      const typeLabel = point.reference_type === "station" ? "역" : "편의점";
+      const regionLabel = point.region || "전 지역";
+      const latitude = Number(point.latitude).toFixed(6);
+      const longitude = Number(point.longitude).toFixed(6);
+      return `<article class="location-reference-item ${point.is_active ? "" : "inactive"}">
+        <div class="location-reference-item-main">
+          <span class="location-reference-type ${point.reference_type}">${typeLabel}</span>
+          <div><strong>${escapeHtml(point.name)}</strong><p>${escapeHtml(regionLabel)} · ${latitude}, ${longitude}</p></div>
+        </div>
+        <div class="location-reference-item-actions">
+          <button type="button" class="ghost-btn" onclick="motfToggleLocationReference('${point.id}', ${!point.is_active})">${point.is_active ? "사용 중" : "사용 안 함"}</button>
+          <button type="button" class="secondary-btn" onclick="motfEditLocationReference('${point.id}')">수정</button>
+          <button type="button" class="ghost-btn danger" onclick="motfDeleteLocationReference('${point.id}')" aria-label="${escapeHtml(point.name)} 삭제" title="삭제"><i data-lucide="trash-2"></i></button>
+        </div>
+      </article>`;
+    }).join("");
+    window.lucide?.createIcons();
+  }
+
+  window.loadMotfLocationReferencePoints = async function loadMotfLocationReferencePoints() {
+    const list = document.getElementById("motfLocationReferenceList");
+    if (!list || !client() || window.motfCurrentProfile?.role !== "admin") return;
+    list.innerHTML = '<div class="location-reference-empty">기준 장소를 불러오는 중입니다.</div>';
+    const { data, error } = await client()
+      .from("location_reference_points")
+      .select("id, reference_type, name, region, latitude, longitude, is_active, created_at, updated_at")
+      .order("reference_type", { ascending: true })
+      .order("name", { ascending: true });
+    if (error) {
+      list.innerHTML = `<div class="location-reference-empty error">기준 장소를 불러오지 못했습니다.<small>${escapeHtml(error.message)}</small></div>`;
+      return;
+    }
+    locationReferencePoints = data || [];
+    renderLocationReferencePoints();
+  };
+
+  window.motfResetLocationReferenceForm = function resetLocationReferenceForm() {
+    const form = document.getElementById("motfLocationReferenceForm");
+    form?.reset();
+    const id = document.getElementById("motfLocationReferenceId");
+    const region = document.getElementById("motfLocationReferenceRegion");
+    const title = document.getElementById("motfLocationReferenceFormTitle");
+    if (id) id.value = "";
+    if (region) region.value = "가평";
+    if (title) title.textContent = "기준 장소 등록";
+    setLocationReferenceStatus("주소를 검색하면 위도와 경도가 자동으로 입력됩니다.");
+  };
+
+  window.motfSearchLocationReferenceAddress = async function searchLocationReferenceAddress() {
+    try {
+      const daum = await loadPostcodeApi();
+      new daum.Postcode({
+        oncomplete(data) {
+          const address = data.roadAddress || data.address || "";
+          const region = document.getElementById("motfLocationReferenceRegion");
+          const addressInput = document.getElementById("motfLocationReferenceAddress");
+          if (addressInput) addressInput.value = address;
+          if (region && !region.value.trim()) region.value = data.sigungu || data.sido || "";
+          setLocationReferenceStatus("주소에서 좌표를 찾는 중입니다...");
+          geocodeAddress(address).then((result) => {
+            document.getElementById("motfLocationReferenceLatitude").value = result.latitude.toFixed(7);
+            document.getElementById("motfLocationReferenceLongitude").value = result.longitude.toFixed(7);
+            setLocationReferenceStatus(`좌표 확인 완료 · ${result.matchedAddress}`, "success");
+          }).catch((error) => setLocationReferenceStatus(error.message || "좌표를 찾지 못했습니다.", "error"));
+        },
+      }).open();
+    } catch (error) {
+      setLocationReferenceStatus(error.message || "주소 검색을 열지 못했습니다.", "error");
+    }
+  };
+
+  window.motfSaveLocationReference = async function saveLocationReference(event) {
+    event?.preventDefault?.();
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return alert("관리자 계정으로 로그인해주세요.");
+    const id = document.getElementById("motfLocationReferenceId")?.value || "";
+    const latitude = Number(document.getElementById("motfLocationReferenceLatitude")?.value);
+    const longitude = Number(document.getElementById("motfLocationReferenceLongitude")?.value);
+    const name = document.getElementById("motfLocationReferenceName")?.value.trim() || "";
+    if (!name || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return alert("장소명과 좌표를 확인해주세요.");
+    const payload = {
+      reference_type: document.getElementById("motfLocationReferenceType")?.value || "station",
+      name,
+      region: document.getElementById("motfLocationReferenceRegion")?.value.trim() || null,
+      latitude,
+      longitude,
+      is_active: Boolean(document.getElementById("motfLocationReferenceActive")?.checked),
+    };
+    setLocationReferenceStatus("기준 장소를 저장하는 중입니다...");
+    const query = id
+      ? client().from("location_reference_points").update(payload).eq("id", id)
+      : client().from("location_reference_points").insert(payload);
+    const { error } = await query;
+    if (error) {
+      setLocationReferenceStatus(error.message || "저장하지 못했습니다.", "error");
+      return;
+    }
+    window.motfResetLocationReferenceForm();
+    await window.loadMotfLocationReferencePoints();
+    setLocationReferenceStatus("저장 완료 · 숙소별 최단거리가 자동으로 다시 계산됩니다.", "success");
+  };
+
+  window.motfEditLocationReference = function editLocationReference(id) {
+    const point = locationReferencePoints.find((item) => item.id === id);
+    if (!point) return;
+    document.getElementById("motfLocationReferenceId").value = point.id;
+    document.getElementById("motfLocationReferenceType").value = point.reference_type;
+    document.getElementById("motfLocationReferenceName").value = point.name || "";
+    document.getElementById("motfLocationReferenceRegion").value = point.region || "";
+    document.getElementById("motfLocationReferenceAddress").value = "";
+    document.getElementById("motfLocationReferenceLatitude").value = point.latitude;
+    document.getElementById("motfLocationReferenceLongitude").value = point.longitude;
+    document.getElementById("motfLocationReferenceActive").checked = Boolean(point.is_active);
+    document.getElementById("motfLocationReferenceFormTitle").textContent = "기준 장소 수정";
+    setLocationReferenceStatus("좌표를 직접 수정하거나 주소를 다시 검색할 수 있습니다.");
+    document.getElementById("motfLocationReferenceForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  window.motfToggleLocationReference = async function toggleLocationReference(id, isActive) {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const { error } = await client().from("location_reference_points").update({ is_active: Boolean(isActive) }).eq("id", id);
+    if (error) return alert(error.message || "상태를 변경하지 못했습니다.");
+    await window.loadMotfLocationReferencePoints();
+  };
+
+  window.motfDeleteLocationReference = async function deleteLocationReference(id) {
+    if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    const point = locationReferencePoints.find((item) => item.id === id);
+    if (!confirm(`${point?.name || "이 기준 장소"}을 삭제하시겠습니까? 숙소 거리가 자동으로 다시 계산됩니다.`)) return;
+    const { error } = await client().from("location_reference_points").delete().eq("id", id);
+    if (error) return alert(error.message || "삭제하지 못했습니다.");
+    window.motfResetLocationReferenceForm();
+    await window.loadMotfLocationReferencePoints();
+  };
 
   async function verifyBusinessLocation() {
     const fields = ensurePartnerFields();

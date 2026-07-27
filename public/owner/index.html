@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="stylesheet" href="/owner/styles.css?v=20260728-season3">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260728-location1">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -1185,6 +1185,68 @@
         </div>
       </section>
 
+      <section id="panel-master-locations" class="panel">
+        <div class="location-reference-heading">
+          <div>
+            <p class="panel-eyebrow">숙소 주변 거리 자동 계산</p>
+            <h2 class="panel-title">주변 기준 장소 관리</h2>
+            <p>역과 편의점의 좌표를 등록하면 각 숙소에서 가장 가까운 장소까지의 거리를 자동 계산합니다.</p>
+          </div>
+          <button type="button" class="secondary-btn" onclick="motfResetLocationReferenceForm()"><i data-lucide="plus"></i>새 장소 등록</button>
+        </div>
+        <div class="location-reference-layout">
+          <form id="motfLocationReferenceForm" class="location-reference-form" onsubmit="motfSaveLocationReference(event)">
+            <input id="motfLocationReferenceId" type="hidden" />
+            <div class="location-reference-form-head">
+              <strong id="motfLocationReferenceFormTitle">기준 장소 등록</strong>
+              <span>운영자만 수정할 수 있습니다.</span>
+            </div>
+            <div class="location-reference-fields">
+              <label>장소 종류
+                <select id="motfLocationReferenceType" required>
+                  <option value="station">역</option>
+                  <option value="convenience">편의점</option>
+                </select>
+              </label>
+              <label>장소명
+                <input id="motfLocationReferenceName" maxlength="80" placeholder="예: 대성리역" required />
+              </label>
+              <label class="location-reference-wide">적용 지역
+                <input id="motfLocationReferenceRegion" value="가평" maxlength="40" placeholder="예: 가평" />
+                <small>숙소의 지역값과 같아야 합니다. 비워두면 모든 지역에 적용됩니다.</small>
+              </label>
+              <label class="location-reference-wide">주소로 좌표 찾기
+                <div class="location-reference-address-row">
+                  <input id="motfLocationReferenceAddress" placeholder="주소 검색 버튼을 눌러주세요" readonly />
+                  <button type="button" class="secondary-btn" onclick="motfSearchLocationReferenceAddress()"><i data-lucide="search"></i>주소 검색</button>
+                </div>
+              </label>
+              <label>위도
+                <input id="motfLocationReferenceLatitude" type="number" min="-90" max="90" step="any" placeholder="37.0000000" required />
+              </label>
+              <label>경도
+                <input id="motfLocationReferenceLongitude" type="number" min="-180" max="180" step="any" placeholder="127.0000000" required />
+              </label>
+            </div>
+            <label class="owner-check-label location-reference-active"><input id="motfLocationReferenceActive" type="checkbox" checked /> 거리 계산에 사용</label>
+            <p id="motfLocationReferenceStatus" class="location-reference-status">주소를 검색하면 위도와 경도가 자동으로 입력됩니다.</p>
+            <div class="location-reference-form-actions">
+              <button type="button" class="ghost-btn" onclick="motfResetLocationReferenceForm()">초기화</button>
+              <button type="submit" class="primary-btn"><i data-lucide="save"></i>저장</button>
+            </div>
+          </form>
+          <div class="location-reference-directory">
+            <div class="location-reference-list-head">
+              <div><strong>등록된 기준 장소</strong><span id="motfLocationReferenceCount">0개</span></div>
+              <button type="button" class="ghost-btn" onclick="loadMotfLocationReferencePoints()" aria-label="목록 새로고침" title="새로고침"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div id="motfLocationReferenceList" class="location-reference-list">
+              <div class="location-reference-empty">기준 장소를 불러오는 중입니다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div>
   </main>
 
@@ -1434,6 +1496,7 @@
         <ul class="sidebar-menu">
           <li><button class="menu-item active" id="m-btn-stats" onclick="switchMasterPanel('master-stats')"><i data-lucide="layout-dashboard"></i> 플랫폼 종합 현황</button></li>
           <li><button class="menu-item" id="m-btn-partners" onclick="switchMasterPanel('master-partners')"><i data-lucide="users"></i> 가입 회원 & 업장 관리</button></li>
+          <li><button class="menu-item" id="m-btn-locations" onclick="switchMasterPanel('master-locations')"><i data-lucide="map-pin"></i> 주변 기준 장소</button></li>
           <li><button class="menu-item" id="m-btn-chat-monitor" onclick="switchMasterPanel('master-chat-monitor')"><i data-lucide="messages-square"></i> 전체 채팅 모니터링</button></li>
           <li><button class="menu-item" id="m-btn-cases" onclick="switchMasterPanel('master-cases')"><i data-lucide="badge-help"></i> 문의 & 분쟁 관리</button></li>
           <li><button class="menu-item" id="m-btn-orders" onclick="switchMasterPanel('master-orders')"><i data-lucide="calendar-check"></i> 예약 관리</button></li>
@@ -1459,6 +1522,7 @@
       const btns = {
         'master-stats': document.getElementById('m-btn-stats'),
         'master-partners': document.getElementById('m-btn-partners'),
+        'master-locations': document.getElementById('m-btn-locations'),
         'master-chat-monitor': document.getElementById('m-btn-chat-monitor'),
         'master-cases': document.getElementById('m-btn-cases'),
         'master-orders': document.getElementById('m-btn-orders'),
@@ -1477,6 +1541,7 @@
       if(panelId === 'master-cases') renderMasterCases();
       if(panelId === 'master-orders') renderMasterOrders();
       if(panelId === 'master-content') renderMasterContent();
+      if(panelId === 'master-locations') window.loadMotfLocationReferencePoints?.();
     }
 
     function refreshMasterDataDisplays() {
@@ -2912,6 +2977,6 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260728-season3"></script>
+  <script src="/owner/owner-data.js?v=20260728-location1"></script>
 </body>
 </html>
