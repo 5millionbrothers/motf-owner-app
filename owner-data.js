@@ -1,0 +1,3075 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
+  <link rel="stylesheet" href="/owner/styles.css?v=20260728-market1">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --sidebar-width: 260px;
+      --topbar-height: 70px;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background-color: var(--cream);
+      margin: 0;
+    }
+    
+    /* 로그인 화면 뷰 */
+    #login-view {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background-color: var(--cream);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .login-card {
+      background: var(--paper);
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid var(--line);
+      text-align: center;
+      overflow: hidden; 
+    }
+    .login-logo-wrapper {
+      background-color: var(--cream);
+      margin: -40px -40px 24px -40px; 
+      padding: 36px 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    /* 깔끔한 텍스트 기반 로고 스타일 */
+    .motf-simple-text-logo {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--teal);
+      letter-spacing: -0.5px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    .login-card h2 {
+      margin-top: 0;
+      color: var(--teal);
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .login-subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    .login-guide-box {
+      background: var(--olive-soft);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--teal-dark);
+      margin-bottom: 20px;
+      line-height: 1.5;
+      text-align: left;
+    }
+    .form-group {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 14px;
+      background-color: var(--cream);
+    }
+    .form-group select { width:100%; padding:12px; border:1px solid var(--line); border-radius:8px; font-size:14px; background:var(--cream); font-family:inherit; }
+    .login-divider { display:flex; align-items:center; gap:12px; color:var(--muted); font-size:12px; margin:18px 0; }
+    .login-divider::before, .login-divider::after { content:""; height:1px; flex:1; background:var(--line); }
+    .kakao-login-btn { width:100%; border:0; border-radius:8px; padding:13px; background:#FEE500; color:#191919; font-weight:700; cursor:pointer; font-family:inherit; }
+    .signup-link-btn { width:100%; margin-top:10px; border:1px solid var(--teal); border-radius:8px; padding:12px; background:var(--paper); color:var(--teal); font-weight:700; cursor:pointer; font-family:inherit; }
+    .confirmation-resend-btn { width:100%; min-height:40px; margin-top:6px; border:0; background:transparent; color:var(--teal-dark); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:underline; text-underline-offset:3px; }
+    .confirmation-resend-btn:hover { color:var(--teal); }
+    .confirmation-resend-btn:disabled { color:var(--muted); cursor:not-allowed; text-decoration:none; }
+    .login-help { font-size:12px; color:var(--muted); margin-top:16px; line-height:1.6; }
+    .auth-modal { position:fixed; inset:0; z-index:200; background:rgba(25,38,35,.48); display:none; align-items:center; justify-content:center; padding:20px; }
+    .auth-modal.active { display:flex; }
+    .auth-modal-card { width:100%; max-width:520px; max-height:90vh; overflow-y:auto; background:var(--paper); border-radius:16px; box-shadow:var(--shadow); border:1px solid var(--line); padding:30px; }
+    .auth-modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .auth-modal-head h2 { margin:0; color:var(--teal-dark); }
+    .modal-close-btn { border:0; background:transparent; font-size:24px; cursor:pointer; color:var(--muted); }
+    .terms-row { display:flex; gap:8px; align-items:flex-start; text-align:left; font-size:13px; color:var(--ink); margin:14px 0; }
+    .terms-row input[type="checkbox"] { width:16px; height:16px; flex:0 0 16px; margin-top:1px; accent-color:var(--teal); }
+    .terms-content { display:flex; flex-direction:column; gap:7px; line-height:1.45; }
+    .terms-view-btn { align-self:flex-start; border:1px solid var(--line); border-radius:999px; padding:5px 10px; background:var(--paper); color:var(--teal-dark); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .terms-view-btn:hover { background:var(--olive-soft); }
+    .signup-success { display:none; background:var(--olive-soft); color:var(--teal-dark); padding:12px; border-radius:8px; font-size:13px; margin-bottom:16px; }
+    
+    /* 메인 대시보드 구조 조율 */
+    #admin-main {
+      display: none; 
+      flex: 1;
+      min-height: 100vh;
+    }
+    
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--paper);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .sidebar-header {
+      height: var(--topbar-height);
+      padding: 0 20px;
+      background-color: var(--paper); 
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-sizing: border-box;
+    }
+    .sidebar-header .motf-simple-text-logo {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .owner-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--teal-dark);
+      margin: 0;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    
+    .sidebar-menu-wrapper {
+      padding: 16px;
+    }
+    .sidebar-menu {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      color: var(--muted);
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 550;
+      transition: all 0.2s;
+      background: transparent;
+      border: none;
+      width: 100%;
+      text-align: left;
+      font-size: 15px;
+    }
+    .menu-item:hover, .menu-item.active {
+      background: var(--olive-soft);
+      color: var(--teal-dark);
+      font-weight: 600;
+    }
+    
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--cream);
+    }
+    
+    .top-bar {
+      height: var(--topbar-height);
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end; 
+      padding: 0 32px;
+      box-sizing: border-box;
+      gap: 12px;
+    }
+    .mypage-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--warm);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 550;
+    }
+    .mypage-btn:hover {
+      background: var(--soft);
+    }
+
+    .motf-logout-top-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--paper);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 550;
+      transition: all 0.2s;
+    }
+    .motf-logout-top-btn:hover {
+      background: #fff5f5;
+      color: #b91c1c;
+      border-color: #fee2e2;
+    }
+
+    .motf-reject-action-btn {
+      background: var(--paper);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 550;
+      transition: all 0.2s;
+    }
+    .motf-reject-action-btn:hover {
+      background: #fff5f5;
+      color: #b91c1c;
+      border-color: #fee2e2;
+    }
+    
+    .panel {
+      display: none;
+      padding: 32px;
+      overflow-y: auto;
+      max-height: calc(100vh - var(--topbar-height));
+    }
+    .panel.active {
+      display: block;
+    }
+    .panel-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+    
+    /* 매출 상단 통계 카드 4단계 그리드 */
+    .stats-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--paper);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--teal-dark);
+    }
+    
+    /* 캘린더 전용 배치 */
+    .calendar-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .calendar-layout-split {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: start;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: var(--line);
+      gap: 1px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .calendar-day-label {
+      background: var(--soft);
+      padding: 12px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .calendar-cell {
+      background: var(--paper);
+      min-height: 100px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .calendar-date-num {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .cal-badge {
+      font-size: 11px;
+      padding: 5px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: transform 0.1s;
+    }
+    .cal-badge:hover {
+      transform: scale(1.02);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .cal-badge.confirm { background: var(--olive-soft); color: var(--teal-dark); border-color: var(--sage); }
+    .cal-badge.pending { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    
+    /* 캘린더 상세 정보 사이드 레이어 팝업 */
+    .calendar-detail-sidebar-box {
+      width: 300px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    
+    /* 예약/주문 관리 */
+    .tab-container {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 8px 16px;
+      font-size: 15px;
+      color: var(--muted);
+      cursor: pointer;
+      position: relative;
+    }
+    .tab-btn.active {
+      color: var(--teal);
+      font-weight: 700;
+    }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -13px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--teal);
+    }
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .item-card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .item-info h4 { margin: 0 0 6px 0; font-size: 16px; color: var(--ink); }
+    .item-info p { margin: 0; font-size: 14px; color: var(--muted); }
+    .item-actions { display: flex; gap: 8px; align-items: center; }
+    .reject-box {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    .reject-box input {
+      padding: 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px;
+    }
+    
+    /* 채팅창 */
+    .chat-layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      height: 550px;
+      overflow: hidden;
+    }
+    .chat-sidebar {
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-search {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .chat-search input {
+      width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px;
+    }
+    .chat-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+    .chat-user-item {
+      padding: 16px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background 0.2s;
+    }
+    .chat-user-item:hover, .chat-user-item.active { background: var(--warm); }
+    .chat-user-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .chat-user-name { font-weight: 600; font-size: 14px; }
+    .chat-user-status { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .status-badge-confirm { background: var(--olive-soft); color: var(--teal-dark); }
+    .status-badge-pending { background: #fef3c7; color: #92400e; }
+    .status-badge-chatting { background: var(--soft); color: var(--ink); }
+    .chat-user-preview { font-size: 13px; color: var(--muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+    .chat-main { display: flex; flex-direction: column; background: var(--cream); }
+    .chat-body { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .chat-bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.4; }
+    .chat-bubble.received { background: var(--paper); align-self: flex-start; border: 1px solid var(--line); }
+    .chat-bubble.sent { background: var(--teal); color: var(--paper); align-self: flex-end; }
+    .chat-footer { padding: 16px; background: var(--paper); border-top: 1px solid var(--line); display: flex; gap: 12px; }
+    .chat-footer input { flex: 1; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+    
+    /* 매출 관리 */
+    .revenue-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 24px;
+    }
+    .revenue-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rev-menu-btn {
+      background: var(--paper); border: 1px solid var(--line); padding: 12px; text-align: left; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 550;
+    }
+    .rev-menu-btn.active { background: var(--teal); color: var(--paper); font-weight: 600; }
+    .revenue-content-card {
+      background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 24px;
+    }
+    
+    /* 마이페이지 레이아웃 */
+    .preview-box {
+      border: 2px dashed var(--line); padding: 20px; border-radius: 12px; background: var(--warm); margin-bottom: 24px;
+    }
+    .edit-section {
+      background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 24px;
+    }
+    .motf-business-fields {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;
+    }
+    .motf-business-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 650; }
+    .motf-business-fields input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .motf-business-fields input[readonly] { background: #f8faf9; color: var(--ink); cursor: default; }
+    .motf-field-wide { grid-column: 1 / -1; }
+    .motf-address-search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+    .motf-address-search-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 0 12px; border: 1px solid var(--teal); border-radius: 8px; background: var(--teal); color: white; font-weight: 750; white-space: nowrap; cursor: pointer; }
+    .motf-address-search-button svg { width: 15px; height: 15px; }
+    .motf-location-actions { display: flex; align-items: center; gap: 12px; min-height: 34px; }
+    .motf-location-button { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--teal); border-radius: 8px; background: var(--paper); color: var(--teal-dark); font-weight: 700; cursor: pointer; }
+    .motf-location-button svg { width: 15px; height: 15px; }
+    .motf-location-button:disabled { opacity: .55; cursor: wait; }
+    .motf-location-status { font-weight: 500; color: var(--muted); line-height: 1.4; }
+    .motf-location-status[data-state="success"], .motf-map-state.is-ready { color: var(--teal-dark); }
+    .motf-location-status[data-state="error"], .motf-map-state.is-missing { color: #b45309; }
+    .motf-map-state { display: block; margin-top: 5px; font-weight: 700; }
+    
+    /* 부대시설 공식 컨테이너 */
+    .facility-container-vertical {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .facility-row-item {
+      background-color: var(--warm);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+    .facility-row-item.checked {
+      border-color: var(--teal);
+      background-color: var(--olive-soft);
+    }
+    .facility-header-interactive {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .facility-custom-checkbox {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--teal);
+    }
+    .facility-label-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .facility-input-box-area {
+      display: none; 
+    }
+    .facility-row-item.checked .facility-input-box-area {
+      display: block;
+    }
+    .facility-desc-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 13px;
+      background-color: var(--paper);
+      font-family: inherit;
+    }
+    
+    /* 객실 가격 테이블 */
+    .room-price-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    .room-price-table th, .room-price-table td {
+      border: 1px solid var(--line);
+      padding: 12px;
+      text-align: left;
+      font-size: 14px;
+    }
+    .room-price-table th {
+      background-color: var(--cream);
+      font-weight: 600;
+      color: var(--teal-dark);
+    }
+    .room-price-input {
+      width: 140px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      text-align: right;
+    }
+
+    /* 사진 관리용 탭 세션 */
+    .photo-tab-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .photo-tab-btn {
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      background-color: var(--paper);
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 550;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .photo-tab-btn.active {
+      background-color: var(--teal);
+      color: var(--paper);
+      border-color: var(--teal);
+    }
+
+    /* 모티프 마스터 총관리자 전용 데이터 테이블용 스타일 기생 설정 */
+    .master-admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 16px;
+      border: 1px solid var(--line);
+    }
+    .master-admin-table th, .master-admin-table td {
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .master-admin-table th {
+      background-color: var(--cream);
+      color: var(--teal-dark);
+      font-weight: 600;
+    }
+    .master-status-badge {
+      font-size: 12px; padding: 4px 8px; border-radius: 6px; font-weight: 600; display: inline-block;
+    }
+    .master-badge-active { background-color: var(--olive-soft); color: var(--teal-dark); }
+    .master-badge-waiting { background-color: #fef3c7; color: #92400e; }
+    .master-badge-terminated { background-color: #fee2e2; color: #991b1b; }
+
+    /* 증명 정산 명세서 수동 첨부 파일 드롭존 디자인 레이아웃 */
+    .master-file-dropzone-box {
+      border: 2px dashed var(--line);
+      background: var(--cream);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 12px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted);
+      transition: all 0.2s;
+    }
+    .master-file-dropzone-box:hover {
+      border-color: var(--teal);
+      background: var(--olive-soft);
+      color: var(--teal-dark);
+    }
+    .master-split-layout { display:grid; grid-template-columns:280px 1fr; gap:18px; min-height:560px; }
+    .master-list-card, .master-detail-card { background:var(--paper); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+    .master-list-header { padding:16px; border-bottom:1px solid var(--line); background:var(--cream); }
+    .master-list-item { width:100%; border:0; border-bottom:1px solid var(--line); background:var(--paper); padding:14px 16px; text-align:left; cursor:pointer; color:var(--ink); }
+    .master-list-item:hover, .master-list-item.active { background:var(--olive-soft); }
+    .master-list-item strong { display:block; margin-bottom:4px; }
+    .master-list-item small { color:var(--muted); }
+    .master-detail-head { padding:16px 20px; border-bottom:1px solid var(--line); background:var(--cream); }
+    .admin-chat-readonly { min-height:400px; max-height:520px; overflow-y:auto; padding:20px; background:var(--warm); display:flex; flex-direction:column; gap:12px; }
+    .admin-chat-meta { font-size:11px; color:var(--muted); margin-bottom:4px; }
+    .admin-filter-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:18px; }
+    .admin-filter-row select, .admin-filter-row input { padding:9px 11px; border:1px solid var(--line); border-radius:7px; background:var(--paper); font-family:inherit; }
+    .content-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; }
+    .moderation-card { border:1px solid var(--line); border-radius:10px; background:var(--paper); padding:18px; }
+    .moderation-card.is-hidden { opacity:.55; background:var(--cream); }
+    @media (max-width: 900px) {
+      .master-split-layout { grid-template-columns:1fr; }
+      .motf-business-fields { grid-template-columns: 1fr; }
+      .motf-field-wide { grid-column: auto; }
+      .motf-address-search-row { grid-template-columns: 1fr; }
+      .motf-location-actions { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260721-catalog1">
+</head>
+<body>
+
+  <section id="login-view">
+    <div class="login-card">
+      <div class="login-logo-wrapper">
+        <div class="motf-simple-text-logo">moTF</div>
+      </div>
+      <h2>moTF 대시보드 로그인</h2>
+      <p class="login-subtitle">파트너와 운영팀을 위한 통합 관리 서비스</p>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="ownerId" style="display:block; text-align:left; margin-bottom:6px; font-size:13px; font-weight:600;">이메일 또는 데모 아이디</label>
+          <input type="text" id="ownerId" placeholder="이메일을 입력하세요" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="ownerPw" style="display:block; text-align:left; margin-bottom:6px; font-size:13px; font-weight:600;">비밀번호</label>
+          <input type="password" id="ownerPw" placeholder="비밀번호를 입력하세요" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="primary-btn" style="width: 100%; justify-content: center; padding: 14px;">로그인</button>
+      </form>
+      <div class="login-divider">또는</div>
+      <button class="kakao-login-btn" onclick="handleKakaoLogin()">카카오로 시작하기</button>
+      <button class="signup-link-btn" onclick="openSignupModal()">회원가입</button>
+      <button id="confirmationResendButton" class="confirmation-resend-btn" type="button" onclick="handleConfirmationResend()">인증 메일 다시 받기</button>
+      <p class="login-help">인증 메일이 보이지 않으면 스팸 메일함을 확인하거나 위 버튼으로 다시 받아주세요.</p>
+    </div>
+  </section>
+
+  <div id="signupModal" class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="signupTitle">
+    <div class="auth-modal-card">
+      <div class="auth-modal-head"><h2 id="signupTitle">파트너 회원가입</h2><button class="modal-close-btn" type="button" onclick="closeSignupModal()" aria-label="닫기">×</button></div>
+      <div id="signupSuccessMessage" class="signup-success"></div>
+      <form id="signupForm" onsubmit="handleSignup(event)">
+        <div class="form-group"><label for="signupRole" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">파트너 유형</label><select id="signupRole" required><option value="">유형을 선택하세요</option><option value="stay">숙소 사장님</option><option value="market">공판장 사장님</option></select></div>
+        <div class="form-group"><label for="signupBusinessName" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">업장명</label><input id="signupBusinessName" type="text" placeholder="예: 가평 모티프 펜션" required></div>
+        <div class="form-group"><label for="signupOwnerName" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">대표자명</label><input id="signupOwnerName" type="text" required></div>
+        <div class="form-group"><label for="signupPhone" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">휴대전화번호</label><input id="signupPhone" type="tel" placeholder="010-0000-0000" required></div>
+        <div class="form-group"><label for="signupId" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">로그인 이메일</label><input id="signupId" type="email" placeholder="example@motf.co.kr" required autocomplete="email"></div>
+        <div class="form-group"><label for="signupPassword" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호</label><input id="signupPassword" type="password" minlength="8" placeholder="8자 이상 입력하세요" required autocomplete="new-password"></div>
+        <div class="form-group"><label for="signupPasswordConfirm" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호 확인</label><input id="signupPasswordConfirm" type="password" minlength="8" required autocomplete="new-password"></div>
+        <label class="terms-row"><input id="signupTerms" type="checkbox" required><span class="terms-content"><span>이용약관 및 개인정보 수집·이용에 동의합니다.</span><button type="button" class="terms-view-btn" onclick="openTermsGuide(event)">약관 확인하기</button></span></label>
+        <button type="submit" class="primary-btn" style="width:100%;justify-content:center;padding:14px;">가입 완료</button>
+      </form>
+    </div>
+  </div>
+
+  <main id="admin-main">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="motf-simple-text-logo">moTF</div>
+        <h3 id="sidebar-owner-name" class="owner-title">업장 정보를 불러오는 중...</h3>
+      </div>
+      
+      <nav class="sidebar-menu-wrapper" id="dynamic-sidebar-menu-target-box">
+        <ul class="sidebar-menu">
+          <li><button class="menu-item active" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
+          <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
+          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
+          <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
+          <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출 관리</button></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <div class="content-area">
+      <header class="top-bar">
+        <button class="mypage-btn" id="topbar-mypage-trigger-btn" onclick="switchPanel('mypage')">
+          <i data-lucide="user-round-cog"></i> <span id="topbar-partner-manage-label">마이페이지</span>
+        </button>
+        <button class="motf-logout-top-btn" id="topbar-admin-logout-btn" onclick="handleLogoutSession()">
+          <i data-lucide="log-out" style="width:14px;"></i> 로그아웃
+        </button>
+      </header>
+
+      <section id="panel-calendar" class="panel active">
+        <h2 class="panel-title">월간 스케줄 현황</h2>
+        <div class="calendar-controls">
+          <button class="secondary-btn" onclick="adjustMonth(-1)"><i data-lucide="chevron-left"></i> 이전 달</button>
+          <h3 id="calendar-month-title" style="margin:0; font-size:18px;">2026년 6월</h3>
+          <button class="secondary-btn" onclick="adjustMonth(1)">다음 달 <i data-lucide="chevron-right"></i></button>
+        </div>
+        
+        <div class="calendar-layout-split">
+          <div class="calendar-grid" id="calendarGridBody" style="flex: 1;"></div>
+          
+          <div class="calendar-detail-sidebar-box" id="calendarClickDetailLayer">
+            <h4 style="margin-top:0; color:var(--teal-dark); font-size:15px; border-bottom:1px solid var(--line); padding-bottom:8px;"><i data-lucide="info" style="width:14px; display:inline; vertical-align:middle;"></i> 일별 상세 정보</h4>
+            <div id="calendarLayerDynamicContent" style="font-size:13px; color:var(--muted); line-height:1.6;">
+              날짜를 누르면 객실별 예약·입금 대기·수동 방막기 상태를 확인하고 바로 관리할 수 있습니다.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-orders" class="panel">
+        <h2 class="panel-title" id="order-panel-main-title">예약 및 승인 관리</h2>
+        <div class="tab-container">
+          <button class="tab-btn active" onclick="switchOrderTab('pending')">확정 대기</button>
+          <button class="tab-btn" onclick="switchOrderTab('confirm')">예약 확정</button>
+          <button class="tab-btn" onclick="switchOrderTab('past')">지난 예약</button>
+          <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
+        </div>
+        <div id="orderListArea" class="item-list"></div>
+        <section id="partnerExtraChargeSection" class="owner-extra-charge-section" hidden>
+          <div class="owner-section-row">
+            <div>
+              <h3>추가 이용금 요청</h3>
+              <p>추가인원·바베큐 등 현장에서 확정된 금액을 운영팀에 검토 요청합니다.</p>
+            </div>
+          </div>
+          <div id="partnerExtraChargeList" class="item-list"></div>
+        </section>
+      </section>
+
+      <section id="panel-availability" class="panel">
+        <h2 class="panel-title">수동 방막기 관리</h2>
+        <p style="margin-top:-8px; margin-bottom:18px; color:var(--muted); font-size:14px;">전화 예약, 외부 예약, 임시 점검처럼 moTF 예약을 받으면 안 되는 날짜를 직접 막아둘 수 있습니다.</p>
+        <div id="partnerAvailabilityManager"></div>
+      </section>
+
+      <section id="panel-chat" class="panel">
+        <h2 class="panel-title">이용자 실시간 채팅 문의</h2>
+        <div class="chat-layout">
+          <div class="chat-sidebar">
+            <div class="chat-search">
+              <input type="text" id="chatSearchInput" placeholder="이용자 이름 검색..." oninput="handleChatSearch()">
+            </div>
+            <ul class="chat-list" id="chatListContainer"></ul>
+          </div>
+          <div class="chat-main">
+            <div class="chat-body" id="chatBodyContainer"></div>
+            <div class="chat-footer">
+              <input type="text" id="chatMessageInput" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+              <button class="primary-btn" onclick="sendChatMessage()"><i data-lucide="send"></i> 전송</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-revenue" class="panel">
+        <h2 class="panel-title">종합 매출 데이터</h2>
+        <div class="stats-grid-4">
+          <div class="stat-card">
+            <div class="stat-label">이번 달 총 매출액</div>
+            <div class="stat-value" id="rev-total-val" style="color: var(--ink);">0원</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">총 정산 금액</div>
+            <div class="stat-value" id="rev-net-total-val" style="color: var(--teal);">0원</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">정산 완료 금액</div>
+            <div class="stat-value" id="rev-settled-val" style="color: var(--olive-light);">0원</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">정산 예정 금액</div>
+            <div class="stat-value" id="rev-expected-val" style="color: #d97706;">0원</div>
+          </div>
+        </div>
+
+        <div class="revenue-layout">
+          <div class="revenue-menu">
+            <button class="rev-menu-btn active" onclick="switchRevSubMenu('profit')">💡 순수익 계산기</button>
+            <button class="rev-menu-btn" onclick="switchRevSubMenu('period')">기간별 매출 조회</button>
+            <button class="rev-menu-btn" onclick="switchRevSubMenu('room')">항목/객실별 매출</button>
+            <button class="rev-menu-btn" onclick="switchRevSubMenu('trend')">매출 변동 추이</button>
+          </div>
+          <div class="revenue-content-card" id="revenueSubContent"></div>
+        </div>
+      </section>
+
+      <section id="panel-mypage" class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:24px;">
+          <h2 class="panel-title" id="partner-manage-title" style="margin:0;">마이페이지</h2>
+          <button class="motf-logout-top-btn" onclick="handleLogoutSession()">
+            <i data-lucide="log-out" style="width:14px;"></i> 로그아웃
+          </button>
+        </div>
+        
+        <div id="motfPartnerOnboardingNotice" class="login-guide-box" hidden>
+          <strong>첫 등록이 필요합니다.</strong><br>
+          1. 업장 기본정보를 입력하고 2. 객실 또는 상품을 하나 이상 추가한 뒤 3. 변경사항 저장하기를 눌러주세요.
+        </div>
+
+        <h3>사장님 계정 및 정산 정보</h3>
+        <div class="motf-business-fields" id="motfOwnerAccountFields" style="margin-bottom:18px;">
+          <label>로그인 이메일
+            <input id="motfOwnerEmail" readonly placeholder="로그인 계정 이메일" />
+          </label>
+          <label>사장님 연락처
+            <input id="motfOwnerPhone" maxlength="30" autocomplete="tel" placeholder="010-0000-0000" />
+          </label>
+          <label>정산 은행
+            <input id="motfSettlementBank" maxlength="40" placeholder="예: 국민은행" />
+          </label>
+          <label>정산 계좌번호
+            <input id="motfSettlementAccount" maxlength="80" placeholder="숫자와 하이픈 입력" />
+          </label>
+          <label class="motf-field-wide">정산 예금주
+            <input id="motfSettlementHolder" maxlength="50" placeholder="사업자 또는 대표자명과 동일하게 입력" />
+          </label>
+          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 입력 화면만 먼저 준비된 상태입니다. 실제 저장은 정산 DB 컬럼 연결 후 활성화됩니다.</p>
+        </div>
+
+        <h3>서비스 제공 유저화면 미리보기</h3>
+        <div class="preview-box">
+          <h4 id="preview-display-name" style="margin:0 0 8px 0; font-size:18px; color:var(--teal-dark);">업장명</h4>
+          <p id="preview-display-desc" class="owner-description-preview">소개 문구를 입력해주세요.</p>
+          <div id="preview-room-prices-summary" style="font-size:13px; color:var(--muted); line-height:1.6;"></div>
+        </div>
+
+        <h3 class="owner-section-title"><i data-lucide="settings-2"></i>데이터 상세 편집</h3>
+        <div class="edit-section">
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:6px;">목록에 보이는 한 줄 소개 <span class="field-optional">최대 140자</span></label>
+            <textarea id="motfShortDescription" rows="2" maxlength="140" class="owner-textarea" placeholder="예: 대성리역 차량 5분, 40명 단체가 한 공간에서 이용하는 독채 펜션"></textarea>
+            <small class="motf-field-status">숙소 목록과 지도 옆 카드에는 이 문구만 간결하게 표시됩니다.</small>
+            <label style="display:block; font-weight:600; margin:18px 0 6px;">상세 소개</label>
+            <textarea id="editDescInput" rows="8" maxlength="3000" class="owner-textarea" placeholder="공간 구성, 단체 이용 장점, 체크인 안내와 주변 환경을 충분히 설명해주세요."></textarea>
+            <div id="motfHighlightEditor" class="owner-highlight-editor">
+              <strong>카드 핵심 정보 <span class="field-optional">최대 3개</span></strong>
+              <p>직접 문구를 쓰지 않고 실제 등록한 정보 중에서 고릅니다.</p>
+              <div id="motfHighlightChoices" class="owner-choice-grid"></div>
+            </div>
+          </div>
+
+          <div id="priceSettingWrapperSector">
+            <div class="owner-section-row">
+              <div>
+                <label style="display:block; font-weight:600; margin-bottom:6px;" id="dynamic-price-section-title">객실별 인원·기간 요금</label>
+                <p id="dynamic-price-section-help" class="owner-field-help">숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.</p>
+              </div>
+            </div>
+            <div id="motfSeasonCalendarEditor" class="season-calendar-editor">
+              <div class="season-calendar-toolbar">
+                <div>
+                  <strong>시즌 달력 설정</strong>
+                  <p>시즌을 고른 뒤 날짜를 누르거나 드래그하세요. 여러 기간을 반복해서 설정할 수 있습니다.</p>
+                </div>
+                <div class="season-mode-buttons" role="group" aria-label="적용할 시즌">
+                  <button type="button" data-season-mode="offseason" onclick="setSeasonCalendarMode('offseason')">비수기</button>
+                  <button type="button" data-season-mode="shoulder" class="active" onclick="setSeasonCalendarMode('shoulder')">준성수기</button>
+                  <button type="button" data-season-mode="peak" onclick="setSeasonCalendarMode('peak')">성수기</button>
+                </div>
+              </div>
+              <div class="season-calendar-year-nav">
+                <button type="button" onclick="shiftSeasonCalendarYear(-1)" aria-label="이전 연도"><i data-lucide="chevron-left"></i></button>
+                <strong id="motfSeasonCalendarYear"></strong>
+                <button type="button" onclick="shiftSeasonCalendarYear(1)" aria-label="다음 연도"><i data-lucide="chevron-right"></i></button>
+              </div>
+              <div id="motfSeasonCalendarGrid" class="season-calendar-grid"></div>
+              <div id="motfSeasonCalendarSummary" class="season-calendar-summary"></div>
+            </div>
+            <div id="roomPriceTableBody" class="owner-room-editor-list"></div>
+            <button class="secondary-btn" style="margin-top:10px; padding:6px 12px; font-size:13px;" onclick="addTableRow()"><i data-lucide="plus" style="width:14px; display:inline;"></i> <span id="addBtnDynamicText">객실 추가</span></button>
+          </div>
+
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:4px;" id="mypage-upload-title">구역별 사진 여러 장 관리</label>
+            <div class="photo-tab-wrapper" id="photoCategoryContainer"></div>
+            <div style="background-color: var(--cream); border:1px solid var(--line); padding:16px; border-radius:8px; margin-top:12px;">
+              <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 구역: 전체 외관</span>
+              <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
+              <small style="display:block;margin-top:7px;color:var(--muted);">새 사진은 기존 사진 뒤에 추가됩니다. 대표 지정·순서 이동·개별 삭제가 가능합니다.</small>
+              <div id="motfPhotoUploadPreview" class="motf-photo-upload-preview"></div>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-weight:600;" id="dynamic-facility-label-title">제공 시설 편의 및 상품 옵션 설정</label>
+            <div class="facility-container-vertical" id="facilityCheckGrid"></div>
+          </div>
+
+          <div id="motfStayDetailFields">
+            <label style="display:block; font-weight:600; margin-bottom:6px;">숙소 공간 및 추가요금</label>
+            <div class="motf-business-fields">
+              <label>전체 객실 수<input id="motfRoomCount" type="number" min="0" readonly /><small>등록된 객실 수로 자동 계산</small></label>
+              <label>전체 화장실 수<input id="motfBathCount" type="number" min="0" readonly /><small>객실별·야외 공용 화장실 합계</small></label>
+              <label>야외 공용화장실 수<input id="motfSharedBathCount" type="number" min="0" value="0" /></label>
+              <label class="owner-check-label"><input id="motfSharedBathSeparated" type="checkbox" /> 남녀 구분</label>
+              <label class="motf-field-wide">야외 공용화장실 특이사항<input id="motfSharedBathNote" maxlength="160" placeholder="예: 운동장 옆, 샤워실 없음" /></label>
+              <div class="motf-field-wide owner-choice-section">
+                <strong>주변 환경</strong>
+                <p>역·편의점은 저장된 좌표로 자동 계산합니다. 나머지만 선택해주세요.</p>
+                <div id="motfAutomaticDistances" class="owner-distance-readout"></div>
+                <div id="motfNearbyTagChoices" class="owner-choice-grid"></div>
+              </div>
+              <div class="motf-field-wide owner-fee-section">
+                <div class="owner-section-row"><div><strong>기타 특이 추가요금</strong><p>시설 항목에 없는 예외 요금만 등록해주세요.</p></div><button type="button" class="secondary-btn compact" onclick="motfAddExtraFeeRow()"><i data-lucide="plus"></i>요금 추가</button></div>
+                <div id="motfExtraFeeRows" class="owner-fee-rows"></div>
+              </div>
+            </div>
+            <p style="margin:7px 0 0;color:var(--muted);font-size:12px;">입력한 시설과 요금은 이용자 숙소 상세 화면에 자동으로 정리됩니다.</p>
+          </div>
+
+          <div style="margin-top:10px;">
+            <button class="primary-btn" onclick="saveMypageData()"><i data-lucide="save"></i> 변경사항 저장하기</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-master-stats" class="panel">
+        <h2 class="panel-title">moTF 플랫폼 마스터 실시간 종합 현황</h2>
+        <div class="stats-grid-4">
+          <div class="stat-card">
+            <div class="stat-label">오늘 가입한 신규 대학생 유저 수</div>
+            <div class="stat-value" style="color:var(--teal-dark);" id="m-stat-users">0명</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">신규 입점 신청 사장님 수</div>
+            <div class="stat-value" style="color:#d97706;" id="m-stat-pending-partners">0개 업체</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">플랫폼 전체 총 누적 거래액 (GMV)</div>
+            <div class="stat-value" style="color:var(--ink);" id="m-stat-gmv">0원</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">모티프 본사 누적 중개 수수료 수익</div>
+            <div class="stat-value" style="color:var(--teal);" id="m-stat-fee">0원</div>
+          </div>
+        </div>
+        
+        <h3 style="margin-top:40px; margin-bottom:12px; color:var(--teal-dark);"><i data-lucide="activity" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 🧾 실시간 매칭 및 매출 내역 트래커 (정산 분기 표시)</h3>
+        <p style="font-size:13px; color:var(--muted); margin-top:0; margin-bottom:16px;">플랫폼 내 전체 매출 내역을 각 업장별로 분류 정리하여 정산/미정산 흐름을 정밀 통제합니다.</p>
+        <table class="master-admin-table">
+          <thead>
+            <tr>
+              <th>매출 코드</th>
+              <th>매출 발생 업장</th>
+              <th>소속 유저 (동아리)</th>
+              <th>총 결제액</th>
+              <th>본사 중개 수수료</th>
+              <th>상태 분기</th>
+            </tr>
+          </thead>
+          <tbody id="masterTransactionTrackerBody"></tbody>
+        </table>
+
+        <h3 style="margin-top:40px; margin-bottom:12px; color:var(--teal-dark);"><i data-lucide="alert-triangle" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 🚦 사장님 예약 거절 및 운영 리스크 타임라인</h3>
+        <p style="font-size:13px; color:var(--muted); margin-top:0; margin-bottom:16px;">각 업장 사장님단에서 발생한 거절 정보가 본사 마스터 피드에 투명하게 실시간 적재됩니다.</p>
+        <table class="master-admin-table">
+          <thead>
+            <tr>
+              <th>거절 발생 업장</th>
+              <th>신청 유저 (단체명)</th>
+              <th>매칭 대상 상품</th>
+              <th>금액</th>
+              <th>사장님 명시 거절 사유</th>
+            </tr>
+          </thead>
+          <tbody id="masterRejectTimelineBody"></tbody>
+        </table>
+      </section>
+
+      <section id="panel-master-partners" class="panel">
+        <h2 class="panel-title">전체 가입 유저 및 파트너 업장 정보 종합 매니지먼트</h2>
+        
+        <h3 style="color:var(--teal-dark); margin-bottom:12px;"><i data-lucide="users" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 🎓 본사 가입 전체 대학생 유저 및 학생회 목록 (정지/해제 제어)</h3>
+        <table class="master-admin-table" style="margin-bottom:40px;">
+          <thead>
+            <tr>
+              <th>유저명</th>
+              <th>연락처</th>
+              <th>소속 대학교</th>
+              <th>학과 및 학생 단체 정보</th>
+              <th>계정 제어 상태</th>
+            </tr>
+          </thead>
+          <tbody id="masterUserControlTableBody"></tbody>
+        </table>
+
+        <h3 style="color:var(--teal-dark); margin-bottom:12px;"><i data-lucide="store" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 🏢 본사 가입 및 입점 심사 파트너사 목록 (업장 클릭 시 하단 누적 매출 전개)</h3>
+        <p style="font-size:13px; color:var(--muted); margin-top:-6px; margin-bottom:16px;">아래 업장 행을 클릭하시면, 해당 파트너사에서 여태까지 발생한 누적 상세 매출 정보가 하단에 동적 전개됩니다.</p>
+        <table class="master-admin-table" style="margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th>파트너사명</th>
+              <th>업종 분류</th>
+              <th>사업자 정보 검증 문서</th>
+              <th>누적 매출 건수</th>
+              <th>심사 및 입점 제어</th>
+            </tr>
+          </thead>
+          <tbody id="masterPartnerControlTableBody"></tbody>
+        </table>
+
+        <div id="masterPartnerDetailRevenueSubSection" style="display:none; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px; margin-top:24px; box-shadow:var(--shadow);">
+          <h4 id="m-selected-partner-title-node" style="margin-top:0; color:var(--teal-dark); font-size:16px;">선택한 파트너의 누적 매출 추적 리스트</h4>
+          <table class="master-admin-table" style="margin-top:12px;">
+            <thead>
+              <tr>
+                <th>이용 일정일</th>
+                <th>예약/주문자</th>
+                <th>매칭 상품명</th>
+                <th>총 결제액</th>
+                <th>본사 수수료</th>
+                <th>정산 여부</th>
+              </tr>
+            </thead>
+            <tbody id="masterPartnerDetailRevenueRowsArea"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-master-chat-monitor" class="panel">
+        <h2 class="panel-title">사장님별 전체 채팅 모니터링</h2>
+        <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:20px;">파트너 업장을 먼저 선택한 뒤, 해당 사장님이 이용자들과 나눈 모든 대화를 읽기 전용으로 확인합니다.</p>
+        <div class="master-split-layout">
+          <div class="master-list-card">
+            <div class="master-list-header"><strong>파트너 사장님</strong></div>
+            <div id="masterChatPartnerList"></div>
+          </div>
+          <div class="master-detail-card">
+            <div class="master-detail-head"><strong id="masterChatPartnerTitle">파트너를 선택해 주세요</strong></div>
+            <div style="display:grid; grid-template-columns:240px 1fr; min-height:500px;">
+              <div style="border-right:1px solid var(--line);" id="masterChatUserList"></div>
+              <div>
+                <div class="admin-chat-readonly" id="masterChatMessageArea"><p style="color:var(--muted);">확인할 대화를 선택해 주세요.</p></div>
+                <div style="padding:12px 20px; border-top:1px solid var(--line); font-size:12px; color:var(--muted);">운영팀 모니터링 화면 · 메시지 전송은 사장님 계정에서만 가능합니다.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-master-cases" class="panel">
+        <h2 class="panel-title">플랫폼 문의 및 분쟁 관리</h2>
+        <div class="admin-filter-row">
+          <select id="masterCaseTypeFilter" onchange="renderMasterCases()"><option value="all">전체 유형</option><option value="문의">일반 문의</option><option value="분쟁">이용자·사장님 분쟁</option></select>
+          <select id="masterCaseStatusFilter" onchange="renderMasterCases()"><option value="all">전체 상태</option><option value="접수">접수</option><option value="처리 중">처리 중</option><option value="완료">완료</option></select>
+        </div>
+        <table class="master-admin-table"><thead><tr><th>접수번호</th><th>유형</th><th>접수자</th><th>관련 업장</th><th>제목 및 내용</th><th>접수일</th><th>처리 상태</th></tr></thead><tbody id="masterCaseTableBody"></tbody></table>
+      </section>
+
+      <section id="panel-master-orders" class="panel">
+        <h2 class="panel-title">운영팀 예약 관리</h2>
+        <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:20px;">사장님이 직접 처리하기 어려운 예약을 운영팀이 대신 확정하거나 거절할 수 있습니다.</p>
+        <div class="admin-filter-row">
+          <select id="masterOrderPartnerFilter" onchange="renderMasterOrders()"><option value="all">전체 파트너</option></select>
+          <select id="masterOrderStatusFilter" onchange="renderMasterOrders()"><option value="all">전체 상태</option><option value="pending">확정 대기</option><option value="confirm">예약 확정</option><option value="past">지난 예약</option><option value="reject">거절</option></select>
+        </div>
+        <div id="masterOrderListArea" class="item-list"></div>
+        <section class="owner-extra-charge-section">
+          <div class="owner-section-row"><div><h3>추가 이용금 검토</h3><p>사장님이 제출한 항목과 금액을 확인한 뒤 이용자에게 결제를 요청합니다.</p></div></div>
+          <div id="adminExtraChargeList" class="item-list"></div>
+        </section>
+      </section>
+
+      <section id="panel-master-content" class="panel">
+        <h2 class="panel-title">리뷰 및 커뮤니티 관리</h2>
+        <div class="tab-container">
+          <button class="tab-btn active" id="masterContentReviewTab" onclick="switchMasterContentTab('reviews')">이용자 리뷰</button>
+          <button class="tab-btn" id="masterContentCommunityTab" onclick="switchMasterContentTab('community')">커뮤니티 게시글</button>
+        </div>
+        <div id="masterContentArea" class="content-card-grid"></div>
+      </section>
+
+      <section id="panel-master-revenue" class="panel">
+        <h2 class="panel-title">moTF 본사 종합 매출 분석 및 비즈니스 모니터링</h2>
+        <div class="revenue-layout">
+          <div class="revenue-menu">
+            <button class="rev-menu-btn active" id="m-rev-sub-1" onclick="switchMasterRevSub('period')">기간별 매출 조회</button>
+            <button class="rev-menu-btn" id="m-rev-sub-2" onclick="switchMasterRevSub('room')">항목/업장별 매출 비중</button>
+            <button class="rev-menu-btn" id="m-rev-sub-3" onclick="switchMasterRevSub('trend')">매출 변동 추이 변동</button>
+          </div>
+          <div class="revenue-content-card" id="masterRevenueSubContent"></div>
+        </div>
+      </section>
+
+      <section id="panel-master-settlement" class="panel">
+        <h2 class="panel-title">본사 월별 대금 정산 통제 센터 (증명 명세 첨부 송신 모듈 탑재)</h2>
+        <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:24px;">수수료 수식 오류를 완벽 교정하여, 정산 처리 상태 변경 시 종합 지표와 정산 완료액 지표가 실시간 연동 처리됩니다.</p>
+        
+        <table class="master-admin-table">
+          <thead>
+            <tr>
+              <th>정산 대상 파트너명</th>
+              <th>업종 요율</th>
+              <th>이번 달 전체 총 매출액</th>
+              <th>모티프 중개 수수료 공제액</th>
+              <th>최종 순수 입금 대금</th>
+              <th>본사 대금 정산 처리 액션</th>
+            </tr>
+          </thead>
+          <tbody id="masterSettlementTableBody"></tbody>
+        </table>
+
+        <div id="masterSettleProofUploadAreaBlock" style="display:none; margin-top:32px; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px;">
+          <h3 style="margin-top:0; font-size:16px; color:var(--teal-dark);"><i data-lucide="file-check" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 사장님 정산 증명 명세 데이터 전송 제어 계통</h3>
+          <p style="font-size:13px; color:var(--muted); margin-top:0;">해당 파트너사 사장님용 정산 대시보드로 계좌 이체 영수증 및 중개 세부 거래 내역 원장을 첨부해 즉각 전송합니다.</p>
+          <div style="font-size:14px; font-weight:600; margin-top:16px;" id="m-proof-target-name-info">정산 대상을 선택해 주세요.</div>
+          
+          <div class="master-file-dropzone-box" onclick="document.getElementById('m-hidden-file-input').click();">
+            <i data-lucide="upload-cloud" style="width:24px; height:24px; color:var(--muted); margin-bottom:8px; display:block; margin-left:auto; margin-right:auto;"></i>
+            <span id="m-dropzone-text-display">이곳을 클릭하여 정산 원장 파일(Excel, PDF)을 첨부하세요</span>
+            <input type="file" id="m-hidden-file-input" style="display:none;" onchange="handleMasterSettleFileSelection(this)">
+          </div>
+          <button class="primary-btn" style="margin-top:16px; width:100%; justify-content:center;" onclick="executeSettleProofSendAction()">사장님 대시보드로 증명서 최종 발송</button>
+        </div>
+      </section>
+
+      <section id="panel-master-locations" class="panel">
+        <div class="location-reference-heading">
+          <div>
+            <p class="panel-eyebrow">숙소 주변 거리 자동 계산</p>
+            <h2 class="panel-title">주변 기준 장소 관리</h2>
+            <p>역과 편의점의 좌표를 등록하면 각 숙소에서 가장 가까운 장소까지의 거리를 자동 계산합니다.</p>
+          </div>
+          <button type="button" class="secondary-btn" onclick="motfResetLocationReferenceForm()"><i data-lucide="plus"></i>새 장소 등록</button>
+        </div>
+        <div class="location-reference-layout">
+          <form id="motfLocationReferenceForm" class="location-reference-form" onsubmit="motfSaveLocationReference(event)">
+            <input id="motfLocationReferenceId" type="hidden" />
+            <div class="location-reference-form-head">
+              <strong id="motfLocationReferenceFormTitle">기준 장소 등록</strong>
+              <span>운영자만 수정할 수 있습니다.</span>
+            </div>
+            <div class="location-reference-fields">
+              <label>장소 종류
+                <select id="motfLocationReferenceType" required>
+                  <option value="station">역</option>
+                  <option value="convenience">편의점</option>
+                </select>
+              </label>
+              <label>장소명
+                <input id="motfLocationReferenceName" maxlength="80" placeholder="예: 대성리역" required />
+              </label>
+              <label class="location-reference-wide">적용 지역
+                <input id="motfLocationReferenceRegion" value="가평" maxlength="40" readonly />
+                <small>검색한 주소의 행정구역을 기준으로 자동 설정됩니다.</small>
+              </label>
+              <label class="location-reference-wide">주소로 좌표 찾기
+                <div class="location-reference-address-row">
+                  <input id="motfLocationReferenceAddress" placeholder="주소 검색 버튼을 눌러주세요" readonly />
+                  <button type="button" class="secondary-btn" onclick="motfSearchLocationReferenceAddress()"><i data-lucide="search"></i>주소 검색</button>
+                </div>
+              </label>
+              <label>위도
+                <input id="motfLocationReferenceLatitude" type="number" min="-90" max="90" step="any" placeholder="37.0000000" required />
+              </label>
+              <label>경도
+                <input id="motfLocationReferenceLongitude" type="number" min="-180" max="180" step="any" placeholder="127.0000000" required />
+              </label>
+            </div>
+            <label class="owner-check-label location-reference-active"><input id="motfLocationReferenceActive" type="checkbox" checked /> 거리 계산에 사용</label>
+            <p id="motfLocationReferenceStatus" class="location-reference-status">주소를 검색하면 위도와 경도가 자동으로 입력됩니다.</p>
+            <div class="location-reference-form-actions">
+              <button type="button" class="ghost-btn" onclick="motfResetLocationReferenceForm()">초기화</button>
+              <button type="submit" class="primary-btn"><i data-lucide="save"></i>저장</button>
+            </div>
+          </form>
+          <div class="location-reference-directory">
+            <div class="location-reference-list-head">
+              <div><strong>등록된 기준 장소</strong><span id="motfLocationReferenceCount">0개</span></div>
+              <button type="button" class="ghost-btn" onclick="loadMotfLocationReferencePoints()" aria-label="목록 새로고침" title="새로고침"><i data-lucide="refresh-cw"></i></button>
+            </div>
+            <div id="motfLocationReferenceList" class="location-reference-list">
+              <div class="location-reference-empty">기준 장소를 불러오는 중입니다.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <dialog id="motfExtraChargeDialog" class="motf-form-dialog">
+    <form id="motfExtraChargeForm" method="dialog">
+      <div class="motf-dialog-head">
+        <div><small>확정 예약</small><h3>추가 이용금 요청</h3></div>
+        <button type="button" class="motf-dialog-close" onclick="document.getElementById('motfExtraChargeDialog').close()" aria-label="닫기"><i data-lucide="x"></i></button>
+      </div>
+      <input id="motfExtraChargeReservationId" type="hidden" />
+      <div id="motfExtraChargeReservationSummary" class="extra-charge-reservation-summary"></div>
+      <div class="extra-charge-guide"><i data-lucide="shield-check"></i><span>운영팀이 항목과 금액을 확인한 뒤 이용자에게 결제 요청을 보냅니다.</span></div>
+      <div id="motfExtraChargeRows" class="extra-charge-form-rows"></div>
+      <button type="button" class="secondary-btn compact" onclick="motfAddExtraChargeRow()"><i data-lucide="plus"></i>항목 추가</button>
+      <label class="motf-dialog-field">사장님 메모<textarea id="motfExtraChargeNote" rows="3" maxlength="500" placeholder="운영팀이 확인해야 할 특이사항"></textarea></label>
+      <label class="motf-dialog-field">결제 기한 <span class="field-optional">선택</span><input id="motfExtraChargeDueAt" type="datetime-local" /></label>
+      <div class="extra-charge-total"><span>요청 합계</span><strong id="motfExtraChargeTotal">0원</strong></div>
+      <div class="motf-dialog-actions">
+        <button type="button" class="secondary-btn" onclick="document.getElementById('motfExtraChargeDialog').close()">취소</button>
+        <button type="submit" class="primary-btn"><i data-lucide="send"></i>운영팀에 검토 요청</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    let currentOwnerType = 'stay'; 
+    let currentActivePanel = 'calendar';
+    let currentOrderTab = 'pending';
+    let currentRevSubMenu = 'profit';
+    let currentSelectedChatUser = '';
+    const initialCalendarDate = new Date();
+    let currentCalendarYear = initialCalendarDate.getFullYear();
+    let currentCalendarMonth = initialCalendarDate.getMonth() + 1;
+    let currentSelectedPhotoIndex = 0; 
+    let masterRevSubTab = 'period';
+    let currentSelectedProofPartnerId = '';
+    let masterSelectedChatPartner = 'stay';
+    let masterSelectedChatUser = '';
+    let masterContentTab = 'reviews';
+    let currentRegisteredProfile = null;
+    let seasonCalendarYear = initialCalendarDate.getFullYear();
+    let seasonCalendarMode = 'shoulder';
+    let seasonPaintActive = false;
+    const seasonAssignments = new Map();
+
+    function escapeDashboardHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[character]));
+    }
+
+    function seasonDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function seasonRangesToAssignments(ranges, mode) {
+      (Array.isArray(ranges) ? ranges : []).forEach(range => {
+        const start = new Date(`${range?.start_date || ''}T12:00:00`);
+        const end = new Date(`${range?.end_date || ''}T12:00:00`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return;
+        for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+          seasonAssignments.set(seasonDateKey(cursor), mode);
+        }
+      });
+    }
+
+    function seasonAssignmentsToRanges(mode) {
+      const dates = [...seasonAssignments.entries()]
+        .filter(([, value]) => value === mode)
+        .map(([date]) => date)
+        .sort();
+      if (!dates.length) return [];
+      const ranges = [];
+      let start = dates[0];
+      let previous = dates[0];
+      for (let index = 1; index < dates.length; index += 1) {
+        const nextExpectedDate = new Date(`${previous}T12:00:00`);
+        nextExpectedDate.setDate(nextExpectedDate.getDate() + 1);
+        if (dates[index] !== seasonDateKey(nextExpectedDate)) {
+          ranges.push({ start_date: start, end_date: previous });
+          start = dates[index];
+        }
+        previous = dates[index];
+      }
+      ranges.push({ start_date: start, end_date: previous });
+      return ranges;
+    }
+
+    function setSeasonCalendarMode(mode) {
+      seasonCalendarMode = ['offseason', 'shoulder', 'peak'].includes(mode) ? mode : 'shoulder';
+      document.querySelectorAll('[data-season-mode]').forEach(button => {
+        const active = button.dataset.seasonMode === seasonCalendarMode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+    }
+
+    function shiftSeasonCalendarYear(amount) {
+      seasonCalendarYear += Number(amount || 0);
+      renderSeasonCalendar();
+    }
+
+    function applySeasonToDate(dateKey, button) {
+      if (!dateKey) return;
+      if (seasonCalendarMode === 'offseason') seasonAssignments.delete(dateKey);
+      else seasonAssignments.set(dateKey, seasonCalendarMode);
+      if (button) {
+        button.classList.remove('shoulder', 'peak');
+        const assigned = seasonAssignments.get(dateKey);
+        if (assigned) button.classList.add(assigned);
+        button.setAttribute('aria-label', `${dateKey} ${assigned === 'peak' ? '성수기' : assigned === 'shoulder' ? '준성수기' : '비수기'}`);
+      }
+      renderSeasonCalendarSummary();
+    }
+
+    function beginSeasonPaint(event, button) {
+      if (event.button != null && event.button !== 0) return;
+      seasonPaintActive = true;
+      applySeasonToDate(button.dataset.seasonDate, button);
+      event.preventDefault();
+    }
+
+    function continueSeasonPaint(button) {
+      if (!seasonPaintActive || !button) return;
+      applySeasonToDate(button.dataset.seasonDate, button);
+    }
+
+    function renderSeasonCalendarSummary() {
+      const summary = document.getElementById('motfSeasonCalendarSummary');
+      if (!summary) return;
+      const shoulder = seasonAssignmentsToRanges('shoulder');
+      const peak = seasonAssignmentsToRanges('peak');
+      summary.innerHTML = `<span><b>준성수기</b> ${shoulder.length ? `${shoulder.length}개 기간` : '미설정'}</span><span><b>성수기</b> ${peak.length ? `${peak.length}개 기간` : '미설정'}</span><small>색이 없는 날짜는 비수기로 계산됩니다.</small>`;
+    }
+
+    function renderSeasonCalendar() {
+      const grid = document.getElementById('motfSeasonCalendarGrid');
+      const title = document.getElementById('motfSeasonCalendarYear');
+      if (!grid || !title) return;
+      title.textContent = `${seasonCalendarYear}년`;
+      const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+      grid.innerHTML = Array.from({ length: 12 }, (_, monthIndex) => {
+        const firstDay = new Date(seasonCalendarYear, monthIndex, 1).getDay();
+        const lastDate = new Date(seasonCalendarYear, monthIndex + 1, 0).getDate();
+        const blanks = Array.from({ length: firstDay }, () => '<span class="season-calendar-blank"></span>').join('');
+        const days = Array.from({ length: lastDate }, (_, dayIndex) => {
+          const date = new Date(seasonCalendarYear, monthIndex, dayIndex + 1);
+          const dateKey = seasonDateKey(date);
+          const assigned = seasonAssignments.get(dateKey) || '';
+          const label = assigned === 'peak' ? '성수기' : assigned === 'shoulder' ? '준성수기' : '비수기';
+          return `<button type="button" class="season-calendar-day ${assigned}" data-season-date="${dateKey}" aria-label="${dateKey} ${label}" onpointerdown="beginSeasonPaint(event,this)" onpointerenter="continueSeasonPaint(this)">${dayIndex + 1}</button>`;
+        }).join('');
+        return `<section class="season-month"><h4>${monthIndex + 1}월</h4><div class="season-weekdays">${weekdays.map(day => `<span>${day}</span>`).join('')}</div><div class="season-days">${blanks}${days}</div></section>`;
+      }).join('');
+      renderSeasonCalendarSummary();
+      setSeasonCalendarMode(seasonCalendarMode);
+      lucide.createIcons();
+    }
+
+    document.addEventListener('pointerup', () => { seasonPaintActive = false; });
+    document.addEventListener('pointercancel', () => { seasonPaintActive = false; });
+    document.addEventListener('pointermove', event => {
+      if (!seasonPaintActive) return;
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-season-date]');
+      if (target) continueSeasonPaint(target);
+    });
+
+    const COMMISSION_RATES = {
+      stay: 7,    
+      market: 5   
+    };
+
+    // 운영 화면은 Supabase에서 받은 데이터만 채운다.
+    const masterExtendedData = {
+      users: [],
+      partners: [],
+      transactions: [],
+      cases: [],
+      reviews: [],
+      community: []
+    };
+
+    const mockData = {
+      stay: {
+        name: "숙소 사장님 홈",
+        displayName: "숙소",
+        desc: "",
+        revenue: { rawTotal: 0, rawSettled: 0, rawExpected: 0 },
+        rooms: [],
+        photoTabs: ["전체 외관"],
+        facilities: [
+          { key: "barbecue", name: "야외바베큐", checked: false, desc: "", params: {} },
+          { key: "karaoke", name: "노래방/마이크", checked: false, desc: "", params: {} },
+          { key: "field", name: "야외운동장", checked: false, desc: "", params: { equipment: [] } },
+          { key: "pool", name: "수영장", checked: false, desc: "", params: {} },
+          { key: "screen", name: "TV/화면", checked: false, desc: "", params: {} },
+          { key: "wifi", name: "무료 와이파이", checked: false, desc: "", params: {} },
+          { key: "parking", name: "주차", checked: false, desc: "", params: {} },
+          { key: "pickup", name: "픽업", checked: false, desc: "", params: {} }
+        ],
+        orders: [],
+        chats: []
+      },
+      market: {
+        name: "공판장 사장님 홈",
+        displayName: "공판장",
+        desc: "",
+        revenue: { rawTotal: 0, rawSettled: 0, rawExpected: 0 },
+        rooms: [],
+        photoTabs: [],
+        facilities: [
+          { key: "delivery", name: "숙소 배송", checked: false, desc: "", placeholder: "배송 가능 지역, 최소 주문금액과 시간을 입력" },
+          { key: "pickup", name: "매장 픽업", checked: false, desc: "", placeholder: "픽업 가능 시간과 수령 위치를 입력" },
+          { key: "cold_storage", name: "냉장·냉동 보관", checked: false, desc: "", placeholder: "보관 및 포장 방식을 입력" }
+        ],
+        orders: [],
+        chats: []
+      }
+    };
+
+    function openSignupModal() {
+      document.getElementById('signupSuccessMessage').style.display = 'none';
+      document.getElementById('signupModal').classList.add('active');
+      document.getElementById('signupRole').focus();
+    }
+
+    function closeSignupModal() {
+      document.getElementById('signupModal').classList.remove('active');
+    }
+
+    function openTermsGuide(event) {
+      event?.preventDefault?.();
+      alert('이용약관 및 개인정보처리방침 전문 페이지는 정식 약관 문서 확정 후 연결됩니다. 현재는 가입 진행을 위한 동의 항목만 표시합니다.');
+    }
+
+    /* 모티프 본사 마스터 전용 백오피스 메뉴 및 모듈 바인딩 */
+    function initAdminMasterDashboard() {
+      document.getElementById('sidebar-owner-name').innerText = "모티프 본사 총관리자";
+      document.getElementById('topbar-mypage-trigger-btn').style.display = 'none'; 
+      document.getElementById('topbar-admin-logout-btn').style.display = 'flex'; 
+      
+      const menuBox = document.getElementById('dynamic-sidebar-menu-target-box');
+      menuBox.innerHTML = `
+        <ul class="sidebar-menu">
+          <li><button class="menu-item active" id="m-btn-stats" onclick="switchMasterPanel('master-stats')"><i data-lucide="layout-dashboard"></i> 플랫폼 종합 현황</button></li>
+          <li><button class="menu-item" id="m-btn-partners" onclick="switchMasterPanel('master-partners')"><i data-lucide="users"></i> 가입 회원 & 업장 관리</button></li>
+          <li><button class="menu-item" id="m-btn-locations" onclick="switchMasterPanel('master-locations')"><i data-lucide="map-pin"></i> 주변 기준 장소</button></li>
+          <li><button class="menu-item" id="m-btn-chat-monitor" onclick="switchMasterPanel('master-chat-monitor')"><i data-lucide="messages-square"></i> 전체 채팅 모니터링</button></li>
+          <li><button class="menu-item" id="m-btn-cases" onclick="switchMasterPanel('master-cases')"><i data-lucide="badge-help"></i> 문의 & 분쟁 관리</button></li>
+          <li><button class="menu-item" id="m-btn-orders" onclick="switchMasterPanel('master-orders')"><i data-lucide="calendar-check"></i> 예약 관리</button></li>
+          <li><button class="menu-item" id="m-btn-content" onclick="switchMasterPanel('master-content')"><i data-lucide="shield-check"></i> 리뷰 & 커뮤니티</button></li>
+          <li><button class="menu-item" id="m-btn-revenue" onclick="switchMasterPanel('master-revenue')"><i data-lucide="trending-up"></i> 본사 매출 분석</button></li>
+          <li><button class="menu-item" id="m-btn-settlement" onclick="switchMasterPanel('master-settlement')"><i data-lucide="wallet"></i> 대금 정산 센터</button></li>
+        </ul>
+      `;
+      
+      refreshMasterDataDisplays();
+      renderMasterChatMonitor();
+      renderMasterCases();
+      renderMasterOrders();
+      renderMasterContent();
+      switchMasterPanel('master-stats');
+      lucide.createIcons();
+    }
+
+    function switchMasterPanel(panelId) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel-${panelId}`).classList.add('active');
+      
+      const btns = {
+        'master-stats': document.getElementById('m-btn-stats'),
+        'master-partners': document.getElementById('m-btn-partners'),
+        'master-locations': document.getElementById('m-btn-locations'),
+        'master-chat-monitor': document.getElementById('m-btn-chat-monitor'),
+        'master-cases': document.getElementById('m-btn-cases'),
+        'master-orders': document.getElementById('m-btn-orders'),
+        'master-content': document.getElementById('m-btn-content'),
+        'master-revenue': document.getElementById('m-btn-revenue'),
+        'master-settlement': document.getElementById('m-btn-settlement')
+      };
+      
+      Object.keys(btns).forEach(key => {
+        if(btns[key]) btns[key].classList.remove('active');
+      });
+      if(btns[panelId]) btns[panelId].classList.add('active');
+
+      if(panelId === 'master-revenue') switchMasterRevSub(masterRevSubTab);
+      if(panelId === 'master-chat-monitor') renderMasterChatMonitor();
+      if(panelId === 'master-cases') renderMasterCases();
+      if(panelId === 'master-orders') renderMasterOrders();
+      if(panelId === 'master-content') renderMasterContent();
+      if(panelId === 'master-locations') window.loadMotfLocationReferencePoints?.();
+    }
+
+    function refreshMasterDataDisplays() {
+      const txBody = document.getElementById('masterTransactionTrackerBody');
+      txBody.innerHTML = '';
+      masterExtendedData.transactions.forEach(tx => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><code>${tx.code}</code></td>
+          <td><strong>${tx.shopName}</strong></td>
+          <td>${tx.user}</td>
+          <td>${tx.price.toLocaleString()}원</td>
+          <td style="color:#b91c1c; font-weight:600;">${tx.fee.toLocaleString()}원</td>
+          <td><span class="master-status-badge ${tx.settled ? 'master-badge-active' : 'master-badge-waiting'}">${tx.settled ? '정산 완료' : '정산 대기 중'}</span></td>
+        `;
+        txBody.appendChild(tr);
+      });
+
+      const rejectBody = document.getElementById('masterRejectTimelineBody');
+      rejectBody.innerHTML = '';
+      ['stay', 'market'].forEach(type => {
+        mockData[type].orders.forEach(o => {
+          if(o.status === 'reject') {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><span style="font-weight:600; color:var(--teal-dark);">${mockData[type].displayName}</span></td>
+              <td>${o.user}</td>
+              <td>${o.target}</td>
+              <td>${o.price.toLocaleString()}원</td>
+              <td style="color:#b91c1c; font-size:13px;">${o.rejectReason}</td>
+            `;
+            rejectBody.appendChild(tr);
+          }
+        });
+      });
+
+      const userBody = document.getElementById('masterUserControlTableBody');
+      userBody.innerHTML = '';
+      masterExtendedData.users.forEach((u, idx) => {
+        const tr = document.createElement('tr');
+        if(u.status === 'terminated') tr.style.opacity = '0.5';
+        
+        const actionBtn = u.status === 'active' 
+          ? `<button class="motf-reject-action-btn" onclick="toggleUserStatus(${idx}, 'terminated')">강제 정지</button>`
+          : `<button class="primary-btn" style="padding:4px 10px; font-size:12px; background-color:var(--teal);" onclick="toggleUserStatus(${idx}, 'active')">정지 해제</button>`;
+        
+        tr.innerHTML = `
+          <td><strong>${u.name}</strong></td>
+          <td>${u.phone}</td>
+          <td>${u.univ}</td>
+          <td>${u.group}</td>
+          <td>${actionBtn}</td>
+        `;
+        userBody.appendChild(tr);
+      });
+
+      const partnerBody = document.getElementById('masterPartnerControlTableBody');
+      partnerBody.innerHTML = '';
+      masterExtendedData.partners.forEach(p => {
+        let count = 0;
+        if(p.id === 'stay' || p.id === 'market') {
+          count = masterExtendedData.transactions.filter(t => t.shopId === p.id).length;
+        }
+        
+        const tr = document.createElement('tr');
+        tr.style.cursor = p.approved ? 'pointer' : 'default';
+        tr.onclick = p.approved ? () => showPartnerDetailRevenueFlow(p.id, p.name) : null;
+        
+        tr.innerHTML = `
+          <td><strong>${p.name} ${p.approved ? '🔍 (클릭)' : ''}</strong></td>
+          <td>${p.type}</td>
+          <td><span style="text-decoration:underline; color:var(--teal); font-weight:600; cursor:pointer;"><i data-lucide="file-text" style="width:13px; display:inline; vertical-align:middle;"></i> ${p.doc}</span></td>
+          <td><span style="font-weight:700; color:var(--teal-dark);">${count}건 발생</span></td>
+          <td>
+            ${p.approved ? '<span class="master-status-badge master-badge-active">정식 입점중</span>' : `<button class="primary-btn" style="padding:4px 10px; font-size:12px;" onclick="event.stopPropagation(); p.approved=true; alert('입점 제휴 승인 완료'); refreshMasterDataDisplays();">제휴 승인</button>`}
+          </td>
+        `;
+        partnerBody.appendChild(tr);
+      });
+
+      const settleBody = document.getElementById('masterSettlementTableBody');
+      settleBody.innerHTML = '';
+      
+      let totalGmv = 0;
+      let totalFee = 0;
+
+      ['stay', 'market'].forEach(type => {
+        const rate = COMMISSION_RATES[type];
+        const txList = masterExtendedData.transactions.filter(t => t.shopId === type);
+        const rawTotal = txList.reduce((acc, t) => acc + t.price, 0);
+        const feeCost = txList.reduce((acc, t) => acc + t.fee, 0);
+        const netTake = rawTotal - feeCost;
+        
+        totalGmv += rawTotal;
+        totalFee += feeCost;
+
+        const unsettledTx = txList.filter(t => !t.settled).length;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${mockData[type].displayName}</strong></td>
+          <td>${rate}% 공제</td>
+          <td>${rawTotal.toLocaleString()}원</td>
+          <td style="color:#b91c1c;">${Math.floor(feeCost).toLocaleString()}원</td>
+          <td style="font-weight:700; color:var(--teal-dark);">${Math.floor(netTake).toLocaleString()}원</td>
+          <td>
+            ${unsettledTx === 0 ? '<span class="master-status-badge master-badge-active">지급 정산완료</span>' : `<button class="primary-btn" style="padding:6px 12px; font-size:13px; background-color:#d97706;" onclick="executeMasterSettleManual('${type}')">정산 대기 중 (클릭 시 완료)</button> <button class="motf-reject-action-btn" style="padding:6px 12px; font-size:13px;" onclick="openProofUploadSection('${type}', '${mockData[type].displayName}')"><i data-lucide="file-plus" style="width:12px; display:inline;"></i> 증명서 첨부</button>`}
+          </td>
+        `;
+        settleBody.appendChild(tr);
+      });
+
+      document.getElementById('m-stat-gmv').innerText = totalGmv.toLocaleString() + '원';
+      document.getElementById('m-stat-fee').innerText = Math.floor(totalFee).toLocaleString() + '원';
+    }
+
+    function showPartnerDetailRevenueFlow(shopId, shopName) {
+      const section = document.getElementById('masterPartnerDetailRevenueSubSection');
+      const titleNode = document.getElementById('m-selected-partner-title-node');
+      const rowsArea = document.getElementById('masterPartnerDetailRevenueRowsArea');
+      
+      titleNode.innerHTML = `<i data-lucide="search" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> <strong>${shopName}</strong> - 플랫폼 소속 누적 상세 매출 원장`;
+      rowsArea.innerHTML = '';
+      
+      const filteredTx = masterExtendedData.transactions.filter(t => t.shopId === shopId);
+      
+      if(filteredTx.length === 0) {
+        rowsArea.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">해당 업장에서 발생한 매출 거래 내역이 존재하지 않습니다.</td></tr>`;
+      } else {
+        filteredTx.forEach(tx => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><code>${tx.date}</code></td>
+            <td>${tx.user}</td>
+            <td>${tx.target}</td>
+            <td style="font-weight:600;">${tx.price.toLocaleString()}원</td>
+            <td style="color:#b91c1c;">${tx.fee.toLocaleString()}원</td>
+            <td><span class="master-status-badge ${tx.settled ? 'master-badge-active' : 'master-badge-waiting'}">${tx.settled ? '정산 완료' : '정산 대기 중'}</span></td>
+          `;
+          rowsArea.appendChild(tr);
+        });
+      }
+      
+      section.style.display = 'block';
+      section.scrollIntoView({ behavior: 'smooth' });
+      lucide.createIcons();
+    }
+
+    function openProofUploadSection(partnerId, partnerName) {
+      currentSelectedProofPartnerId = partnerId;
+      document.getElementById('m-proof-target-name-info').innerText = `선택 대상 파트너사: ${partnerName}`;
+      document.getElementById('m-dropzone-text-display').innerText = "이곳을 클릭하여 정산 원장 파일(Excel, PDF)을 첨부하세요";
+      document.getElementById('masterSettleProofUploadAreaBlock').style.display = 'block';
+      document.getElementById('masterSettleProofUploadAreaBlock').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function handleMasterSettleFileSelection(input) {
+      if(input.files.length > 0) {
+        document.getElementById('m-dropzone-text-display').innerText = `📄 첨부 파일 확정: ${input.files[0].name} (전송 준비 완료)`;
+      }
+    }
+
+    function executeSettleProofSendAction() {
+      const fileInput = document.getElementById('m-hidden-file-input');
+      if(fileInput.files.length === 0) {
+        alert("사장님께 전송 증명할 정산 증빙서 내역 원장(PDF/Excel) 파일을 먼저 선택해 주세요.");
+        return;
+      }
+      alert("해당 정산 증명 내역 문서 파일 및 지급 내역 원장이 파트너사 대시보드 데이터 파이프라인으로 안전하게 인코딩 전송 완료되었습니다.");
+      document.getElementById('masterSettleProofUploadAreaBlock').style.display = 'none';
+      fileInput.value = '';
+    }
+
+    function toggleUserStatus(idx, targetState) {
+      masterExtendedData.users[idx].status = targetState;
+      alert(`해당 유저의 상태 권한이 [${targetState === 'active' ? '정상 활성화' : '강제 정지'}] 상태로 전개 변경되었습니다.`);
+      refreshMasterDataDisplays();
+    }
+
+    function executeMasterSettleManual(shopId) {
+      if(!confirm("본사 통장 정산 출금 이체 처리를 확인하셨습니까?\n완료 클릭 시 즉시 [지급 정산완료] 상태로 락업 동기화됩니다.")) return;
+      masterExtendedData.transactions.forEach(t => {
+        if(t.shopId === shopId) t.settled = true;
+      });
+      refreshMasterDataDisplays();
+    }
+
+    function renderMasterChatMonitor() {
+      const partnerList = document.getElementById('masterChatPartnerList');
+      if(!partnerList) return;
+      partnerList.innerHTML = '';
+      ['stay', 'market'].forEach(type => {
+        const data = mockData[type];
+        const btn = document.createElement('button');
+        btn.className = `master-list-item ${masterSelectedChatPartner === type ? 'active' : ''}`;
+        btn.innerHTML = `<strong>${data.displayName}</strong><small>이용자 대화 ${data.chats.length}건</small>`;
+        btn.onclick = () => {
+          masterSelectedChatPartner = type;
+          masterSelectedChatUser = data.chats[0]?.user || '';
+          renderMasterChatMonitor();
+        };
+        partnerList.appendChild(btn);
+      });
+
+      const data = mockData[masterSelectedChatPartner];
+      if(!masterSelectedChatUser || !data.chats.some(c => c.user === masterSelectedChatUser)) masterSelectedChatUser = data.chats[0]?.user || '';
+      document.getElementById('masterChatPartnerTitle').innerText = `${data.displayName} 사장님 채팅`;
+      const userList = document.getElementById('masterChatUserList');
+      userList.innerHTML = '';
+      data.chats.forEach(chat => {
+        const btn = document.createElement('button');
+        btn.className = `master-list-item ${masterSelectedChatUser === chat.user ? 'active' : ''}`;
+        btn.innerHTML = `<strong>${chat.user}</strong><small>${chat.status} · ${chat.preview}</small>`;
+        btn.onclick = () => { masterSelectedChatUser = chat.user; renderMasterChatMonitor(); };
+        userList.appendChild(btn);
+      });
+
+      const messageArea = document.getElementById('masterChatMessageArea');
+      messageArea.innerHTML = '';
+      const chat = data.chats.find(c => c.user === masterSelectedChatUser);
+      if(!chat) {
+        messageArea.innerHTML = '<p style="color:var(--muted);">저장된 대화가 없습니다.</p>';
+        return;
+      }
+      chat.messages.forEach(m => {
+        const wrap = document.createElement('div');
+        wrap.style.alignSelf = m.type === 'in' ? 'flex-start' : 'flex-end';
+        wrap.style.maxWidth = '72%';
+        wrap.innerHTML = `<div class="admin-chat-meta">${m.type === 'in' ? chat.user : data.displayName + ' 사장님'}</div><div class="chat-bubble ${m.type === 'in' ? 'received' : 'sent'}" style="max-width:100%;">${m.text}</div>`;
+        messageArea.appendChild(wrap);
+      });
+      messageArea.scrollTop = messageArea.scrollHeight;
+    }
+
+    function renderMasterCases() {
+      const body = document.getElementById('masterCaseTableBody');
+      if(!body) return;
+      const type = document.getElementById('masterCaseTypeFilter')?.value || 'all';
+      const status = document.getElementById('masterCaseStatusFilter')?.value || 'all';
+      const rows = masterExtendedData.cases.filter(c => (type === 'all' || c.type === type) && (status === 'all' || c.status === status));
+      body.innerHTML = rows.length ? '' : '<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:24px;">조건에 맞는 접수 건이 없습니다.</td></tr>';
+      rows.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><code>${c.id}</code></td><td><span class="master-status-badge ${c.type === '분쟁' ? 'master-badge-terminated' : 'master-badge-waiting'}">${c.type}</span></td><td>${c.reporter}</td><td>${c.partner}</td><td><strong>${c.title}</strong><div style="font-size:12px;color:var(--muted);margin-top:4px;">${c.detail}</div></td><td>${c.date}</td><td><select onchange="updateMasterCaseStatus('${c.id}', this.value)" style="padding:7px;border:1px solid var(--line);border-radius:6px;"><option ${c.status==='접수'?'selected':''}>접수</option><option ${c.status==='처리 중'?'selected':''}>처리 중</option><option ${c.status==='완료'?'selected':''}>완료</option></select></td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    function updateMasterCaseStatus(id, status) {
+      const item = masterExtendedData.cases.find(c => c.id === id);
+      if(item) item.status = status;
+      renderMasterCases();
+    }
+
+    function renderMasterOrders() {
+      const area = document.getElementById('masterOrderListArea');
+      if(!area) return;
+      const partner = document.getElementById('masterOrderPartnerFilter')?.value || 'all';
+      const status = document.getElementById('masterOrderStatusFilter')?.value || 'all';
+      const rows = [];
+      ['stay','market'].forEach(type => {
+        if(partner !== 'all' && partner !== type) return;
+        mockData[type].orders.forEach(order => { if(status === 'all' || order.status === status) rows.push({ type, order }); });
+      });
+      area.innerHTML = '';
+      if(!rows.length) { area.innerHTML = '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 예약이 없습니다.</p>'; return; }
+      const labels = { pending:'확정 대기', confirm:'예약 확정', past:'지난 예약', reject:'거절' };
+      rows.forEach(({type, order}) => {
+        const card = document.createElement('div');
+        card.className = 'item-card';
+        const actions = order.status === 'pending' ? `<div class="item-actions"><button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="processMasterOrder('${type}',${order.id},'confirm')">운영팀 확정</button><button class="motf-reject-action-btn" onclick="processMasterOrder('${type}',${order.id},'reject')">운영팀 거절</button></div>` : `<span class="master-status-badge ${order.status==='reject'?'master-badge-terminated':'master-badge-active'}">${labels[order.status]}</span>`;
+        card.innerHTML = `<div style="flex:1;"><div style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:5px;">${mockData[type].displayName}</div><h4>${order.user}</h4><p>${order.date} · ${order.target} · ${order.price.toLocaleString()}원</p>${order.rejectReason ? `<p style="color:#b91c1c;">거절 사유: ${order.rejectReason}</p>` : ''}</div>${actions}`;
+        area.appendChild(card);
+      });
+    }
+
+    function processMasterOrder(type, id, status) {
+      const order = mockData[type].orders.find(o => o.id === id);
+      if(!order) return;
+      if(status === 'reject') {
+        const reason = prompt('운영팀 거절 사유를 입력해 주세요.');
+        if(!reason?.trim()) return;
+        order.rejectReason = `운영팀 대리 처리: ${reason.trim()}`;
+      }
+      order.status = status;
+      renderMasterOrders();
+      refreshMasterDataDisplays();
+      alert(status === 'confirm' ? '운영팀에서 예약을 확정했습니다.' : '운영팀에서 예약을 거절했습니다.');
+    }
+
+    function switchMasterContentTab(tab) {
+      masterContentTab = tab;
+      document.getElementById('masterContentReviewTab').classList.toggle('active', tab === 'reviews');
+      document.getElementById('masterContentCommunityTab').classList.toggle('active', tab === 'community');
+      renderMasterContent();
+    }
+
+    function renderMasterContent() {
+      const area = document.getElementById('masterContentArea');
+      if(!area) return;
+      area.innerHTML = '';
+      const items = masterExtendedData[masterContentTab];
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = `moderation-card ${item.hidden ? 'is-hidden' : ''}`;
+        if(masterContentTab === 'reviews') {
+          card.innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;"><strong>${item.partner}</strong><span style="color:#d97706;">${'★'.repeat(item.rating)}${'☆'.repeat(5-item.rating)}</span></div><p style="line-height:1.6;">${item.text}</p><div style="font-size:12px;color:var(--muted);margin-bottom:14px;">${item.author} · ${item.date}</div><button class="${item.hidden?'primary-btn':'motf-reject-action-btn'}" onclick="toggleMasterContent('${item.id}')">${item.hidden?'리뷰 다시 공개':'리뷰 숨김'}</button>`;
+        } else {
+          card.innerHTML = `<strong>${item.title}</strong><p style="line-height:1.6;">${item.text}</p><div style="font-size:12px;color:var(--muted);margin-bottom:14px;">${item.author} · ${item.date} · 신고 ${item.reports}건</div><button class="${item.hidden?'primary-btn':'motf-reject-action-btn'}" onclick="toggleMasterContent('${item.id}')">${item.hidden?'게시글 다시 공개':'게시글 숨김'}</button>`;
+        }
+        area.appendChild(card);
+      });
+    }
+
+    function toggleMasterContent(id) {
+      const item = masterExtendedData[masterContentTab].find(i => i.id === id);
+      if(item) item.hidden = !item.hidden;
+      renderMasterContent();
+    }
+
+    function switchMasterRevSub(tab) {
+      masterRevSubTab = tab;
+      for(let i=1; i<=3; i++) {
+        document.getElementById(`m-rev-sub-${i}`).classList.remove('active');
+      }
+      if(tab === 'period') document.getElementById('m-rev-sub-1').classList.add('active');
+      else if(tab === 'room') document.getElementById('m-rev-sub-2').classList.add('active');
+      else if(tab === 'trend') document.getElementById('m-rev-sub-3').classList.add('active');
+
+      const content = document.getElementById('masterRevenueSubContent');
+      if(tab === 'period') {
+        content.innerHTML = `
+          <h4>본사 플랫폼 기간별 매출 조회</h4>
+          <p style="font-size:13px; color:var(--muted);">실제 확정·완료 거래를 기준으로 매출을 집계합니다.</p>
+          <div style="background:var(--warm); padding:16px; border-radius:8px; line-height:1.8;">
+            <div>거래 데이터가 연결되면 기간별 집계가 표시됩니다.</div>
+          </div>
+        `;
+      } else if(tab === 'room') {
+        content.innerHTML = `
+          <h4>전체 파트너 업장별 매출 비중</h4>
+          <p style="font-size:13px; color:var(--muted);">실제 거래가 발생한 업장별 비중을 표시합니다.</p>
+          <div style="background:var(--warm); padding:16px; border-radius:8px; line-height:1.8;">
+            <div>거래 데이터가 연결되면 업장별 비중이 표시됩니다.</div>
+          </div>
+        `;
+      } else {
+        content.innerHTML = `
+          <h4>매출 변동 추이</h4>
+          <p style="font-size:14px; color:var(--muted);">기간별 실제 거래를 기준으로 변화를 확인합니다.</p>
+          <div style="height:80px; background:var(--cream); border:1px solid var(--line); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--muted);">거래 데이터가 쌓이면 추이 차트가 표시됩니다.</div>
+        `;
+      }
+    }
+
+    /* ================= 기존 사장님 전용 핵심 데이터 렌더링 스크립트 ================= */
+    function initDashboard() {
+      const data = mockData[currentOwnerType];
+      const rate = COMMISSION_RATES[currentOwnerType];
+      
+      const menuBox = document.getElementById('dynamic-sidebar-menu-target-box');
+      menuBox.innerHTML = `
+        <ul class="sidebar-menu">
+          <li><button class="menu-item active" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
+          <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
+          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
+          <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
+          <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출 관리</button></li>
+        </ul>
+      `;
+
+      const topManageLabel = document.getElementById('topbar-partner-manage-label');
+      if (topManageLabel) topManageLabel.innerText = '마이페이지';
+      const manageTitle = document.getElementById('partner-manage-title');
+      if (manageTitle) manageTitle.innerText = '마이페이지';
+
+      switchPanel('calendar'); 
+
+      document.getElementById('sidebar-owner-name').innerText = data.name;
+
+      const validOrders = data.orders.filter(o => o.status !== 'reject');
+      const currentRawTotal = validOrders.reduce((acc, o) => acc + o.price, 0);
+      
+      const pastTotal = data.orders.filter(o => o.status === 'past').reduce((acc, o) => acc + o.price, 0);
+      const expectedTotal = data.orders.filter(o => o.status === 'pending' || o.status === 'confirm').reduce((acc, o) => acc + o.price, 0);
+
+      const netTotalAmount = currentRawTotal * (1 - rate / 100);       
+      const settledAfterFee = pastTotal * (1 - rate / 100);   
+      const expectedAfterFee = expectedTotal * (1 - rate / 100); 
+
+      document.getElementById('rev-total-val').innerText = currentRawTotal.toLocaleString() + '원';
+      document.getElementById('rev-net-total-val').innerText = Math.floor(netTotalAmount).toLocaleString() + '원';
+      document.getElementById('rev-settled-val').innerText = Math.floor(settledAfterFee).toLocaleString() + '원';
+      document.getElementById('rev-expected-val').innerText = Math.floor(expectedAfterFee).toLocaleString() + '원';
+      
+      document.getElementById('editDescInput').value = data.desc;
+      
+      currentSelectedPhotoIndex = 0; 
+      document.getElementById('calendarLayerDynamicContent').innerHTML = "캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보 레이아웃이 로드됩니다.";
+
+      rebuildPhotoTabsArray();
+      renderRoomPriceTable();
+      renderPhotoTabs();
+      renderFacilityChips();
+      renderSeasonCalendar();
+
+      if(data.chats.length > 0) {
+        currentSelectedChatUser = data.chats[0].user;
+      }
+
+      updatePreviewDisplay();
+      renderCalendar();
+      renderOrders();
+      renderChatList();
+      renderChatMessages();
+      renderRevenueSubMenu();
+      
+      lucide.createIcons();
+    }
+
+    function rebuildPhotoTabsArray() {
+      const data = mockData[currentOwnerType];
+      if (currentOwnerType === 'stay') {
+        data.photoTabs = ["전체 외관", ...data.rooms.map(r => r.name)];
+      } else {
+        data.photoTabs = data.rooms.map(r => r.name);
+      }
+    }
+
+    function renderRoomPriceTable() {
+      const tbody = document.getElementById('roomPriceTableBody');
+      tbody.innerHTML = '';
+      const data = mockData[currentOwnerType];
+
+      const attr = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+      data.rooms.forEach((room, idx) => {
+        const card = document.createElement('article');
+        card.className = 'owner-room-editor';
+        if (currentOwnerType !== 'stay') {
+          const categories = ['식재료', '주류/음료', '일회용품', '냉동식품', '기타'];
+          const category = room.category || '식재료';
+          card.innerHTML = `
+            <div class="owner-room-editor-head"><input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)" placeholder="상품명" aria-label="상품명"><button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">상품 삭제</button></div>
+            <div class="owner-room-editor-body owner-market-product-grid">
+              <label><span>상품 분류</span><select onchange="syncRoomText(${idx}, 'category', this.value)">${categories.map(item => `<option value="${item}" ${item === category ? 'selected' : ''}>${item}</option>`).join('')}</select></label>
+              <label><span>판매가</span><input type="text" inputmode="numeric" value="${Number(room.price || 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, 'price', this)" placeholder="0"></label>
+              <label><span>판매 단위</span><input type="text" value="${attr(room.unit || '')}" oninput="syncRoomText(${idx}, 'unit', this.value)" placeholder="예: 1kg, 20개입"></label>
+              <label><span>재고 수량</span><input type="number" min="0" value="${room.stock_quantity ?? ''}" oninput="syncRoomNumber(${idx}, 'stock_quantity', this.value)" placeholder="비워두면 수량 미표시"></label>
+              <label class="market-product-origin"><span>원산지·제조국</span><input type="text" value="${attr(room.origin || '')}" oninput="syncRoomText(${idx}, 'origin', this.value)" placeholder="예: 돼지고기 국내산"></label>
+              <label class="owner-check-label market-product-alcohol"><input type="checkbox" ${room.is_alcohol ? 'checked' : ''} onchange="syncRoomBoolean(${idx}, 'is_alcohol', this.checked)"><span>주류 상품</span></label>
+              <label class="market-product-wide"><span>상품 설명</span><textarea rows="3" maxlength="1000" oninput="syncRoomText(${idx}, 'description', this.value)" placeholder="구성, 용량, 특징과 수령 시 확인할 내용을 적어주세요.">${attr(room.description || '')}</textarea></label>
+              <label><span>보관 방법</span><input type="text" value="${attr(room.detail_sections?.storage || '')}" oninput="syncRoomObjectText(${idx}, 'detail_sections', 'storage', this.value)" placeholder="예: 냉장 보관"></label>
+              <label><span>판매자 안내</span><input type="text" value="${attr(room.detail_sections?.sellerNote || '')}" oninput="syncRoomObjectText(${idx}, 'detail_sections', 'sellerNote', this.value)" placeholder="예: 재고에 따라 브랜드 변경 가능"></label>
+              <label><span>영양·알레르기 정보</span><input type="text" value="${attr(room.nutrition_info?.description || '')}" oninput="syncRoomObjectText(${idx}, 'nutrition_info', 'description', this.value)" placeholder="포장지 표기 또는 주요 정보를 입력"></label>
+            </div>`;
+          tbody.appendChild(card);
+          return;
+        }
+        const moneyField = (key, label) => `<label><span>${label}</span><input type="text" inputmode="numeric" value="${Number(room[key] ?? room.price ?? 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, '${key}', this)"></label>`;
+        card.innerHTML = `
+          <div class="owner-room-editor-head">
+            <input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)" aria-label="객실명">
+            <button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">객실 삭제</button>
+          </div>
+          <div class="owner-room-editor-body">
+            <div class="owner-room-basic-grid">
+              <label><span>기준인원</span><input type="number" min="1" value="${room.base_people || room.min_people || ''}" oninput="syncRoomNumber(${idx}, 'base_people', this.value)"></label>
+              <label><span>최대인원</span><input type="number" min="1" value="${room.max_people || ''}" oninput="syncRoomNumber(${idx}, 'max_people', this.value)"></label>
+              <label><span>추가 1인 요금 <small>별도결제 기준</small></span><input type="text" inputmode="numeric" value="${Number(room.extra_person_fee || 0).toLocaleString('ko-KR')}" oninput="syncRoomMoney(${idx}, 'extra_person_fee', this)"></label>
+            </div>
+            <p class="owner-room-price-title"><strong>시즌별 1박 객실요금</strong> · 금·토 숙박은 주말 요금으로 계산합니다.</p>
+            <div class="owner-room-price-grid">
+              ${moneyField('offseason_weekday_price', '비수기 평일')}
+              ${moneyField('offseason_weekend_price', '비수기 주말')}
+              ${moneyField('shoulder_weekday_price', '준성수기 평일')}
+              ${moneyField('shoulder_weekend_price', '준성수기 주말')}
+              ${moneyField('peak_weekday_price', '성수기 평일')}
+              ${moneyField('peak_weekend_price', '성수기 주말')}
+            </div>
+            <div class="owner-room-bath-grid">
+              <label><span>객실 내 화장실</span><input type="number" min="0" value="${room.bathroom_count || 0}" oninput="syncRoomNumber(${idx}, 'bathroom_count', this.value)"></label>
+              <label class="owner-check-label"><input type="checkbox" ${room.bathroom_gender_separated ? 'checked' : ''} onchange="syncRoomBoolean(${idx}, 'bathroom_gender_separated', this.checked)"><span>남녀 구분</span></label>
+              <label><span>화장실 특이사항</span><input type="text" maxlength="160" value="${attr(room.bathroom_note || '')}" oninput="syncRoomText(${idx}, 'bathroom_note', this.value)" placeholder="예: 객실 내부 2개, 샤워 가능"></label>
+            </div>
+          </div>`;
+        tbody.appendChild(card);
+      });
+      renderHighlightChoices();
+    }
+
+    function renderPhotoTabs() {
+      const container = document.getElementById('photoCategoryContainer');
+      container.innerHTML = '';
+      const data = mockData[currentOwnerType];
+
+      data.photoTabs.forEach((tabName, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `photo-tab-btn ${idx === currentSelectedPhotoIndex ? 'active' : ''}`;
+        btn.innerHTML = `<i data-lucide="image" style="width:14px;"></i> <span>${escapeDashboardHtml(tabName)}</span>`;
+        btn.onclick = () => {
+          currentSelectedPhotoIndex = idx;
+          renderPhotoTabs();
+          document.getElementById('currentSelectedTabLabelInfo').innerText = `선택된 구역: ${tabName}`;
+          window.motfRefreshPhotoPreview?.();
+        };
+        container.appendChild(btn);
+      });
+      lucide.createIcons();
+    }
+
+    function renderFacilityChips() {
+      const container = document.getElementById('facilityCheckGrid');
+      container.innerHTML = '';
+      const data = mockData[currentOwnerType];
+
+      data.facilities.forEach((fac, idx) => {
+        const row = document.createElement('div');
+        row.className = `facility-row-item ${fac.checked ? 'checked' : ''}`;
+        
+        const inputHtml = currentOwnerType === 'stay' ? facilityParamsHtml(fac, idx) : `
+          <div class="facility-input-box-area"><textarea class="facility-desc-input" rows="2" oninput="syncFacilityDesc(${idx}, this.value)">${escapeDashboardHtml(fac.desc)}</textarea></div>`;
+
+        row.innerHTML = `
+          <div class="facility-header-interactive" onclick="toggleFacilityRow(${idx}, this)">
+            <input type="checkbox" class="facility-custom-checkbox" ${fac.checked ? 'checked' : ''} onclick="event.stopPropagation(); setFacilityRow(${idx}, this.checked, this.closest('.facility-row-item'))">
+            <span class="facility-label-text">${escapeDashboardHtml(fac.name)}</span>
+          </div>
+          ${inputHtml}
+        `;
+        container.appendChild(row);
+      });
+      renderHighlightChoices();
+    }
+
+    function facilityParamsHtml(fac, idx) {
+      const p = fac.params || {};
+      const val = (key) => escapeDashboardHtml(p[key] ?? '');
+      const moneyVal = (key) => Number(p[key] || 0) ? Number(p[key]).toLocaleString('ko-KR') : '';
+      const fields = {
+        barbecue: `<label>최대 인원<input type="number" min="1" value="${val('capacity')}" oninput="syncFacilityParam(${idx},'capacity',this.value,'number')"></label><label>세팅<input type="text" value="${val('setup')}" oninput="syncFacilityParam(${idx},'setup',this.value)" placeholder="숯·그릴·집게"></label><label>이용 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        karaoke: `<label>이용 마감<input type="time" value="${val('available_until')}" oninput="syncFacilityParam(${idx},'available_until',this.value)"></label><label>마이크 개수<input type="number" min="0" value="${val('mic_count')}" oninput="syncFacilityParam(${idx},'mic_count',this.value,'number')"></label>${facilityRoomSelectorHtml(idx, p.included_rooms)}`,
+        field: `<div class="wide"><span>운동장 장비</span><div class="facility-equipment-grid">${[['soccer','축구 골대'],['basketball','농구 골대'],['footvolley','족구장'],['soccer_ball','축구공'],['basketball_ball','농구공'],['footvolley_ball','족구공']].map(([key,label])=>`<label><input type="checkbox" ${(p.equipment || []).includes(key)?'checked':''} onchange="syncFacilityEquipment(${idx},'${key}',this.checked)"><span>${label}</span></label>`).join('')}</div></div>`,
+        pool: `<label>개장 시작<input type="date" value="${val('open_start')}" oninput="syncFacilityParam(${idx},'open_start',this.value)"></label><label>개장 종료<input type="date" value="${val('open_end')}" oninput="syncFacilityParam(${idx},'open_end',this.value)"></label><label>최대 인원<input type="number" min="1" value="${val('capacity')}" oninput="syncFacilityParam(${idx},'capacity',this.value,'number')"></label><label>이용 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        screen: `${facilityRoomSelectorHtml(idx, p.included_rooms)}<label>연결 포트<input type="text" value="${val('ports')}" oninput="syncFacilityParam(${idx},'ports',this.value)" placeholder="HDMI, USB-C"></label><label>추가 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label>`,
+        wifi: `<label class="wide">안내<input type="text" value="${val('note')}" oninput="syncFacilityParam(${idx},'note',this.value)" placeholder="예: 전 객실 무료, 비밀번호 현장 안내"></label>`,
+        parking: `<label>승용차 주차 대수<input type="number" min="0" value="${val('spaces')}" oninput="syncFacilityParam(${idx},'spaces',this.value,'number')"></label><label class="owner-check-label"><input type="checkbox" ${p.bus_allowed?'checked':''} onchange="syncFacilityParam(${idx},'bus_allowed',this.checked,'boolean')"><span>대형버스 진입</span></label>`,
+        pickup: `<label>픽업 요금<input type="text" inputmode="numeric" value="${moneyVal('price')}" oninput="syncFacilityParam(${idx},'price',this.value,'money')"></label><label>운영 시간<input type="text" value="${val('hours')}" oninput="syncFacilityParam(${idx},'hours',this.value)" placeholder="예: 14:00~18:00"></label><label>장소<input type="text" value="${val('place')}" oninput="syncFacilityParam(${idx},'place',this.value)" placeholder="예: 대성리역 2번 출구"></label>`,
+      }[fac.key] || '';
+      return `<div class="facility-input-box-area"><div class="facility-param-grid">${fields}<label class="wide">특이사항<input type="text" maxlength="200" value="${escapeDashboardHtml(fac.desc || '')}" oninput="syncFacilityDesc(${idx},this.value)" placeholder="정해진 항목 외 안내가 있을 때만 입력"></label></div></div>`;
+    }
+
+    function facilityRoomSelectorHtml(facilityIndex, selectedValue) {
+      const selected = new Set(Array.isArray(selectedValue)
+        ? selectedValue
+        : String(selectedValue || '').split(',').map(value => value.trim()).filter(Boolean));
+      const rooms = mockData.stay.rooms || [];
+      if (!rooms.length) return '<div class="wide facility-room-selector"><span>포함 객실</span><small>객실을 먼저 등록하면 여기에서 복수 선택할 수 있습니다.</small></div>';
+      return `<div class="wide facility-room-selector"><span>포함 객실 <small>복수 선택 가능</small></span><div class="facility-room-grid">${rooms.map((room, roomIndex) => `<label><input type="checkbox" ${selected.has(room.name) ? 'checked' : ''} onchange="syncFacilityRoom(${facilityIndex},${roomIndex},this.checked)"><span>${escapeDashboardHtml(room.name || `객실 ${roomIndex + 1}`)}</span></label>`).join('')}</div></div>`;
+    }
+
+    function toggleFacilityRow(idx, element) {
+      const data = mockData[currentOwnerType];
+      const rowItem = element.closest('.facility-row-item');
+      const cb = rowItem.querySelector('.facility-custom-checkbox');
+      setFacilityRow(idx, !cb.checked, rowItem);
+    }
+
+    function setFacilityRow(idx, nextState, rowItem) {
+      const data = mockData[currentOwnerType];
+      const cb = rowItem.querySelector('.facility-custom-checkbox');
+      cb.checked = Boolean(nextState);
+      data.facilities[idx].checked = Boolean(nextState);
+      rowItem.classList.toggle('checked', Boolean(nextState));
+      renderHighlightChoices();
+    }
+
+    function syncFacilityDesc(idx, val) {
+      mockData[currentOwnerType].facilities[idx].desc = val;
+    }
+
+    function syncFacilityParam(idx, key, value, type = 'text') {
+      const facility = mockData[currentOwnerType].facilities[idx];
+      facility.params ||= {};
+      if (type === 'number' || type === 'money') facility.params[key] = Number(String(value).replace(/\D/g,'')) || null;
+      else if (type === 'boolean') facility.params[key] = Boolean(value);
+      else facility.params[key] = value;
+      const activeInput = document.activeElement;
+      if (type === 'money' && activeInput?.tagName === 'INPUT') activeInput.value = facility.params[key] ? facility.params[key].toLocaleString('ko-KR') : '';
+      renderHighlightChoices();
+    }
+
+    function syncFacilityEquipment(idx, key, checked) {
+      const facility = mockData[currentOwnerType].facilities[idx];
+      facility.params ||= {};
+      const equipment = new Set(facility.params.equipment || []);
+      checked ? equipment.add(key) : equipment.delete(key);
+      facility.params.equipment = [...equipment];
+    }
+
+    function syncFacilityRoom(facilityIndex, roomIndex, checked) {
+      const facility = mockData.stay.facilities[facilityIndex];
+      const roomName = mockData.stay.rooms[roomIndex]?.name;
+      if (!facility || !roomName) return;
+      facility.params ||= {};
+      const includedRooms = new Set(Array.isArray(facility.params.included_rooms)
+        ? facility.params.included_rooms
+        : String(facility.params.included_rooms || '').split(',').map(value => value.trim()).filter(Boolean));
+      checked ? includedRooms.add(roomName) : includedRooms.delete(roomName);
+      facility.params.included_rooms = [...includedRooms];
+    }
+
+    function syncRoomName(idx, val) {
+      const previousName = mockData[currentOwnerType].rooms[idx].name;
+      mockData[currentOwnerType].rooms[idx].name = val;
+      if (currentOwnerType === 'stay' && previousName !== val) {
+        mockData.stay.facilities.forEach(facility => {
+          const includedRooms = Array.isArray(facility.params?.included_rooms) ? facility.params.included_rooms : [];
+          facility.params.included_rooms = includedRooms.map(name => name === previousName ? val : name);
+        });
+        renderFacilityChips();
+      }
+      rebuildPhotoTabsArray();
+      renderPhotoTabs(); 
+    }
+
+    function syncRoomPrice(idx, val) {
+      mockData[currentOwnerType].rooms[idx].price = Number(val) || 0;
+    }
+
+    function syncRoomNumber(idx, key, val) {
+      mockData[currentOwnerType].rooms[idx][key] = val === '' ? null : Math.max(0, Number(val) || 0);
+      renderHighlightChoices();
+    }
+
+    function syncRoomText(idx, key, val) { mockData[currentOwnerType].rooms[idx][key] = val; }
+    function syncRoomBoolean(idx, key, val) { mockData[currentOwnerType].rooms[idx][key] = Boolean(val); }
+    function syncRoomObjectText(idx, key, nestedKey, val) {
+      const room = mockData[currentOwnerType].rooms[idx];
+      room[key] = { ...(room[key] || {}), [nestedKey]: val };
+    }
+
+    function syncRoomMoney(idx, key, input) {
+      const digits = String(input.value || '').replace(/\D/g, '');
+      const amount = Number(digits) || 0;
+      mockData[currentOwnerType].rooms[idx][key] = amount;
+      input.value = amount ? amount.toLocaleString('ko-KR') : '';
+      if (key === 'offseason_weekday_price') mockData[currentOwnerType].rooms[idx].price = amount;
+    }
+
+    function addTableRow() {
+      const data = mockData[currentOwnerType];
+      if (currentOwnerType === 'stay') {
+        data.rooms.push({ name: `신규 객실 ${data.rooms.length + 1}`, price: 15000, base_people: null, max_people: null, extra_person_fee: 0, image_urls: [], feature_summary: [], offseason_weekday_price: 15000, offseason_weekend_price: 15000, shoulder_weekday_price: 15000, shoulder_weekend_price: 15000, peak_weekday_price: 15000, peak_weekend_price: 15000, bathroom_count: 0, bathroom_gender_separated: false, bathroom_note: '' });
+      } else {
+        data.rooms.push({ name: `신규 상품 ${data.rooms.length + 1}`, price: 0, unit: '', category: '식재료', stock_quantity: null, origin: '', description: '', is_alcohol: false, image_urls: [], feature_summary: [], amenity_details: [], detail_sections: {}, nutrition_info: {} });
+      }
+      
+      rebuildPhotoTabsArray();
+      renderRoomPriceTable();
+      renderPhotoTabs();
+      renderFacilityChips();
+    }
+
+    const highlightLabels = {
+      capacity: '최대 수용인원', rooms: '객실 수', barbecue: '야외바베큐', pool: '수영장',
+      karaoke: '노래방/마이크', field: '야외운동장', screen: 'TV/화면', wifi: '와이파이',
+      parking: '주차', pickup: '픽업', station: '가까운 역', convenience: '가까운 편의점'
+    };
+
+    function availableHighlightKeys() {
+      if (currentOwnerType !== 'stay') return [];
+      const data = mockData.stay;
+      const keys = ['capacity', 'rooms'];
+      data.facilities.filter(item => item.checked).forEach(item => keys.push(item.key));
+      const business = window.motfCurrentBusiness || {};
+      if (business.station_distance_m != null) keys.push('station');
+      if (business.convenience_distance_m != null) keys.push('convenience');
+      return [...new Set(keys)];
+    }
+
+    function renderHighlightChoices() {
+      const container = document.getElementById('motfHighlightChoices');
+      if (!container || currentOwnerType !== 'stay') return;
+      const data = mockData.stay;
+      data.highlightKeys ||= [];
+      const available = availableHighlightKeys();
+      data.highlightKeys = data.highlightKeys.filter(key => available.includes(key)).slice(0, 3);
+      container.innerHTML = available.map(key => {
+        const selected = data.highlightKeys.includes(key);
+        return `<button type="button" class="owner-choice-chip ${selected ? 'active' : ''}" aria-pressed="${selected}" onclick="toggleHighlightKey('${key}')">${highlightLabels[key] || key}</button>`;
+      }).join('');
+    }
+
+    function toggleHighlightKey(key) {
+      const selected = new Set(mockData.stay.highlightKeys || []);
+      if (!selected.has(key) && selected.size >= 3) { alert('카드 핵심 정보는 최대 3개까지 선택할 수 있습니다.'); return; }
+      selected.has(key) ? selected.delete(key) : selected.add(key);
+      mockData.stay.highlightKeys = [...selected];
+      renderHighlightChoices();
+    }
+
+    function removeTableRow(idx) {
+      const data = mockData[currentOwnerType];
+      if(data.rooms.length <= 1) {
+        alert('최소 하나 이상의 판매 기준 옵션이 탑재되어야 대시보드가 유지됩니다.');
+        return;
+      }
+      data.rooms.splice(idx, 1);
+      
+      rebuildPhotoTabsArray();
+      if(currentSelectedPhotoIndex >= data.photoTabs.length) {
+        currentSelectedPhotoIndex = data.photoTabs.length - 1;
+      }
+      renderRoomPriceTable();
+      renderPhotoTabs();
+      renderFacilityChips();
+    }
+
+    function saveMypageData() {
+      const data = mockData[currentOwnerType];
+      data.desc = document.getElementById('editDescInput').value;
+      
+      updatePreviewDisplay();
+      alert('변경사항 저장 및 동기화가 성공적으로 보존되었습니다.');
+    }
+
+    function updatePreviewDisplay() {
+      const data = mockData[currentOwnerType];
+      document.getElementById('preview-display-name').innerText = data.displayName;
+      document.getElementById('preview-display-desc').innerText = data.desc;
+      
+      const summaryArea = document.getElementById('preview-room-prices-summary');
+      summaryArea.innerHTML = `<strong style="display:block; margin-bottom:4px; color:var(--teal);">🏷️ 실시간 구성 요금 일람 미리보기</strong>`;
+      data.rooms.forEach(room => {
+        summaryArea.innerHTML += `<div>• ${room.name} : <span style="font-weight:700; color:var(--teal-dark);">${room.price.toLocaleString()}원</span></div>`;
+      });
+    }
+
+    function switchPanel(panelId) {
+      currentActivePanel = panelId;
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel-${panelId}`).classList.add('active');
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+      
+      document.querySelectorAll('.menu-item').forEach(item => {
+        const action = item.getAttribute('onclick') || '';
+        if (action.includes(`'${panelId}'`) || action.includes(`"${panelId}"`)) item.classList.add('active');
+      });
+      if (panelId === 'availability') {
+        window.motfRenderAvailabilityManager?.('partner', window.motfCurrentBusiness?.id);
+      }
+      window.dispatchEvent(new CustomEvent('motf:owner-panel-change', { detail: { panelId } }));
+    }
+
+    function adjustMonth(val) {
+      currentCalendarMonth += val;
+      if(currentCalendarMonth > 12) { currentCalendarMonth = 1; currentCalendarYear++; }
+      if(currentCalendarMonth < 1) { currentCalendarMonth = 12; currentCalendarYear--; }
+      document.getElementById('calendar-month-title').innerText = `${currentCalendarYear}년 ${currentCalendarMonth}월`;
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      const grid = document.getElementById('calendarGridBody');
+      grid.innerHTML = '';
+      document.getElementById('calendar-month-title').innerText = `${currentCalendarYear}년 ${currentCalendarMonth}월`;
+      const weeks = ['일', '월', '화', '수', '목', '금', '토'];
+      weeks.forEach(w => {
+        const div = document.createElement('div');
+        div.className = 'calendar-day-label';
+        div.innerText = w;
+        grid.appendChild(div);
+      });
+
+      const firstWeekday = new Date(currentCalendarYear, currentCalendarMonth - 1, 1).getDay();
+      for (let i = 0; i < firstWeekday; i++) {
+        const dummyCell = document.createElement('div');
+        dummyCell.className = 'calendar-cell';
+        dummyCell.style.background = 'var(--cream)';
+        grid.appendChild(dummyCell);
+      }
+
+      const data = mockData[currentOwnerType];
+      const availability = window.motfAvailabilityCalendarData || { offerings: [], blocks: [] };
+      const daysInMonth = new Date(currentCalendarYear, currentCalendarMonth, 0).getDate();
+      for(let i=1; i<=daysInMonth; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'calendar-cell';
+        cell.innerHTML = `<div class="calendar-date-num">${i}</div>`;
+        
+        const dayStr = `${currentCalendarYear}-${String(currentCalendarMonth).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        cell.dataset.calendarDay = dayStr;
+        const dayBlocks = availability.blocks.filter(block => dayStr >= block.start_date && dayStr < block.end_date);
+        dayBlocks.slice(0, 3).forEach(block => {
+          const badge = document.createElement('div');
+          badge.className = `cal-badge availability ${block.source === 'manual' ? 'manual' : block.source === 'pending_payment' ? 'pending' : 'confirm'}`;
+            badge.innerText = `${block.offerings?.name || '객실'} · ${block.source === 'manual' ? '수동' : block.source === 'pending_payment' ? '입금대기' : '예약'}`;
+          cell.appendChild(badge);
+        });
+        if (dayBlocks.length > 3) {
+          const more = document.createElement('small');
+          more.className = 'calendar-more-count';
+          more.textContent = `+${dayBlocks.length - 3}건`;
+          cell.appendChild(more);
+        }
+        data.orders.forEach(order => {
+          if(order.date === dayStr) {
+            if(['reject', 'rejected', 'cancelled'].includes(order.status)) return;
+            if (dayBlocks.some(block => block.offerings?.name === order.target)) return;
+            
+            const b = document.createElement('div');
+            const isConfirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
+            b.className = `cal-badge ${isConfirmed ? 'confirm' : 'pending'}`;
+            b.innerText = `${String(order.user || '예약자').split(' ')[0]} (${isConfirmed ? '확정' : '대기'})`;
+            
+            b.onclick = (e) => {
+              e.stopPropagation();
+              showCalendarDetailPopup(order);
+            };
+            cell.appendChild(b);
+          }
+        });
+        cell.onclick = () => showCalendarDayDetail(dayStr, dayBlocks, availability.offerings);
+        grid.appendChild(cell);
+      }
+    }
+
+    function applyOwnerTypeEditorLayout() {
+      const isMarket = currentOwnerType === 'market';
+      const highlightEditor = document.getElementById('motfHighlightEditor');
+      const seasonEditor = document.getElementById('motfSeasonCalendarEditor');
+      if (highlightEditor) highlightEditor.hidden = isMarket;
+      if (seasonEditor) seasonEditor.hidden = isMarket;
+      const title = document.getElementById('dynamic-price-section-title');
+      const help = document.getElementById('dynamic-price-section-help');
+      const addText = document.getElementById('addBtnDynamicText');
+      const uploadTitle = document.getElementById('mypage-upload-title');
+      if (title) title.textContent = isMarket ? '판매 상품 등록' : '객실별 인원·기간 요금';
+      if (help) help.textContent = isMarket
+        ? '상품을 추가한 뒤 분류·가격·단위·원산지와 상세 정보를 입력하세요. 저장된 활성 상품만 이용자 화면에 공개됩니다.'
+        : '숙박일마다 해당 시즌의 평일/주말 요금이 자동 적용됩니다. 추가인원비는 예약 때 받지 않고 이용 후 별도 요청합니다.';
+      if (addText) addText.textContent = isMarket ? '상품 추가' : '객실 추가';
+      if (uploadTitle) uploadTitle.textContent = isMarket ? '상품별 사진 여러 장 관리' : '구역별 사진 여러 장 관리';
+    }
+
+    function showCalendarDayDetail(dayStr, blocks = [], offerings = []) {
+      const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
+      const blockByOffering = new Map(blocks.map(block => [String(block.offering_id), block]));
+      sidebarLayer.innerHTML = `
+        <div class="calendar-selected-date"><strong>${dayStr}</strong><span>${blocks.length ? `${blocks.length}개 객실 일정 있음` : '등록된 일정 없음'}</span></div>
+        <div class="calendar-room-status-list">
+          ${offerings.length ? offerings.map(room => {
+            const block = blockByOffering.get(String(room.id));
+            const label = !block ? '예약 가능' : block.source === 'manual' ? '수동 방막기' : block.source === 'pending_payment' ? '입금 대기' : '예약됨';
+            return `<div class="calendar-room-status ${block ? 'blocked' : 'open'}"><span><strong>${escapeDashboardHtml(room.name)}</strong><small>${escapeDashboardHtml(label)}${block?.note ? ` · ${escapeDashboardHtml(block.note)}` : ''}</small></span>${!block ? `<button type="button" onclick="motfOpenAvailabilityForDate('${dayStr}','${room.id}')">방막기</button>` : block.source === 'manual' ? `<button type="button" onclick="motfCancelAvailabilityBlock('${block.id}','partner')">해제</button>` : ''}</div>`;
+          }).join('') : '<p>등록된 객실이 없습니다.</p>'}
+        </div>
+        <button type="button" class="secondary-btn" style="width:100%;justify-content:center;margin-top:12px;" onclick="motfOpenAvailabilityForDate('${dayStr}')"><i data-lucide="calendar-cog"></i>상세 방막기 관리</button>
+      `;
+      lucide.createIcons();
+    }
+
+    window.motfApplyAvailabilityCalendarData = function(data) {
+      window.motfAvailabilityCalendarData = data || { offerings: [], blocks: [] };
+      renderCalendar();
+    };
+
+    function showCalendarDetailPopup(order) {
+      const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
+      const isConfirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
+
+      sidebarLayer.innerHTML = `
+        <div style="margin-bottom:10px; background:var(--olive-soft); padding:8px; border-radius:6px;">
+          <strong>👤 고객명/단체명:</strong><br>${order.user}
+        </div>
+        <div style="margin-bottom:8px;"><strong>📅 이용 일정일:</strong> ${order.date}</div>
+        <div style="margin-bottom:8px;"><strong>🎯 매칭 항목:</strong> ${order.target}</div>
+        <div style="margin-bottom:12px; font-weight:700; color:var(--teal-dark); font-size:15px;"><strong>💵 총 금액:</strong> ${order.price.toLocaleString()}원</div>
+        <div style="margin-bottom:12px;"><strong>🚦 상태:</strong> <span style="font-weight:700;">${isConfirmed ? '확정 완료' : '확정 대기중'}</span></div>
+        <button class="primary-btn" style="width:100%; justify-content:center; font-size:12px; padding:6px;" onclick="goToUserChat('${order.user}')">
+          <i data-lucide="message-square" style="width:14px;"></i> 이 고객과 채팅 소통하기
+        </button>
+      `;
+      lucide.createIcons();
+    }
+
+    function switchOrderTab(tab) {
+      currentOrderTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if(btn.innerText.includes(tab==='pending'?'확정 대기':tab==='confirm'?'예약 확정':tab==='past'?'지난 예약':'거절한 예약')) {
+          btn.classList.add('active');
+        }
+      });
+      renderOrders();
+    }
+
+    function renderOrders() {
+      const area = document.getElementById('orderListArea');
+      area.innerHTML = '';
+      const data = mockData[currentOwnerType];
+      const targetOrders = data.orders.filter(o => o.status === currentOrderTab);
+      
+      if(targetOrders.length === 0) {
+        area.innerHTML = `<p style="padding:20px; color:var(--muted); text-align:center;">해당 내역이 존재하지 않습니다.</p>`;
+        return;
+      }
+
+      targetOrders.forEach(o => {
+        const card = document.createElement('div');
+        card.className = 'item-card';
+        
+        let actionsHtml = '';
+        if(o.status === 'pending') {
+          actionsHtml = `
+            <div class="item-actions">
+              <button class="mypage-btn" style="background:var(--olive-soft); color:var(--teal-dark);" onclick="processOrder(${o.id}, 'confirm')">확정하기</button>
+              <button class="motf-reject-action-btn" onclick="showRejectInput(${o.id})">거절하기</button>
+            </div>
+          `;
+        } else if(o.status === 'reject') {
+          actionsHtml = `<div style="font-size:13px; color:#b91c1c; text-align:right; max-width:250px;"><strong>거절 사유:</strong> ${o.rejectReason}</div>`;
+        } else {
+          actionsHtml = `
+            <div class="item-actions">
+              <button class="mypage-btn" onclick="goToUserChat('${o.user}')"><i data-lucide="message-square" style="width:14px;"></i> 소통하기</button>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div style="flex:1;">
+            <h4>${o.user}</h4>
+            <p>날짜: ${o.date} | 대상 항목: ${o.target} | 금액: ${o.price.toLocaleString()}원</p>
+            <div id="reject-box-${o.id}" class="reject-box" style="display:none;">
+              <input type="text" id="reason-input-${o.id}" placeholder="거절 사유를 명시하세요">
+              <button class="primary-btn" style="padding:4px 8px; font-size:12px;" onclick="submitReject(${o.id})">완료</button>
+            </div>
+          </div>
+          ${actionsHtml}
+        `;
+        area.appendChild(card);
+      });
+      lucide.createIcons();
+    }
+
+    function processOrder(id, newStatus) {
+      const data = mockData[currentOwnerType];
+      const o = data.orders.find(item => item.id === id);
+      if(o) {
+        o.status = newStatus;
+        alert('성공적으로 변경 처리가 완료되었습니다.');
+        renderOrders();
+        renderCalendar();
+      }
+    }
+
+    function showRejectInput(id) {
+      document.getElementById(`reject-box-${id}`).style.display = 'flex';
+    }
+
+    function submitReject(id) {
+      const reason = document.getElementById(`reason-input-${id}`).value.trim();
+      if(!reason) { alert('거절 사유를 작성해 주세요.'); return; }
+      const data = mockData[currentOwnerType];
+      const o = data.orders.find(item => item.id === id);
+      if(o) {
+        o.status = 'reject';
+        o.rejectReason = reason;
+        alert('해당 신청건이 거절 처리되었습니다.');
+        renderOrders();
+        renderCalendar();
+      }
+    }
+
+    function goToUserChat(userName) {
+      currentSelectedChatUser = userName;
+      switchPanel('chat');
+      renderChatList();
+      renderChatMessages();
+    }
+
+    function renderChatList() {
+      const container = document.getElementById('chatListContainer');
+      container.innerHTML = '';
+      const data = mockData[currentOwnerType];
+      
+      data.chats.forEach(c => {
+        const li = document.createElement('li');
+        li.className = `chat-user-item ${c.user === currentSelectedChatUser ? 'active' : ''}`;
+        li.onclick = () => {
+          currentSelectedChatUser = c.user;
+          renderChatList();
+          renderChatMessages();
+          window.dispatchEvent(new CustomEvent('motf:owner-chat-change', {
+            detail: { conversationId: c.conversationId }
+          }));
+        };
+
+        let badgeClass = 'status-badge-chatting';
+        if(c.status==='예약 확정') badgeClass='status-badge-confirm';
+        if(c.status==='예약 대기') badgeClass='status-badge-pending';
+
+        li.innerHTML = `
+          <div class="chat-user-top">
+            <span class="chat-user-name">${c.user}</span>
+            <span class="chat-user-status ${badgeClass}">${c.status}</span>
+          </div>
+          <div class="chat-user-preview">${c.preview}</div>
+        `;
+        container.appendChild(li);
+      });
+    }
+
+    function handleChatSearch() {
+      const query = document.getElementById('chatSearchInput').value.toLowerCase().trim();
+      const items = document.querySelectorAll('.chat-user-item');
+      items.forEach(item => {
+        const name = item.querySelector('.chat-user-name').innerText.toLowerCase();
+        if(name.includes(query)) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    }
+
+    function renderChatMessages() {
+      const container = document.getElementById('chatBodyContainer');
+      container.innerHTML = '';
+      const data = mockData[currentOwnerType];
+      const chat = data.chats.find(c => c.user === currentSelectedChatUser);
+      
+      if(!chat) return;
+
+      chat.messages.forEach(m => {
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${m.type === 'in' ? 'received' : 'sent'}`;
+        bubble.innerText = m.text;
+        container.appendChild(bubble);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chatMessageInput');
+      const text = input.value.trim();
+      if(!text) return;
+
+      const data = mockData[currentOwnerType];
+      const chat = data.chats.find(c => c.user === currentSelectedChatUser);
+      if(chat) {
+        chat.messages.push({ type: 'out', text: text });
+        chat.preview = text;
+        input.value = '';
+        renderChatList();
+        renderChatMessages();
+      }
+    }
+
+    function switchRevSubMenu(menu) {
+      currentRevSubMenu = menu;
+      document.querySelectorAll('.rev-menu-btn').forEach(b => {
+        b.classList.remove('active');
+        if(b.innerText.includes(menu==='profit'?'순수익 계산기':menu==='period'?'기간별':menu==='room'?'항목':'변동 추이')) {
+          b.classList.add('active');
+        }
+      });
+      renderRevenueSubMenu();
+    }
+
+    function renderRevenueSubMenu() {
+      const container = document.getElementById('revenueSubContent');
+      const rate = COMMISSION_RATES[currentOwnerType];
+      
+      if(currentRevSubMenu === 'profit') {
+        container.innerHTML = `
+          <h4 style="margin-top:0; font-size:16px; color:var(--teal-dark);">💰 실시간 모티프 순수익 산출 모듈</h4>
+          <p style="font-size:13px; color:var(--muted);">고정 비용 지출액을 입력하면 자동 공제되어 정밀 마진이 산출됩니다.</p>
+          <div style="display:flex; flex-direction:column; gap:12px; margin-top:16px; max-width:400px;">
+            <label style="font-size:14px; font-weight:600;">1. 고정 운영비 입력 (인건비/청소비/원가 등)</label>
+            <input type="number" id="fixedCostInput" value="450000" style="padding:8px; border:1px solid var(--line); border-radius:6px;" oninput="calculateNetProfit()">
+            <label style="font-size:14px; font-weight:600;">2. 플랫폼 공제 수수료 요율 (고정 상태)</label>
+            <input type="text" id="taxCostInput" value="${rate}% 고정 적용" style="padding:8px; border:1px solid var(--line); border-radius:6px; background:#e5e1d8;" readonly>
+            <hr style="border:0; border-top:1px solid var(--line); margin:12px 0;">
+            <div style="background:var(--warm); padding:16px; border-radius:8px;">
+              <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:6px;"><span>모티프 중개 수수료 공제액:</span> <strong id="calcFeeAmountResult" style="color:#b91c1c;">0원</strong></div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:6px;"><span>최종 순수익 산출액:</span> <strong id="calcNetProfitResult" style="color:var(--teal-dark);">0원</strong></div>
+              <div style="display:flex; justify-content:space-between; font-size:14px;"><span>순이익 마진율:</span> <strong id="calcMarginResult" style="color:var(--teal-dark);">0%</strong></div>
+            </div>
+          </div>
+        `;
+        calculateNetProfit();
+      } else {
+        container.innerHTML = `
+          <h4 style="margin-top:0; font-size:16px; color:var(--teal-dark);">${currentRevSubMenu === 'period' ? '기간별 매출 추적' : currentRevSubMenu === 'room' ? '항목별 매출 비중' : '매출 추이 변동 곡선'}</h4>
+          <p style="font-size:14px; color:var(--muted);">해당 통계 뷰어 데이터셋은 수퍼베이스(Supabase) 실시간 DB 연동 시 활성화됩니다.</p>
+          <div style="height:120px; background:var(--warm); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px;">차트 컴포넌트 플레이스홀더</div>
+        `;
+      }
+    }
+
+    function calculateNetProfit() {
+      const data = mockData[currentOwnerType];
+      const validOrders = data.orders.filter(o => o.status !== 'reject');
+      const total = validOrders.reduce((acc, o) => acc + o.price, 0);
+      const fixed = Number(document.getElementById('fixedCostInput').value) || 0;
+      const rate = COMMISSION_RATES[currentOwnerType];
+      
+      const variableFee = total * (rate / 100);
+      const netProfit = total - fixed - variableFee;
+      const margin = total > 0 ? (netProfit / total) * 100 : 0;
+      
+      document.getElementById('calcFeeAmountResult').innerText = Math.floor(variableFee).toLocaleString() + '원';
+      document.getElementById('calcNetProfitResult').innerText = Math.max(0, Math.floor(netProfit)).toLocaleString() + '원';
+      document.getElementById('calcMarginResult').innerText = margin.toFixed(1) + '%';
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    /* Supabase 인증 연결층: 원본 화면/스타일은 변경하지 않고 로그인 함수만 교체 */
+    (() => {
+      const supabaseClient = window.supabase.createClient(
+        'https://izbwcqnvwsdijoognoag.supabase.co',
+        'sb_publishable_dPivJzpG1ZQWNyTupQ4HRw_dbo5sl9X'
+      );
+      window.motfSupabase = supabaseClient;
+      let confirmationResendAvailableAt = 0;
+      window.motfApplyBusinessToDashboard = function(business) {
+        if (!business || currentOwnerType === 'admin') return;
+        mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
+        mockData[currentOwnerType].displayName = business.business_name;
+        mockData[currentOwnerType].desc = business.short_description || business.description?.slice(0, 140) || '';
+        document.getElementById('sidebar-owner-name').innerText = `${business.business_name} 님 홈`;
+        document.getElementById('preview-display-name').innerText = business.business_name;
+        updatePreviewDisplay();
+      };
+      window.motfApplyOfferingsToDashboard = function(offerings) {
+        if (currentOwnerType === 'admin' || !Array.isArray(offerings)) return;
+        mockData[currentOwnerType].rooms = offerings.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: Number(item.price) || 0,
+          description: item.description || null,
+          max_people: item.max_people || null,
+          min_people: item.min_people || null,
+          base_people: item.base_people || item.min_people || null,
+          extra_person_fee: Number(item.extra_person_fee) || 0,
+          offseason_weekday_price: Number(item.offseason_weekday_price ?? item.price) || 0,
+          offseason_weekend_price: Number(item.offseason_weekend_price ?? item.price) || 0,
+          shoulder_weekday_price: Number(item.shoulder_weekday_price ?? item.price) || 0,
+          shoulder_weekend_price: Number(item.shoulder_weekend_price ?? item.price) || 0,
+          peak_weekday_price: Number(item.peak_weekday_price ?? item.price) || 0,
+          peak_weekend_price: Number(item.peak_weekend_price ?? item.price) || 0,
+          bathroom_count: Number(item.bathroom_count) || 0,
+          bathroom_gender_separated: Boolean(item.bathroom_gender_separated),
+          bathroom_note: item.bathroom_note || '',
+          unit: item.unit || null,
+          category: item.category || null,
+          image_url: item.image_url || null,
+          image_urls: item.image_urls || (item.image_url ? [item.image_url] : [])
+          ,feature_summary: item.feature_summary || []
+          ,amenity_details: item.amenity_details || []
+          ,detail_sections: item.detail_sections || {}
+          ,origin: item.origin || null
+          ,nutrition_info: item.nutrition_info || {}
+          ,is_alcohol: Boolean(item.is_alcohol)
+          ,stock_quantity: item.stock_quantity ?? null
+        }));
+        rebuildPhotoTabsArray();
+        renderRoomPriceTable();
+        renderPhotoTabs();
+        updatePreviewDisplay();
+      };
+      window.motfReadOfferingsFromDashboard = function() {
+        if (currentOwnerType === 'admin') return [];
+        return mockData[currentOwnerType].rooms.map((item, index) => ({
+          id: item.id || null,
+          name: item.name,
+          price: Number(item.price) || 0,
+          description: item.description || null,
+          max_people: item.max_people || null,
+          min_people: item.min_people || null,
+          base_people: item.base_people || item.min_people || null,
+          extra_person_fee: Number(item.extra_person_fee) || 0,
+          offseason_weekday_price: Number(item.offseason_weekday_price ?? item.price) || 0,
+          offseason_weekend_price: Number(item.offseason_weekend_price ?? item.price) || 0,
+          shoulder_weekday_price: Number(item.shoulder_weekday_price ?? item.price) || 0,
+          shoulder_weekend_price: Number(item.shoulder_weekend_price ?? item.price) || 0,
+          peak_weekday_price: Number(item.peak_weekday_price ?? item.price) || 0,
+          peak_weekend_price: Number(item.peak_weekend_price ?? item.price) || 0,
+          bathroom_count: Number(item.bathroom_count) || 0,
+          bathroom_gender_separated: Boolean(item.bathroom_gender_separated),
+          bathroom_note: item.bathroom_note || null,
+          unit: item.unit || null,
+          category: item.category || null,
+          image_url: item.image_url || null,
+          image_urls: item.image_urls || (item.image_url ? [item.image_url] : []),
+          sort_order: index,
+          feature_summary: item.feature_summary || [],
+          amenity_details: item.amenity_details || [],
+          detail_sections: item.detail_sections || {},
+          origin: item.origin || null,
+          nutrition_info: item.nutrition_info || {},
+          is_alcohol: Boolean(item.is_alcohol),
+          stock_quantity: item.stock_quantity ?? null
+        }));
+      };
+      window.motfGetCurrentPhotoTarget = function() {
+        if (currentOwnerType === 'admin') return null;
+        if (currentOwnerType === 'stay' && currentSelectedPhotoIndex === 0) {
+          return { type: 'business' };
+        }
+        const roomIndex = currentOwnerType === 'stay'
+          ? currentSelectedPhotoIndex - 1
+          : currentSelectedPhotoIndex;
+        return { type: 'offering', index: roomIndex };
+      };
+      window.motfSetCurrentPhotoUrls = function(urls) {
+        const target = window.motfGetCurrentPhotoTarget();
+        if (!target) return;
+        if (target.type === 'business') return;
+        const item = mockData[currentOwnerType].rooms[target.index];
+        if (item) {
+          const existingUrls = item.image_urls?.length ? item.image_urls : item.image_url ? [item.image_url] : [];
+          item.image_urls = [...new Set([...existingUrls, ...urls])];
+          item.image_url = item.image_urls[0] || null;
+        }
+      };
+      window.motfReplaceCurrentPhotoUrls = function(urls) {
+        const target = window.motfGetCurrentPhotoTarget();
+        if (!target) return;
+        if (target.type === 'business') {
+          if (window.motfCurrentBusiness) {
+            window.motfCurrentBusiness.gallery_image_urls = [...urls];
+            window.motfCurrentBusiness.cover_image_url = urls[0] || null;
+          }
+          return;
+        }
+        const item = mockData[currentOwnerType].rooms[target.index];
+        if (item) {
+          item.image_urls = [...urls];
+          item.image_url = urls[0] || null;
+        }
+      };
+      window.motfSetCurrentPhotoUrl = function(url) {
+        window.motfSetCurrentPhotoUrls?.([url]);
+      };
+      window.motfGetCurrentPhotoUrls = function() {
+        const target = window.motfGetCurrentPhotoTarget();
+        if (!target) return [];
+        if (target.type === 'business') return window.motfCurrentBusiness?.gallery_image_urls?.length
+          ? window.motfCurrentBusiness.gallery_image_urls
+          : window.motfCurrentBusiness?.cover_image_url ? [window.motfCurrentBusiness.cover_image_url] : [];
+        const item = mockData[currentOwnerType].rooms[target.index];
+        return item?.image_urls?.length ? item.image_urls : item?.image_url ? [item.image_url] : [];
+      };
+      window.motfGetCurrentPhotoUrl = function() {
+        return window.motfGetCurrentPhotoUrls?.()[0] || null;
+      };
+      window.motfReadFacilitiesFromDashboard = function() {
+        if (currentOwnerType === 'admin') return [];
+        return mockData[currentOwnerType].facilities
+          .filter(item => item.checked)
+          .map(item => item.key || item.name);
+      };
+      window.motfReadAmenityDetailsFromDashboard = function() {
+        if (currentOwnerType !== 'stay') return [];
+        return mockData.stay.facilities.map(item => ({ key: item.key || item.name, label: item.name, available: Boolean(item.checked), params: item.params || {}, detail: item.desc || null }));
+      };
+      window.motfApplyAmenityDetailsToDashboard = function(items) {
+        if (currentOwnerType !== 'stay' || !Array.isArray(items)) return;
+        const details = new Map(items.map(item => [item.key, item]));
+        mockData.stay.facilities.forEach(facility => {
+          const saved = details.get(facility.key);
+          if (saved) { facility.checked = saved.available !== false; facility.desc = saved.detail || ""; facility.params = saved.params || {}; }
+        });
+        renderFacilityChips();
+      };
+      window.motfReadHighlightKeysFromDashboard = function() {
+        return currentOwnerType === 'stay' ? (mockData.stay.highlightKeys || []).slice(0, 3) : [];
+      };
+      window.motfApplyHighlightKeysToDashboard = function(keys) {
+        if (currentOwnerType !== 'stay') return;
+        mockData.stay.highlightKeys = Array.isArray(keys) ? keys.slice(0, 3) : [];
+        renderHighlightChoices();
+      };
+      window.motfReadSeasonRangesFromDashboard = function() {
+        return {
+          shoulder: seasonAssignmentsToRanges('shoulder'),
+          peak: seasonAssignmentsToRanges('peak')
+        };
+      };
+      window.motfApplySeasonRangesToDashboard = function(shoulderRanges, peakRanges) {
+        seasonAssignments.clear();
+        seasonRangesToAssignments(shoulderRanges, 'shoulder');
+        seasonRangesToAssignments(peakRanges, 'peak');
+        const firstConfiguredDate = [...seasonAssignments.keys()].sort()[0];
+        if (firstConfiguredDate) seasonCalendarYear = Number(firstConfiguredDate.slice(0, 4));
+        renderSeasonCalendar();
+      };
+
+      window.motfSetPartnerOnboarding = function(needsOnboarding) {
+        const notice = document.getElementById('motfPartnerOnboardingNotice');
+        if (notice) notice.hidden = !needsOnboarding;
+        if (needsOnboarding) switchPanel('mypage');
+      };
+
+      async function openDashboardForUser(user) {
+        const { data: profile, error: profileError } = await supabaseClient
+          .from('profiles')
+          .select('email, full_name, phone, organization, role, status')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !profile) throw new Error('회원 정보를 불러오지 못했습니다.');
+        if (profile.status !== 'approved') {
+          await supabaseClient.auth.signOut();
+          throw new Error(profile.status === 'pending' ? '현재 입점 심사 중입니다.' : '현재 이용할 수 없는 계정입니다.');
+        }
+
+        window.motfCurrentProfile = { id: user.id, login_email: user.email, ...profile };
+
+        if (profile.role === 'admin') {
+          document.getElementById('login-view').style.display = 'none';
+          document.getElementById('admin-main').style.display = 'flex';
+          currentOwnerType = 'admin';
+          initAdminMasterDashboard();
+          window.loadMotfAdminDirectory?.();
+          window.loadMotfAdminTransactions?.();
+          window.loadMotfAdminChats?.();
+          window.loadMotfAdminSupportCases?.();
+          return;
+        }
+
+        if (profile.role !== 'partner') {
+          await supabaseClient.auth.signOut();
+          throw new Error('사장님 또는 운영팀 계정으로 로그인해 주세요.');
+        }
+
+        const coreBusinessFields = 'id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, region, cover_image_url, facilities, latitude, longitude, approval_status, rejection_reason';
+        const { data: coreBusiness, error: businessError } = await supabaseClient
+          .from('businesses')
+          .select(coreBusinessFields)
+          .eq('owner_id', user.id)
+          .maybeSingle();
+
+        if (businessError) throw new Error(`업장 정보를 불러오지 못했습니다: ${businessError.message}`);
+        let business = coreBusiness;
+        if (business) {
+          const { data: extendedBusiness, error: extendedError } = await supabaseClient
+            .from('businesses')
+            .select('id, address_detail, postal_code, gallery_image_urls, short_description, highlight_summary, highlight_keys, nearby_tags, room_count, bath_count, shared_bathroom_count, shared_bathroom_gender_separated, shared_bathroom_note, shoulder_season_ranges, peak_season_ranges, amenity_details, extra_fees, station_distance_m, convenience_distance_m, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
+            .eq('id', business.id)
+            .maybeSingle();
+          if (!extendedError && extendedBusiness) business = { ...business, ...extendedBusiness };
+        }
+
+        if (!business) throw new Error('연결된 업장 정보를 찾을 수 없습니다.');
+        if (business.approval_status !== 'approved') {
+          await supabaseClient.auth.signOut();
+          throw new Error(business.approval_status === 'pending' ? '현재 입점 심사 중입니다.' : '현재 이용할 수 없는 업장입니다.');
+        }
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('admin-main').style.display = 'flex';
+        currentOwnerType = business.business_type === 'market' ? 'market' : 'stay';
+        applyOwnerTypeEditorLayout();
+        window.motfCurrentBusiness = business;
+        mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
+        mockData[currentOwnerType].displayName = business.business_name;
+        mockData[currentOwnerType].desc = business.short_description || business.description?.slice(0, 140) || '';
+        mockData[currentOwnerType].rooms = [];
+        mockData[currentOwnerType].orders = [];
+        mockData[currentOwnerType].chats = [];
+        document.getElementById('topbar-mypage-trigger-btn').style.display = 'flex';
+        document.getElementById('topbar-admin-logout-btn').style.display = 'none';
+        initDashboard();
+        window.loadMotfPartnerBusiness?.(business, window.motfCurrentProfile);
+        window.loadMotfPartnerTransactions?.(business);
+        window.loadMotfPartnerChats?.(business);
+      }
+
+      window.handleLogin = async function(event) {
+        event.preventDefault();
+        const inputId = document.getElementById('ownerId').value.trim();
+        const password = document.getElementById('ownerPw').value;
+        const submitButton = event.submitter || event.target.querySelector('button[type="submit"]');
+        if (submitButton) { submitButton.disabled = true; submitButton.textContent = '로그인 중...'; }
+
+        try {
+          const { data, error } = await supabaseClient.auth.signInWithPassword({ email: inputId, password });
+          if (error) throw error;
+          await openDashboardForUser(data.user);
+        } catch (error) {
+          await supabaseClient.auth.signOut();
+          document.getElementById('admin-main').style.display = 'none';
+          document.getElementById('login-view').style.display = 'flex';
+          window.motfCurrentProfile = null;
+          window.motfCurrentBusiness = null;
+          const code = error.code || '';
+          const message = String(error.message || '').toLowerCase();
+          if (code === 'email_not_confirmed' || message.includes('email not confirmed')) {
+            alert('이메일 인증이 완료되지 않았습니다. 가입한 메일함의 인증 링크를 먼저 눌러주세요. 스팸 메일함도 확인해 주세요.');
+          } else if (code === 'invalid_credentials' || message.includes('invalid login credentials')) {
+            alert('이메일 또는 비밀번호가 일치하지 않습니다.');
+          } else {
+            alert(error.message || '로그인에 실패했습니다.');
+          }
+        } finally {
+          if (submitButton) { submitButton.disabled = false; submitButton.textContent = '로그인'; }
+        }
+      };
+
+      window.handleSignup = async function(event) {
+        event.preventDefault();
+        const submitButton = event.submitter;
+        const password = document.getElementById('signupPassword').value;
+        const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
+        if (password !== passwordConfirm) return alert('비밀번호 확인이 일치하지 않습니다.');
+
+        const email = document.getElementById('signupId').value.trim();
+        if (submitButton) { submitButton.disabled = true; submitButton.textContent = '가입 처리 중...'; }
+        try {
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${location.origin}/`,
+              data: {
+                account_type: 'partner',
+                business_type: document.getElementById('signupRole').value,
+                business_name: document.getElementById('signupBusinessName').value.trim(),
+                full_name: document.getElementById('signupOwnerName').value.trim(),
+                phone: document.getElementById('signupPhone').value.trim()
+              }
+            }
+          });
+          if (error) {
+            const rateLimited = error.status === 429 || /rate limit/i.test(error.message || '');
+            return alert(rateLimited
+              ? '인증 메일 요청이 많습니다. 잠시 후 다시 시도해 주세요.'
+              : `회원가입을 완료하지 못했습니다. ${error.message || ''}`.trim());
+          }
+
+          document.getElementById('ownerId').value = email;
+          closeSignupModal();
+          document.getElementById('signupForm').reset();
+          if (Array.isArray(data?.user?.identities) && data.user.identities.length === 0) {
+            alert('이미 가입된 이메일일 수 있습니다. 로그인하거나 아래의 인증 메일 다시 받기를 이용해 주세요.');
+          } else {
+            alert('인증 메일을 보냈습니다. 메일의 인증 링크를 누른 뒤 로그인해 주세요.');
+          }
+        } catch (signupError) {
+          alert(`회원가입 요청 중 오류가 발생했습니다. ${signupError?.message || ''}`.trim());
+        } finally {
+          if (submitButton) { submitButton.disabled = false; submitButton.textContent = '가입 완료'; }
+        }
+      };
+
+      window.handleConfirmationResend = async function() {
+        const now = Date.now();
+        const waitSeconds = Math.ceil((confirmationResendAvailableAt - now) / 1000);
+        if (waitSeconds > 0) return alert(`${waitSeconds}초 후 다시 요청할 수 있습니다.`);
+
+        const loginEmailInput = document.getElementById('ownerId');
+        const email = loginEmailInput.value.trim() || prompt('가입한 이메일을 입력해 주세요.')?.trim();
+        if (!email) return;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert('올바른 이메일 주소를 입력해 주세요.');
+
+        loginEmailInput.value = email;
+        const button = document.getElementById('confirmationResendButton');
+        button.disabled = true;
+        button.textContent = '인증 메일 전송 중...';
+        try {
+          const { error } = await supabaseClient.auth.resend({
+            type: 'signup',
+            email,
+            options: { emailRedirectTo: `${location.origin}/` }
+          });
+          if (error) throw error;
+          confirmationResendAvailableAt = Date.now() + 60000;
+          alert('인증 메일을 다시 보냈습니다. 스팸 메일함도 함께 확인해 주세요.');
+        } catch (resendError) {
+          const rateLimited = resendError?.status === 429 || /rate limit/i.test(resendError?.message || '');
+          alert(rateLimited
+            ? '재전송 요청이 너무 빠릅니다. 1분 후 다시 시도해 주세요.'
+            : `인증 메일을 보내지 못했습니다. ${resendError?.message || ''}`.trim());
+        } finally {
+          button.disabled = false;
+          button.textContent = '인증 메일 다시 받기';
+        }
+      };
+
+      window.handleLogoutSession = async function() {
+        if (!confirm('현재 대시보드에서 로그아웃하시겠습니까?')) return;
+        await supabaseClient.auth.signOut();
+        document.getElementById('admin-main').style.display = 'none';
+        document.getElementById('login-view').style.display = 'flex';
+        document.getElementById('ownerId').value = '';
+        document.getElementById('ownerPw').value = '';
+        window.motfCurrentProfile = null;
+        window.motfCurrentBusiness = null;
+      };
+
+      window.handleKakaoLogin = function() {
+        alert('카카오 로그인은 카카오 디벨로퍼스 앱 등록 후 연결됩니다.');
+      };
+
+      setTimeout(async () => {
+        const { data } = await supabaseClient.auth.getSession();
+        if (data.session?.user) {
+          try {
+            await openDashboardForUser(data.session.user);
+          } catch (error) {
+            await supabaseClient.auth.signOut();
+            document.getElementById('admin-main').style.display = 'none';
+            document.getElementById('login-view').style.display = 'flex';
+            console.warn(error.message);
+          }
+        }
+      }, 0);
+    })();
+  </script>
+  <script src="/owner/owner-data.js?v=20260728-market1"></script>
+</body>
+</html>
