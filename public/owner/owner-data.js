@@ -60,6 +60,24 @@
       .replaceAll("'", "&#039;");
   }
 
+  function normalizeBusinessRegion(region = "", address = "") {
+    const regionText = String(region || "").trim();
+    const locationText = `${regionText} ${String(address || "")}`.replace(/\s+/g, " ").trim();
+    if (/가평군|가평\s*대성리|대성리/.test(locationText)) return "가평";
+    if (/^[^\s]+군$/.test(regionText)) return regionText.slice(0, -1);
+    if (/^[^\s]+시$/.test(regionText) && !/(특별시|광역시|특별자치시)$/.test(regionText)) return regionText.slice(0, -1);
+    return regionText;
+  }
+
+  function setBusinessRegion(region = "", address = "") {
+    const normalized = normalizeBusinessRegion(region, address);
+    const input = document.getElementById("motfBusinessRegion");
+    const display = document.getElementById("motfBusinessRegionDisplay");
+    if (input) input.value = normalized;
+    if (display) display.textContent = normalized || "주소를 검색하면 자동 설정됩니다.";
+    return normalized;
+  }
+
   let naverMapsPromise;
   let postcodePromise;
   const nearbyOptions = [
@@ -125,7 +143,7 @@
       oncomplete(data) {
         const address = data.roadAddress || data.address || "";
         const postcode = data.zonecode || "";
-        const region = data.sigungu || data.sido || "";
+        const region = normalizeBusinessRegion(data.sigungu || data.sido || "", address);
         const addressInput = document.getElementById("motfBusinessAddress");
         const postalInput = document.getElementById("motfBusinessPostalCode");
         const regionInput = document.getElementById("motfBusinessRegion");
@@ -133,7 +151,8 @@
 
         if (addressInput) addressInput.value = address;
         if (postalInput) postalInput.value = postcode;
-        if (regionInput && !regionInput.value.trim()) regionInput.value = region;
+        if (regionInput) regionInput.value = region;
+        setBusinessRegion(region, address);
         detailInput?.focus();
         clearVerifiedLocation("주소가 선택되었습니다. 저장 시 지도 위치를 확인합니다.");
         window.setTimeout(() => verifyBusinessLocation().catch(() => {}), 0);
@@ -306,7 +325,7 @@
           const region = document.getElementById("motfLocationReferenceRegion");
           const addressInput = document.getElementById("motfLocationReferenceAddress");
           if (addressInput) addressInput.value = address;
-          if (region && !region.value.trim()) region.value = data.sigungu || data.sido || "";
+          if (region) region.value = normalizeBusinessRegion(data.sigungu || data.sido || "", address);
           setLocationReferenceStatus("주소에서 좌표를 찾는 중입니다...");
           geocodeAddress(address).then((result) => {
             applyLocationReferenceCoordinates(result);
@@ -331,7 +350,10 @@
     const payload = {
       reference_type: document.getElementById("motfLocationReferenceType")?.value || "station",
       name,
-      region: document.getElementById("motfLocationReferenceRegion")?.value.trim() || null,
+      region: normalizeBusinessRegion(
+        document.getElementById("motfLocationReferenceRegion")?.value,
+        document.getElementById("motfLocationReferenceAddress")?.value
+      ) || null,
       latitude,
       longitude,
       is_active: Boolean(document.getElementById("motfLocationReferenceActive")?.checked),
@@ -475,8 +497,10 @@
         </span>
         <small id="motfBusinessNumberStatus" class="motf-field-status">공공데이터포털의 무료 국세청 상태조회로 영업 여부를 확인합니다. 최종 인증은 운영팀이 서류와 대조합니다.</small>
       </label>
-      <label>지역
-        <input id="motfBusinessRegion" maxlength="50" placeholder="예: 가평" />
+      <label>운영 지역
+        <span id="motfBusinessRegionDisplay" class="motf-auto-region">주소를 검색하면 자동 설정됩니다.</span>
+        <input id="motfBusinessRegion" type="hidden" />
+        <small class="motf-field-status">선택한 주소의 행정구역을 기준으로 자동 분류됩니다.</small>
       </label>
       <label>우편번호
         <span class="motf-address-search-row">
@@ -727,6 +751,7 @@
       const input = document.getElementById(id);
       if (input) input.value = value || "";
     });
+    setBusinessRegion(business.region, business.address);
     const businessNumberStatus = document.getElementById("motfBusinessNumberStatus");
     if (businessNumberStatus) {
       businessNumberStatus.textContent = business.business_number_verification_status === "verified"
@@ -809,7 +834,10 @@
       representative_name: document.getElementById("motfRepresentativeName")?.value.trim(),
       phone: document.getElementById("motfBusinessPhone")?.value.trim() || null,
       business_number: document.getElementById("motfBusinessNumber")?.value.trim() || null,
-      region: document.getElementById("motfBusinessRegion")?.value.trim() || null,
+      region: normalizeBusinessRegion(
+        document.getElementById("motfBusinessRegion")?.value,
+        document.getElementById("motfBusinessAddress")?.value
+      ) || null,
       postal_code: document.getElementById("motfBusinessPostalCode")?.value.trim() || null,
       address: document.getElementById("motfBusinessAddress")?.value.trim() || null,
       address_detail: document.getElementById("motfBusinessAddressDetail")?.value.trim() || null,
@@ -832,7 +860,7 @@
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
 
     if (!payload.business_name || !payload.representative_name || !payload.region || !payload.address || !payload.description) {
-      alert("업장명, 대표자명, 지역, 주소와 소개 문구를 모두 입력해주세요.");
+      alert("업장명, 대표자명, 주소와 소개 문구를 모두 입력해주세요. 운영 지역은 주소에서 자동 설정됩니다.");
       return;
     }
 

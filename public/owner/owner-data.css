@@ -29,6 +29,19 @@
   border-radius: 6px;
 }
 
+.motf-auto-region {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 12px;
+  color: var(--teal-dark);
+  background: color-mix(in srgb, var(--teal) 7%, var(--paper));
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .motf-admin-action-group {
   display: flex;
   flex-wrap: wrap;
