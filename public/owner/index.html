@@ -98,6 +98,9 @@
     .login-divider::before, .login-divider::after { content:""; height:1px; flex:1; background:var(--line); }
     .kakao-login-btn { width:100%; border:0; border-radius:8px; padding:13px; background:#FEE500; color:#191919; font-weight:700; cursor:pointer; font-family:inherit; }
     .signup-link-btn { width:100%; margin-top:10px; border:1px solid var(--teal); border-radius:8px; padding:12px; background:var(--paper); color:var(--teal); font-weight:700; cursor:pointer; font-family:inherit; }
+    .confirmation-resend-btn { width:100%; min-height:40px; margin-top:6px; border:0; background:transparent; color:var(--teal-dark); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:underline; text-underline-offset:3px; }
+    .confirmation-resend-btn:hover { color:var(--teal); }
+    .confirmation-resend-btn:disabled { color:var(--muted); cursor:not-allowed; text-decoration:none; }
     .login-help { font-size:12px; color:var(--muted); margin-top:16px; line-height:1.6; }
     .auth-modal { position:fixed; inset:0; z-index:200; background:rgba(25,38,35,.48); display:none; align-items:center; justify-content:center; padding:20px; }
     .auth-modal.active { display:flex; }
@@ -708,7 +711,8 @@
       <div class="login-divider">또는</div>
       <button class="kakao-login-btn" onclick="handleKakaoLogin()">카카오로 시작하기</button>
       <button class="signup-link-btn" onclick="openSignupModal()">회원가입</button>
-      <p class="login-help">계정 정보를 잊으셨다면 모티프 운영팀에 문의해 주세요.</p>
+      <button id="confirmationResendButton" class="confirmation-resend-btn" type="button" onclick="handleConfirmationResend()">인증 메일 다시 받기</button>
+      <p class="login-help">인증 메일이 보이지 않으면 스팸 메일함을 확인하거나 위 버튼으로 다시 받아주세요.</p>
     </div>
   </section>
 
@@ -2670,6 +2674,7 @@
         'sb_publishable_dPivJzpG1ZQWNyTupQ4HRw_dbo5sl9X'
       );
       window.motfSupabase = supabaseClient;
+      let confirmationResendAvailableAt = 0;
       window.motfApplyBusinessToDashboard = function(business) {
         if (!business || currentOwnerType === 'admin') return;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
@@ -2957,29 +2962,82 @@
 
       window.handleSignup = async function(event) {
         event.preventDefault();
+        const submitButton = event.submitter;
         const password = document.getElementById('signupPassword').value;
         const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
         if (password !== passwordConfirm) return alert('비밀번호 확인이 일치하지 않습니다.');
 
         const email = document.getElementById('signupId').value.trim();
-        const { error } = await supabaseClient.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${location.origin}/owner/index.html`,
-            data: {
-              account_type: 'partner',
-              business_type: document.getElementById('signupRole').value,
-              business_name: document.getElementById('signupBusinessName').value.trim(),
-              full_name: document.getElementById('signupOwnerName').value.trim(),
-              phone: document.getElementById('signupPhone').value.trim()
+        if (submitButton) { submitButton.disabled = true; submitButton.textContent = '가입 처리 중...'; }
+        try {
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${location.origin}/`,
+              data: {
+                account_type: 'partner',
+                business_type: document.getElementById('signupRole').value,
+                business_name: document.getElementById('signupBusinessName').value.trim(),
+                full_name: document.getElementById('signupOwnerName').value.trim(),
+                phone: document.getElementById('signupPhone').value.trim()
+              }
             }
+          });
+          if (error) {
+            const rateLimited = error.status === 429 || /rate limit/i.test(error.message || '');
+            return alert(rateLimited
+              ? '인증 메일 요청이 많습니다. 잠시 후 다시 시도해 주세요.'
+              : `회원가입을 완료하지 못했습니다. ${error.message || ''}`.trim());
           }
-        });
-        if (error) return alert(error.message);
-        closeSignupModal();
-        document.getElementById('signupForm').reset();
-        alert('인증 메일을 보냈습니다. 이메일 인증 후 로그인해 주세요.');
+
+          document.getElementById('ownerId').value = email;
+          closeSignupModal();
+          document.getElementById('signupForm').reset();
+          if (Array.isArray(data?.user?.identities) && data.user.identities.length === 0) {
+            alert('이미 가입된 이메일일 수 있습니다. 로그인하거나 아래의 인증 메일 다시 받기를 이용해 주세요.');
+          } else {
+            alert('인증 메일을 보냈습니다. 메일의 인증 링크를 누른 뒤 로그인해 주세요.');
+          }
+        } catch (signupError) {
+          alert(`회원가입 요청 중 오류가 발생했습니다. ${signupError?.message || ''}`.trim());
+        } finally {
+          if (submitButton) { submitButton.disabled = false; submitButton.textContent = '가입 완료'; }
+        }
+      };
+
+      window.handleConfirmationResend = async function() {
+        const now = Date.now();
+        const waitSeconds = Math.ceil((confirmationResendAvailableAt - now) / 1000);
+        if (waitSeconds > 0) return alert(`${waitSeconds}초 후 다시 요청할 수 있습니다.`);
+
+        const loginEmailInput = document.getElementById('ownerId');
+        const email = loginEmailInput.value.trim() || prompt('가입한 이메일을 입력해 주세요.')?.trim();
+        if (!email) return;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return alert('올바른 이메일 주소를 입력해 주세요.');
+
+        loginEmailInput.value = email;
+        const button = document.getElementById('confirmationResendButton');
+        button.disabled = true;
+        button.textContent = '인증 메일 전송 중...';
+        try {
+          const { error } = await supabaseClient.auth.resend({
+            type: 'signup',
+            email,
+            options: { emailRedirectTo: `${location.origin}/` }
+          });
+          if (error) throw error;
+          confirmationResendAvailableAt = Date.now() + 60000;
+          alert('인증 메일을 다시 보냈습니다. 스팸 메일함도 함께 확인해 주세요.');
+        } catch (resendError) {
+          const rateLimited = resendError?.status === 429 || /rate limit/i.test(resendError?.message || '');
+          alert(rateLimited
+            ? '재전송 요청이 너무 빠릅니다. 1분 후 다시 시도해 주세요.'
+            : `인증 메일을 보내지 못했습니다. ${resendError?.message || ''}`.trim());
+        } finally {
+          button.disabled = false;
+          button.textContent = '인증 메일 다시 받기';
+        }
       };
 
       window.handleLogoutSession = async function() {
