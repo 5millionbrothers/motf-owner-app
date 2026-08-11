@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
-  <link rel="stylesheet" href="/owner/styles.css?v=20260728-market1">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260811-market-photo1">
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -949,7 +949,7 @@
             <label style="display:block; font-weight:600; margin-bottom:4px;" id="mypage-upload-title">구역별 사진 여러 장 관리</label>
             <div class="photo-tab-wrapper" id="photoCategoryContainer"></div>
             <div style="background-color: var(--cream); border:1px solid var(--line); padding:16px; border-radius:8px; margin-top:12px;">
-              <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 구역: 전체 외관</span>
+              <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 사진 영역: 전체 외관</span>
               <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
               <small style="display:block;margin-top:7px;color:var(--muted);">새 사진은 기존 사진 뒤에 추가됩니다. 대표 지정·순서 이동·개별 삭제가 가능합니다.</small>
               <div id="motfPhotoUploadPreview" class="motf-photo-upload-preview"></div>
@@ -1463,7 +1463,7 @@
         desc: "",
         revenue: { rawTotal: 0, rawSettled: 0, rawExpected: 0 },
         rooms: [],
-        photoTabs: [],
+        photoTabs: ["전체 외관"],
         facilities: [
           { key: "delivery", name: "숙소 배송", checked: false, desc: "", placeholder: "배송 가능 지역, 최소 주문금액과 시간을 입력" },
           { key: "pickup", name: "매장 픽업", checked: false, desc: "", placeholder: "픽업 가능 시간과 수령 위치를 입력" },
@@ -1968,10 +1968,14 @@
 
     function rebuildPhotoTabsArray() {
       const data = mockData[currentOwnerType];
-      if (currentOwnerType === 'stay') {
-        data.photoTabs = ["전체 외관", ...data.rooms.map(r => r.name)];
-      } else {
-        data.photoTabs = data.rooms.map(r => r.name);
+      const itemTabs = data.rooms.map(r => r.name);
+      data.photoTabs = ["전체 외관", ...itemTabs];
+
+      if (currentSelectedPhotoIndex < 0) {
+        currentSelectedPhotoIndex = 0;
+      }
+      if (currentSelectedPhotoIndex >= data.photoTabs.length) {
+        currentSelectedPhotoIndex = Math.max(0, data.photoTabs.length - 1);
       }
     }
 
@@ -2049,7 +2053,7 @@
         btn.onclick = () => {
           currentSelectedPhotoIndex = idx;
           renderPhotoTabs();
-          document.getElementById('currentSelectedTabLabelInfo').innerText = `선택된 구역: ${tabName}`;
+          document.getElementById('currentSelectedTabLabelInfo').innerText = `선택된 사진 영역: ${tabName}`;
           window.motfRefreshPhotoPreview?.();
         };
         container.appendChild(btn);
@@ -2757,13 +2761,10 @@
       };
       window.motfGetCurrentPhotoTarget = function() {
         if (currentOwnerType === 'admin') return null;
-        if (currentOwnerType === 'stay' && currentSelectedPhotoIndex === 0) {
+        if (currentSelectedPhotoIndex === 0) {
           return { type: 'business' };
         }
-        const roomIndex = currentOwnerType === 'stay'
-          ? currentSelectedPhotoIndex - 1
-          : currentSelectedPhotoIndex;
-        return { type: 'offering', index: roomIndex };
+        return { type: 'offering', index: currentSelectedPhotoIndex - 1 };
       };
       window.motfSetCurrentPhotoUrls = function(urls) {
         const target = window.motfGetCurrentPhotoTarget();
@@ -3070,6 +3071,6 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260728-market1"></script>
+  <script src="/owner/owner-data.js?v=20260811-market-photo1"></script>
 </body>
 </html>
