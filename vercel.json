@@ -1,0 +1,140 @@
+{
+  "cleanUrls": true,
+  "functions": {
+    "api/toss-confirm.js": {
+      "maxDuration": 30
+    },
+    "api/toss-webhook.js": {
+      "maxDuration": 30
+    },
+    "api/cancel-reservation.js": {
+      "maxDuration": 30
+    },
+    "api/identity-start.js": {
+      "maxDuration": 30
+    },
+    "api/identity-callback.js": {
+      "maxDuration": 30
+    },
+    "api/identity-signup.js": {
+      "maxDuration": 30
+    },
+    "api/identity-password-reset.js": {
+      "maxDuration": 30
+    },
+    "api/notifications-dispatch.js": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/notifications-dispatch",
+      "schedule": "*/5 * * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/stays",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/stays/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/my-mt",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/my-mt/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/events",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/events/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/market",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/market/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/community",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/community/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/chat",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/mypage",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/mypage/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/payment",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/payment/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/business-info",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/refund-policy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/complete",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
+  ]
+}
