@@ -26,9 +26,16 @@
       ? document.getElementById("ownerResetEmail").value.trim()
       : document.getElementById("signupId").value.trim();
     if (purpose === "password_reset" && !email) throw new Error("가입 이메일을 먼저 입력해주세요.");
-    const start = await api("/api/identity-start", { purpose, email, accountType:"partner", returnUrl:location.href, mobile:innerWidth<720 });
     const popup = window.open("", "motf_identity", "width=430,height=640,toolbar=no,menubar=no,scrollbars=yes,resizable=yes");
     if (!popup) throw new Error("팝업을 허용해주세요.");
+    popup.document.write("<!doctype html><html lang='ko'><meta charset='utf-8'><title>본인인증 연결 중</title><body style='font-family:sans-serif;padding:32px;text-align:center'>본인인증 화면을 연결하고 있습니다.</body></html>");
+    let start;
+    try {
+      start = await api("/api/identity-start", { purpose, email, accountType:"partner", returnUrl:location.href, mobile:innerWidth<720 });
+    } catch(error) {
+      popup.close();
+      throw error;
+    }
     const form = document.createElement("form");
     form.method="POST"; form.action=start.callUrl; form.target="motf_identity";
     Object.entries(start.form || {}).forEach(([name,value]) => { const input=document.createElement("input"); input.type="hidden"; input.name=name; input.value=value; form.appendChild(input); });
