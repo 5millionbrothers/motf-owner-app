@@ -26,8 +26,10 @@ export async function POST(request: NextRequest) {
     const user = await authenticatedUser(authorization);
     const body = await request.json();
     const businessNumber = String(body.businessNumber || "").replace(/\D/g, "");
+    const startDate = String(body.startDate || "").replace(/\D/g, "");
+    const representativeName = String(body.representativeName || "").trim();
     const businessId = String(body.businessId || "");
-    if (businessNumber.length !== 10 || !businessId) return NextResponse.json({ message: "사업자등록번호와 업장 정보가 필요합니다." }, { status: 400 });
+    if (businessNumber.length !== 10 || startDate.length !== 8 || !representativeName || !businessId) return NextResponse.json({ message: "사업자번호·개업일자·대표자명을 모두 입력해주세요." }, { status: 400 });
     if (!env("DATA_GO_KR_SERVICE_KEY")) return NextResponse.json({ message: "공공데이터포털 서비스키가 설정되지 않았습니다." }, { status: 503 });
 
     const ownerCheck = await fetch(`${env("NEXT_PUBLIC_SUPABASE_URL")}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}&owner_id=eq.${encodeURIComponent(user.id)}&select=id&limit=1`, {
@@ -48,6 +50,17 @@ export async function POST(request: NextRequest) {
     if (!statusResponse.ok || !result) return NextResponse.json({ message: statusBody?.message || "국세청 사업자 상태를 확인하지 못했습니다." }, { status: 502 });
     if (String(result.b_stt_cd) !== "01") return NextResponse.json({ message: result.b_stt || "현재 계속사업 상태가 아닙니다." }, { status: 409 });
 
+    const validationResponse = await fetch(`https://api.odcloud.kr/api/nts-businessman/v1/validate?serviceKey=${encodeURIComponent(env("DATA_GO_KR_SERVICE_KEY"))}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businesses: [{ b_no: businessNumber, start_dt: startDate, p_nm: representativeName, p_nm2: "", b_nm: "", corp_no: "", b_sector: "", b_type: "", b_adr: "" }] }),
+      cache: "no-store",
+    });
+    const validationBody = await readJson(validationResponse);
+    const validation = validationBody?.data?.[0];
+    if (!validationResponse.ok || !validation) return NextResponse.json({ message: "국세청 진위확인 응답을 받지 못했습니다." }, { status: 502 });
+    if (String(validation.valid) !== "01") return NextResponse.json({ message: validation.valid_msg || "대표자명 또는 개업일자가 국세청 등록정보와 일치하지 않습니다." }, { status: 409 });
+
     const updateResponse = await fetch(`${env("NEXT_PUBLIC_SUPABASE_URL")}/rest/v1/businesses?id=eq.${encodeURIComponent(businessId)}`, {
       method: "PATCH",
       headers: {
@@ -58,13 +71,16 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         business_number: businessNumber,
-        business_number_verification_status: "active_checked",
+        business_start_date: `${startDate.slice(0, 4)}-${startDate.slice(4, 6)}-${startDate.slice(6, 8)}`,
+        representative_name: representativeName,
+        business_number_verification_status: "verified",
         business_number_status_checked_at: new Date().toISOString(),
+        business_number_verified_at: new Date().toISOString(),
       }),
       cache: "no-store",
     });
     if (!updateResponse.ok) return NextResponse.json({ message: "확인 결과를 업장 정보에 저장하지 못했습니다." }, { status: 502 });
-    return NextResponse.json({ ok: true, status: result.b_stt, taxType: result.tax_type });
+    return NextResponse.json({ ok: true, status: result.b_stt, taxType: result.tax_type, verified: true });
   } catch (error) {
     return NextResponse.json({ message: error instanceof Error ? error.message : "사업자 상태 확인에 실패했습니다." }, { status: 500 });
   }
