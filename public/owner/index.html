@@ -711,6 +711,7 @@
       <div class="login-divider">또는</div>
       <button class="kakao-login-btn" onclick="handleKakaoLogin()">카카오로 시작하기</button>
       <button class="signup-link-btn" onclick="openSignupModal()">회원가입</button>
+      <button class="confirmation-resend-btn" type="button" onclick="openOwnerPasswordReset()">비밀번호 찾기</button>
       <button id="confirmationResendButton" class="confirmation-resend-btn" type="button" onclick="handleConfirmationResend()">인증 메일 다시 받기</button>
       <p class="login-help">인증 메일이 보이지 않으면 스팸 메일함을 확인하거나 위 버튼으로 다시 받아주세요.</p>
     </div>
@@ -721,15 +722,33 @@
       <div class="auth-modal-head"><h2 id="signupTitle">파트너 회원가입</h2><button class="modal-close-btn" type="button" onclick="closeSignupModal()" aria-label="닫기">×</button></div>
       <div id="signupSuccessMessage" class="signup-success"></div>
       <form id="signupForm" onsubmit="handleSignup(event)">
+        <div class="owner-identity-step"><div><strong>1. 휴대폰 본인인증</strong><p>대표자 이름·연락처·생년월일을 확인합니다.</p></div><button type="button" class="secondary-btn" onclick="startOwnerIdentity('owner_signup')">본인인증</button></div>
+        <div id="ownerSignupIdentityResult" class="owner-identity-result" hidden></div>
         <div class="form-group"><label for="signupRole" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">파트너 유형</label><select id="signupRole" required><option value="">유형을 선택하세요</option><option value="stay">숙소 사장님</option><option value="market">공판장 사장님</option></select></div>
         <div class="form-group"><label for="signupBusinessName" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">업장명</label><input id="signupBusinessName" type="text" placeholder="예: 가평 모티프 펜션" required></div>
-        <div class="form-group"><label for="signupOwnerName" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">대표자명</label><input id="signupOwnerName" type="text" required></div>
-        <div class="form-group"><label for="signupPhone" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">휴대전화번호</label><input id="signupPhone" type="tel" placeholder="010-0000-0000" required></div>
+        <div class="form-group"><label for="signupOwnerName" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">대표자명</label><input id="signupOwnerName" type="text" readonly required placeholder="본인인증 후 자동 입력"></div>
+        <div class="form-group"><label for="signupPhone" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">휴대전화번호</label><input id="signupPhone" type="tel" readonly required placeholder="본인인증 후 자동 입력"></div>
+        <div class="form-group"><label for="signupBirthDate" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">생년월일</label><input id="signupBirthDate" readonly required placeholder="본인인증 후 자동 입력"></div>
         <div class="form-group"><label for="signupId" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">로그인 이메일</label><input id="signupId" type="email" placeholder="example@motf.co.kr" required autocomplete="email"></div>
-        <div class="form-group"><label for="signupPassword" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호</label><input id="signupPassword" type="password" minlength="8" placeholder="8자 이상 입력하세요" required autocomplete="new-password"></div>
-        <div class="form-group"><label for="signupPasswordConfirm" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호 확인</label><input id="signupPasswordConfirm" type="password" minlength="8" required autocomplete="new-password"></div>
+        <div class="form-group"><label for="signupPassword" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호</label><input id="signupPassword" type="password" minlength="8" maxlength="12" placeholder="영문·숫자·특수문자 8~12자리" required autocomplete="new-password"></div>
+        <div class="form-group"><label for="signupPasswordConfirm" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">비밀번호 확인</label><input id="signupPasswordConfirm" type="password" minlength="8" maxlength="12" required autocomplete="new-password"></div>
         <label class="terms-row"><input id="signupTerms" type="checkbox" required><span class="terms-content"><span>이용약관 및 개인정보 수집·이용에 동의합니다.</span><button type="button" class="terms-view-btn" onclick="openTermsGuide(event)">약관 확인하기</button></span></label>
         <button type="submit" class="primary-btn" style="width:100%;justify-content:center;padding:14px;">가입 완료</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="ownerPasswordResetModal" class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="ownerPasswordResetTitle">
+    <div class="auth-modal-card">
+      <div class="auth-modal-head"><h2 id="ownerPasswordResetTitle">비밀번호 재설정</h2><button class="modal-close-btn" type="button" onclick="closeOwnerPasswordReset()" aria-label="닫기">×</button></div>
+      <form id="ownerPasswordResetForm" onsubmit="submitOwnerPasswordReset(event)">
+        <p class="login-help" style="text-align:left;">가입 이메일과 휴대폰 본인인증 정보가 일치하면 새 비밀번호를 설정할 수 있습니다.</p>
+        <div class="form-group"><label for="ownerResetEmail">가입 이메일</label><input id="ownerResetEmail" type="email" required autocomplete="email"></div>
+        <button type="button" class="secondary-btn" style="width:100%;justify-content:center;" onclick="startOwnerIdentity('password_reset')">휴대폰 본인인증</button>
+        <div id="ownerPasswordIdentityResult" class="owner-identity-result" hidden></div>
+        <div class="form-group"><label for="ownerResetPassword">새 비밀번호</label><input id="ownerResetPassword" type="password" minlength="8" maxlength="12" required placeholder="영문·숫자·특수문자 8~12자리"></div>
+        <div class="form-group"><label for="ownerResetPasswordConfirm">새 비밀번호 확인</label><input id="ownerResetPasswordConfirm" type="password" minlength="8" maxlength="12" required></div>
+        <button type="submit" class="primary-btn" style="width:100%;justify-content:center;">비밀번호 변경</button>
       </form>
     </div>
   </div>
@@ -791,15 +810,6 @@
           <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
         </div>
         <div id="orderListArea" class="item-list"></div>
-        <section id="partnerExtraChargeSection" class="owner-extra-charge-section" hidden>
-          <div class="owner-section-row">
-            <div>
-              <h3>추가 이용금 요청</h3>
-              <p>추가인원·바베큐 등 현장에서 확정된 금액을 운영팀에 검토 요청합니다.</p>
-            </div>
-          </div>
-          <div id="partnerExtraChargeList" class="item-list"></div>
-        </section>
       </section>
 
       <section id="panel-availability" class="panel">
@@ -1130,10 +1140,6 @@
           <select id="masterOrderStatusFilter" onchange="renderMasterOrders()"><option value="all">전체 상태</option><option value="pending">확정 대기</option><option value="confirm">예약 확정</option><option value="past">지난 예약</option><option value="reject">거절</option></select>
         </div>
         <div id="masterOrderListArea" class="item-list"></div>
-        <section class="owner-extra-charge-section">
-          <div class="owner-section-row"><div><h3>추가 이용금 검토</h3><p>사장님이 제출한 항목과 금액을 확인한 뒤 이용자에게 결제를 요청합니다.</p></div></div>
-          <div id="adminExtraChargeList" class="item-list"></div>
-        </section>
       </section>
 
       <section id="panel-master-content" class="panel">
@@ -1253,27 +1259,6 @@
 
     </div>
   </main>
-
-  <dialog id="motfExtraChargeDialog" class="motf-form-dialog">
-    <form id="motfExtraChargeForm" method="dialog">
-      <div class="motf-dialog-head">
-        <div><small>확정 예약</small><h3>추가 이용금 요청</h3></div>
-        <button type="button" class="motf-dialog-close" onclick="document.getElementById('motfExtraChargeDialog').close()" aria-label="닫기"><i data-lucide="x"></i></button>
-      </div>
-      <input id="motfExtraChargeReservationId" type="hidden" />
-      <div id="motfExtraChargeReservationSummary" class="extra-charge-reservation-summary"></div>
-      <div class="extra-charge-guide"><i data-lucide="shield-check"></i><span>운영팀이 항목과 금액을 확인한 뒤 이용자에게 결제 요청을 보냅니다.</span></div>
-      <div id="motfExtraChargeRows" class="extra-charge-form-rows"></div>
-      <button type="button" class="secondary-btn compact" onclick="motfAddExtraChargeRow()"><i data-lucide="plus"></i>항목 추가</button>
-      <label class="motf-dialog-field">사장님 메모<textarea id="motfExtraChargeNote" rows="3" maxlength="500" placeholder="운영팀이 확인해야 할 특이사항"></textarea></label>
-      <label class="motf-dialog-field">결제 기한 <span class="field-optional">선택</span><input id="motfExtraChargeDueAt" type="datetime-local" /></label>
-      <div class="extra-charge-total"><span>요청 합계</span><strong id="motfExtraChargeTotal">0원</strong></div>
-      <div class="motf-dialog-actions">
-        <button type="button" class="secondary-btn" onclick="document.getElementById('motfExtraChargeDialog').close()">취소</button>
-        <button type="submit" class="primary-btn"><i data-lucide="send"></i>운영팀에 검토 요청</button>
-      </div>
-    </form>
-  </dialog>
 
   <script>
     let currentOwnerType = 'stay'; 
@@ -1422,8 +1407,8 @@
     });
 
     const COMMISSION_RATES = {
-      stay: 7,    
-      market: 5   
+      stay: 3.5,
+      market: 3.5
     };
 
     // 운영 화면은 Supabase에서 받은 데이터만 채운다.
@@ -1507,6 +1492,7 @@
           <li><button class="menu-item" id="m-btn-content" onclick="switchMasterPanel('master-content')"><i data-lucide="shield-check"></i> 리뷰 & 커뮤니티</button></li>
           <li><button class="menu-item" id="m-btn-revenue" onclick="switchMasterPanel('master-revenue')"><i data-lucide="trending-up"></i> 본사 매출 분석</button></li>
           <li><button class="menu-item" id="m-btn-settlement" onclick="switchMasterPanel('master-settlement')"><i data-lucide="wallet"></i> 대금 정산 센터</button></li>
+          <li id="motfLaunchAdminMenuAnchor"></li>
         </ul>
       `;
       
@@ -1515,6 +1501,7 @@
       renderMasterCases();
       renderMasterOrders();
       renderMasterContent();
+      window.motfMountAdminControlTower?.();
       switchMasterPanel('master-stats');
       lucide.createIcons();
     }
@@ -2880,6 +2867,7 @@
           window.loadMotfAdminTransactions?.();
           window.loadMotfAdminChats?.();
           window.loadMotfAdminSupportCases?.();
+          window.loadMotfAdminModeration?.();
           return;
         }
 
@@ -2888,7 +2876,7 @@
           throw new Error('사장님 또는 운영팀 계정으로 로그인해 주세요.');
         }
 
-        const coreBusinessFields = 'id, owner_id, business_type, business_name, representative_name, phone, business_number, address, description, region, cover_image_url, facilities, latitude, longitude, approval_status, rejection_reason';
+        const coreBusinessFields = 'id, owner_id, business_type, business_name, representative_name, phone, business_number, business_start_date, address, description, region, cover_image_url, facilities, latitude, longitude, approval_status, rejection_reason';
         const { data: coreBusiness, error: businessError } = await supabaseClient
           .from('businesses')
           .select(coreBusinessFields)
@@ -3072,5 +3060,7 @@
     })();
   </script>
   <script src="/owner/owner-data.js?v=20260811-market-photo1"></script>
+  <script src="/owner/owner-identity.js?v=20260829-kcp1"></script>
+  <script src="/owner/admin-control.js?v=20260829-launch1"></script>
 </body>
 </html>

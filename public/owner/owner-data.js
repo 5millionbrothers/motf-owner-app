@@ -17,6 +17,7 @@
     "business_number_verification_status",
     "business_number_status_checked_at",
     "business_number_verified_at",
+    "business_start_date",
     "address",
     "address_detail",
     "postal_code",
@@ -49,6 +50,16 @@
 
   function client() {
     return window.motfSupabase;
+  }
+
+  async function syncCommissionSettings() {
+    const { data, error } = await client().from("platform_settings")
+      .select("setting_value")
+      .eq("setting_key", "commission")
+      .maybeSingle();
+    if (error || !data?.setting_value) return;
+    COMMISSION_RATES.stay = Number(data.setting_value.stay_rate || 0.035) * 100;
+    COMMISSION_RATES.market = Number(data.setting_value.market_rate || 0.035) * 100;
   }
 
   function escapeHtml(value) {
@@ -440,10 +451,16 @@
 
   window.motfVerifyBusinessNumber = async function verifyBusinessNumber() {
     const number = String(document.getElementById("motfBusinessNumber")?.value || "").replace(/\D/g, "");
+    const startDate = String(document.getElementById("motfBusinessStartDate")?.value || "").replace(/\D/g, "");
+    const representativeName = String(document.getElementById("motfRepresentativeName")?.value || "").trim();
     const status = document.getElementById("motfBusinessNumberStatus");
     const button = document.getElementById("motfVerifyBusinessNumberButton");
     if (number.length !== 10) {
       alert("사업자등록번호 숫자 10자리를 입력해주세요.");
+      return;
+    }
+    if (startDate.length !== 8 || !representativeName) {
+      alert("대표자명과 개업일자를 먼저 입력해주세요.");
       return;
     }
     const { data: sessionData } = await client().auth.getSession();
@@ -455,11 +472,11 @@
       const response = await fetch("/api/verify-business-number", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ businessNumber: number, businessId: window.motfCurrentBusiness?.id }),
+        body: JSON.stringify({ businessNumber: number, startDate, representativeName, businessId: window.motfCurrentBusiness?.id }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.message || "사업자 상태를 확인하지 못했습니다.");
-      if (status) status.textContent = "영업 중인 사업자로 확인되었습니다. 운영팀 서류 대조 후 최종 인증됩니다.";
+      if (status) status.textContent = "국세청 등록정보와 일치하는 계속사업자로 인증되었습니다.";
     } catch (error) {
       const message = error.message || "사업자 상태를 확인하지 못했습니다.";
       if (status) status.textContent = message;
@@ -488,14 +505,18 @@
       </label>
       <label>업장 연락처
         <input id="motfBusinessPhone" maxlength="30" autocomplete="tel" />
-        <small class="motf-field-status">휴대폰 본인확인은 KG이니시스 통합인증 연결 후 활성화됩니다.</small>
+        <small class="motf-field-status">휴대폰 본인확인은 KCP 본인확인 결과로 자동 반영됩니다.</small>
       </label>
       <label>사업자등록번호
         <span class="motf-address-search-row">
           <input id="motfBusinessNumber" maxlength="30" inputmode="numeric" placeholder="숫자 10자리" />
-          <button type="button" id="motfVerifyBusinessNumberButton" class="motf-address-search-button" onclick="motfVerifyBusinessNumber()">상태 확인</button>
+          <button type="button" id="motfVerifyBusinessNumberButton" class="motf-address-search-button" onclick="motfVerifyBusinessNumber()">사업자 인증</button>
         </span>
-        <small id="motfBusinessNumberStatus" class="motf-field-status">공공데이터포털의 무료 국세청 상태조회로 영업 여부를 확인합니다. 최종 인증은 운영팀이 서류와 대조합니다.</small>
+        <small id="motfBusinessNumberStatus" class="motf-field-status">국세청 무료 API로 대표자명·개업일자·영업 상태를 함께 확인합니다.</small>
+      </label>
+      <label>개업일자
+        <input id="motfBusinessStartDate" type="date" />
+        <small class="motf-field-status">사업자등록증에 적힌 개업연월일을 입력해주세요.</small>
       </label>
       <label>운영 지역
         <span id="motfBusinessRegionDisplay" class="motf-auto-region">주소를 검색하면 자동 설정됩니다.</span>
@@ -736,6 +757,7 @@
       motfRepresentativeName: business.representative_name,
       motfBusinessPhone: business.phone,
       motfBusinessNumber: business.business_number,
+      motfBusinessStartDate: business.business_start_date,
       motfBusinessRegion: business.region,
       motfBusinessPostalCode: business.postal_code,
       motfBusinessAddress: business.address,
@@ -834,6 +856,7 @@
       representative_name: document.getElementById("motfRepresentativeName")?.value.trim(),
       phone: document.getElementById("motfBusinessPhone")?.value.trim() || null,
       business_number: document.getElementById("motfBusinessNumber")?.value.trim() || null,
+      business_start_date: document.getElementById("motfBusinessStartDate")?.value || null,
       region: normalizeBusinessRegion(
         document.getElementById("motfBusinessRegion")?.value,
         document.getElementById("motfBusinessAddress")?.value
@@ -1171,9 +1194,6 @@
     const pending = item.status === "pending";
     const refundLabel = item.refundStatus && item.refundStatus !== "none" ? refundStatus[item.refundStatus] || item.refundStatus : "";
     const readOnlyPaymentIntent = item.kind === "payment_intent" || item.status === "virtual_account_issued";
-    const extraChargeButton = item.kind === "stay" && ["confirmed", "completed"].includes(item.status)
-      ? `<button class="secondary-btn compact" onclick="motfOpenExtraChargeDialog('${item.id}')"><i data-lucide="receipt-text"></i>추가금 요청</button>`
-      : "";
     const actions = readOnlyPaymentIntent ? `
       <span class="master-status-badge master-badge-waiting">입금 대기</span>
     ` : pending ? `
@@ -1181,7 +1201,7 @@
         <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
       </div>
-    ` : `<div class="item-actions"><span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span>${extraChargeButton}</div>`;
+    ` : `<div class="item-actions"><span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span></div>`;
     return `
       <div class="item-card">
         <div style="flex:1;">
@@ -1388,6 +1408,7 @@
 
   window.loadMotfPartnerTransactions = async function loadMotfPartnerTransactions(business = window.motfCurrentBusiness) {
     if (!client() || !business) return;
+    await syncCommissionSettings();
     const table = business.business_type === "market" ? "market_orders" : "reservations";
     const fields = business.business_type === "market"
       ? "id, customer_name, pickup_time, total_amount, status, reject_reason, refund_status, refund_amount, created_at, market_order_items(item_name, quantity)"
@@ -1436,7 +1457,7 @@
     const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const settled = active.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const expected = active.filter((item) => ["pending", "confirmed"].includes(item.status)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const rate = currentOwnerType === "market" ? 0.05 : 0.07;
+    const rate = Number(COMMISSION_RATES[currentOwnerType] || 3.5) / 100;
     const values = {
       "rev-total-val": rawTotal,
       "rev-net-total-val": Math.floor(rawTotal * (1 - rate)),
@@ -1453,7 +1474,6 @@
     }
     window.renderCalendar?.();
     window.renderOrders();
-    window.loadMotfPartnerExtraCharges?.();
   };
 
   window.renderOrders = function renderDatabaseOrders() {
@@ -1471,6 +1491,7 @@
 
   window.loadMotfAdminTransactions = async function loadMotfAdminTransactions() {
     if (!client() || window.motfCurrentProfile?.role !== "admin") return;
+    await syncCommissionSettings();
     const [businessResult, reservationResult, orderResult, intentResult] = await Promise.all([
       client().from("businesses").select("id, business_name, business_type"),
       client().from("reservations").select("id, business_id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount, created_at").order("created_at", { ascending: false }),
@@ -1490,14 +1511,13 @@
     renderAdminTransactionSummary();
     window.renderMasterOrders();
     loadMotfAdminSettlements();
-    window.loadMotfAdminExtraCharges?.();
   };
 
   function renderAdminTransactionSummary() {
     const countedStatuses = new Set(["confirmed", "completed"]);
     const counted = adminTransactions.filter((item) => countedStatuses.has(item.status));
     const gmv = counted.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const fee = counted.reduce((sum, item) => sum + Math.floor(Number(item.amount || 0) * (item.kind === "market" ? 0.05 : 0.07)), 0);
+    const fee = counted.reduce((sum, item) => sum + Math.floor(Number(item.amount || 0) * Number(COMMISSION_RATES[item.kind === "market" ? "market" : "stay"] || 3.5) / 100), 0);
     const gmvNode = document.getElementById("m-stat-gmv");
     const feeNode = document.getElementById("m-stat-fee");
     if (gmvNode) gmvNode.textContent = `${gmv.toLocaleString()}원`;
@@ -1507,7 +1527,7 @@
     if (tracker) {
       tracker.innerHTML = adminTransactions.length
         ? adminTransactions.map((item) => {
-            const itemFee = Math.floor(Number(item.amount || 0) * (item.kind === "market" ? 0.05 : 0.07));
+            const itemFee = Math.floor(Number(item.amount || 0) * Number(COMMISSION_RATES[item.kind === "market" ? "market" : "stay"] || 3.5) / 100);
             return `<tr>
               <td>${escapeHtml(String(item.id).slice(0, 8).toUpperCase())}</td>
               <td>${escapeHtml(item.businessName)}</td>
@@ -1967,161 +1987,32 @@
     await window.loadMotfAdminSupportCases();
   };
 
-  const extraChargeStatusLabels = {
-    submitted: "운영팀 검토 중",
-    approved: "이용자 결제 요청",
-    payment_prepared: "결제 준비",
-    payment_pending: "입금 대기",
-    paid: "입금 완료",
-    rejected: "검토 반려",
-    cancelled: "취소",
-    expired: "기한 만료",
-  };
-
-  const extraChargeCategories = [
-    ["additional_person", "추가인원"],
-    ["barbecue", "야외바베큐"],
-    ["pool", "수영장"],
-    ["karaoke", "노래방/마이크"],
-    ["screen", "TV/화면"],
-    ["pickup", "픽업"],
-    ["other", "기타"],
-  ];
-
-  function extraChargeItemsHtml(items = []) {
-    return `<ul class="extra-charge-items">${items.map((item) => `<li>${escapeHtml(item.label || "추가 이용금")} · ${Number(item.quantity || 1).toLocaleString()} × ${Number(item.unit_amount || 0).toLocaleString()}원${item.note ? ` · ${escapeHtml(item.note)}` : ""}</li>`).join("")}</ul>`;
-  }
-
-  function extraChargeCard(item, admin = false) {
-    const statusClass = ["paid", "approved"].includes(item.status) ? "master-badge-active" : ["rejected", "expired", "cancelled"].includes(item.status) ? "master-badge-terminated" : "master-badge-waiting";
-    const reviewActions = admin && item.status === "submitted" ? `
-      <div class="item-actions">
-        <button class="primary-btn" onclick="motfReviewExtraCharge('${item.id}','approved')">승인·결제 요청</button>
-        <button class="motf-reject-action-btn" onclick="motfReviewExtraCharge('${item.id}','rejected')">반려</button>
-      </div>` : `<span class="master-status-badge ${statusClass}">${extraChargeStatusLabels[item.status] || item.status}</span>`;
-    return `<article class="item-card">
-      <div class="item-info" style="flex:1;">
-        <div style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:5px;">${escapeHtml(item.businesses?.business_name || window.motfCurrentBusiness?.business_name || "숙소")}</div>
-        <h4>${escapeHtml(item.reservations?.customer_name || "이용자")} · ${escapeHtml(item.reservations?.offering_name || "객실")}</h4>
-        <p>${escapeHtml(item.reservations?.event_date || "")} · 요청 ${new Date(item.created_at).toLocaleString("ko-KR")}</p>
-        ${extraChargeItemsHtml(item.items)}
-        ${item.owner_note ? `<p>사장님 메모: ${escapeHtml(item.owner_note)}</p>` : ""}
-        ${item.review_note ? `<p style="color:#b45309;">운영팀 메모: ${escapeHtml(item.review_note)}</p>` : ""}
-        <div class="extra-charge-status-line"><strong>${Number(item.total_amount || 0).toLocaleString()}원</strong>${item.due_at ? `<span>결제 기한 ${new Date(item.due_at).toLocaleString("ko-KR")}</span>` : ""}</div>
-      </div>${reviewActions}
-    </article>`;
-  }
-
-  async function loadExtraCharges(targetBusinessId = null) {
-    let query = client().from("reservation_extra_charge_requests")
-      .select("id, reservation_id, business_id, customer_id, items, total_amount, owner_note, review_note, status, due_at, paid_at, created_at, businesses(business_name), reservations(customer_name, offering_name, event_date)")
-      .order("created_at", { ascending: false });
-    if (targetBusinessId) query = query.eq("business_id", targetBusinessId);
-    const { data, error } = await query;
-    if (error) { console.error("Failed to load extra charges", error); return []; }
-    return data || [];
-  }
-
-  window.loadMotfPartnerExtraCharges = async function loadMotfPartnerExtraCharges() {
-    if (!client() || !window.motfCurrentBusiness || window.motfCurrentProfile?.role !== "partner") return;
-    const section = document.getElementById("partnerExtraChargeSection");
-    const list = document.getElementById("partnerExtraChargeList");
-    if (!section || !list || window.motfCurrentBusiness.business_type !== "stay") return;
-    section.hidden = false;
-    const rows = await loadExtraCharges(window.motfCurrentBusiness.id);
-    list.innerHTML = rows.length ? rows.map((item) => extraChargeCard(item)).join("") : '<p style="padding:18px 0;color:var(--muted);">아직 요청한 추가 이용금이 없습니다.</p>';
-    window.lucide?.createIcons();
-  };
-
-  window.loadMotfAdminExtraCharges = async function loadMotfAdminExtraCharges() {
+  window.loadMotfAdminModeration = async function loadMotfAdminModeration() {
     if (!client() || window.motfCurrentProfile?.role !== "admin") return;
-    const list = document.getElementById("adminExtraChargeList");
-    if (!list) return;
-    const rows = await loadExtraCharges();
-    list.innerHTML = rows.length ? rows.map((item) => extraChargeCard(item, true)).join("") : '<p style="padding:18px 0;color:var(--muted);">검토할 추가 이용금 요청이 없습니다.</p>';
-    window.lucide?.createIcons();
+    const [reviews, posts] = await Promise.all([
+      client().from("reviews").select("id, author_name, rating, body, is_hidden, report_count, created_at, businesses(business_name)").order("created_at", { ascending:false }).limit(500),
+      client().from("community_posts").select("id, author_name, title, body, is_hidden, report_count, created_at").order("created_at", { ascending:false }).limit(500),
+    ]);
+    if (reviews.error || posts.error) return console.error(reviews.error || posts.error);
+    masterExtendedData.reviews = (reviews.data || []).map((item) => ({
+      id:item.id, partner:escapeHtml(item.businesses?.business_name || "숙소"), rating:Math.max(1,Math.min(5,Math.round(Number(item.rating || 0) / (Number(item.rating || 0) > 5 ? 2 : 1)))),
+      text:escapeHtml(item.body), author:escapeHtml(item.author_name || "이용자"), date:new Date(item.created_at).toLocaleDateString("ko-KR"), hidden:item.is_hidden, reports:item.report_count || 0,
+    }));
+    masterExtendedData.community = (posts.data || []).map((item) => ({
+      id:item.id, title:escapeHtml(item.title), text:escapeHtml(item.body), author:escapeHtml(item.author_name || "익명"), date:new Date(item.created_at).toLocaleDateString("ko-KR"), hidden:item.is_hidden, reports:item.report_count || 0,
+    }));
+    window.renderMasterContent?.();
   };
 
-  window.motfOpenExtraChargeDialog = function motfOpenExtraChargeDialog(reservationId) {
-    const source = [...partnerTransactions, ...adminTransactions].find((item) => item.kind === "stay" && item.id === reservationId);
-    if (!source) return alert("확정 예약 정보를 찾지 못했습니다.");
-    document.getElementById("motfExtraChargeReservationId").value = reservationId;
-    document.getElementById("motfExtraChargeReservationSummary").innerHTML = `<strong>${escapeHtml(source.businessName)} · ${escapeHtml(source.target)}</strong><br>${escapeHtml(source.customerName)} · ${escapeHtml(source.date)}`;
-    document.getElementById("motfExtraChargeRows").innerHTML = "";
-    document.getElementById("motfExtraChargeNote").value = "";
-    document.getElementById("motfExtraChargeDueAt").value = "";
-    window.motfAddExtraChargeRow("additional_person", "추가인원");
-    document.getElementById("motfExtraChargeDialog").showModal();
-    window.lucide?.createIcons();
+  window.toggleMasterContent = async function toggleDatabaseMasterContent(id) {
+    if (window.motfCurrentProfile?.role !== "admin") return;
+    const table = masterContentTab === "reviews" ? "reviews" : "community_posts";
+    const item = masterExtendedData[masterContentTab].find((row) => row.id === id);
+    if (!item) return;
+    const { error } = await client().from(table).update({ is_hidden:!item.hidden }).eq("id", id);
+    if (error) return alert(error.message || "노출 상태를 변경하지 못했습니다.");
+    await window.loadMotfAdminModeration();
   };
-
-  window.motfAddExtraChargeRow = function motfAddExtraChargeRow(category = "other", label = "") {
-    const rows = document.getElementById("motfExtraChargeRows");
-    if (!rows) return;
-    const row = document.createElement("div");
-    row.className = "extra-charge-form-row";
-    row.innerHTML = `
-      <select data-extra-category>${extraChargeCategories.map(([value, text]) => `<option value="${value}" ${value === category ? "selected" : ""}>${text}</option>`).join("")}</select>
-      <input data-extra-label maxlength="60" value="${escapeHtml(label)}" placeholder="항목명">
-      <input data-extra-quantity type="number" min="1" value="1" aria-label="수량">
-      <input data-extra-money inputmode="numeric" placeholder="단가">
-      <button type="button" onclick="this.parentElement.remove(); motfUpdateExtraChargeTotal()" aria-label="항목 삭제"><i data-lucide="trash-2"></i></button>`;
-    rows.appendChild(row);
-    row.querySelectorAll("input,select").forEach((input) => input.addEventListener("input", window.motfUpdateExtraChargeTotal));
-    window.motfUpdateExtraChargeTotal();
-    window.lucide?.createIcons();
-  };
-
-  window.motfUpdateExtraChargeTotal = function motfUpdateExtraChargeTotal() {
-    let total = 0;
-    document.querySelectorAll("#motfExtraChargeRows .extra-charge-form-row").forEach((row) => {
-      total += Math.max(1, Number(row.querySelector("[data-extra-quantity]")?.value || 1)) * (Number(String(row.querySelector("[data-extra-money]")?.value || "").replace(/\D/g, "")) || 0);
-    });
-    const node = document.getElementById("motfExtraChargeTotal");
-    if (node) node.textContent = `${total.toLocaleString()}원`;
-  };
-
-  window.motfReviewExtraCharge = async function motfReviewExtraCharge(id, decision) {
-    const note = prompt(decision === "approved" ? "이용자에게 함께 전달할 메모가 있다면 입력해주세요." : "반려 사유를 입력해주세요.") || "";
-    if (decision === "rejected" && !note.trim()) return;
-    const { error } = await client().rpc("review_reservation_extra_charge_request", {
-      target_request_id: id,
-      review_decision: decision,
-      note,
-    });
-    if (error) return alert(error.message || "추가금 요청을 처리하지 못했습니다.");
-    await window.loadMotfAdminExtraCharges();
-    alert(decision === "approved" ? "이용자에게 추가금 결제 요청을 보냈습니다." : "추가금 요청을 반려했습니다.");
-  };
-
-  document.getElementById("motfExtraChargeForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const items = [...document.querySelectorAll("#motfExtraChargeRows .extra-charge-form-row")].map((row) => ({
-      category: row.querySelector("[data-extra-category]")?.value || "other",
-      label: row.querySelector("[data-extra-label]")?.value.trim() || "",
-      quantity: Math.max(1, Number(row.querySelector("[data-extra-quantity]")?.value || 1)),
-      unit_amount: Number(String(row.querySelector("[data-extra-money]")?.value || "").replace(/\D/g, "")) || 0,
-    })).filter((item) => item.label && item.unit_amount > 0);
-    if (!items.length) return alert("추가금 항목명과 단가를 입력해주세요.");
-    const submit = event.target.querySelector('[type="submit"]');
-    submit.disabled = true;
-    try {
-      const dueValue = document.getElementById("motfExtraChargeDueAt").value;
-      const { error } = await client().rpc("create_reservation_extra_charge_request", {
-        target_reservation_id: document.getElementById("motfExtraChargeReservationId").value,
-        charge_items: items,
-        request_note: document.getElementById("motfExtraChargeNote").value.trim() || null,
-        payment_due_at: dueValue ? new Date(dueValue).toISOString() : null,
-      });
-      if (error) throw error;
-      document.getElementById("motfExtraChargeDialog").close();
-      if (window.motfCurrentProfile?.role === "admin") await window.loadMotfAdminExtraCharges();
-      else await window.loadMotfPartnerExtraCharges();
-      alert(window.motfCurrentProfile?.role === "admin" ? "추가금 결제 요청을 등록했습니다." : "운영팀에 추가금 검토를 요청했습니다.");
-    } catch (error) {
-      alert(error.message || "추가금 요청을 등록하지 못했습니다.");
-    } finally { submit.disabled = false; }
-  });
 
   function scheduleChatReload() {
     window.clearTimeout(chatReloadTimer);
@@ -2173,6 +2064,8 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, scheduleChatReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, scheduleChatReload)
       .on("postgres_changes", { event: "*", schema: "public", table: "support_cases" }, () => window.loadMotfAdminSupportCases?.())
+      .on("postgres_changes", { event: "*", schema: "public", table: "reviews" }, () => window.loadMotfAdminModeration?.())
+      .on("postgres_changes", { event: "*", schema: "public", table: "community_posts" }, () => window.loadMotfAdminModeration?.())
       .subscribe();
   }, 0);
 })();

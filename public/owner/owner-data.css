@@ -29,6 +29,21 @@
   border-radius: 6px;
 }
 
+.owner-identity-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: #f2f6ef;
+  border: 1px solid #d7e0d1;
+  border-radius: 8px;
+}
+.owner-identity-step p { margin:4px 0 0; color:var(--muted); font-size:12px; line-height:1.4; }
+.owner-identity-result { margin:0 0 14px; padding:11px 13px; color:var(--teal-dark); background:#edf4e9; border:1px solid #cbd9c4; border-radius:8px; font-size:13px; }
+.owner-identity-result[hidden] { display:none; }
+
 .motf-auto-region {
   display: flex;
   align-items: center;
@@ -118,3 +133,180 @@
 .motf-photo-upload-preview img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
 .motf-photo-upload-preview figcaption { margin-top: 4px; color: var(--muted); font-size: 11px; }
 .motf-field-status { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+.admin-control-panel {
+  max-width: 1480px;
+}
+
+.admin-control-grid,
+.admin-control-split,
+.admin-form-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-control-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-control-split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.admin-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-control-card,
+.admin-control-split > section {
+  padding: 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.admin-control-card-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-control-card h2,
+.admin-control-split h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.admin-control-card label,
+.admin-control-row label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-control-card > label {
+  margin-bottom: 12px;
+}
+
+.admin-control-card input,
+.admin-control-card select,
+.admin-control-card textarea,
+.admin-control-row input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.admin-control-card textarea {
+  resize: vertical;
+}
+
+.admin-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-content-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-content-tabs button {
+  min-height: 38px;
+  padding: 0 14px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-content-tabs button.active {
+  color: var(--teal-dark);
+  background: var(--olive-soft);
+  border-color: color-mix(in srgb, var(--teal) 22%, var(--line));
+}
+
+.admin-control-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.admin-control-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(105px, 150px)) auto auto;
+  align-items: end;
+  gap: 10px;
+  padding: 13px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.admin-control-row.admin-content-row {
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: center;
+}
+
+.admin-control-row > div:first-child {
+  display: grid;
+  align-self: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-control-row strong,
+.admin-control-row span {
+  overflow-wrap: anywhere;
+}
+
+.admin-control-row span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.admin-inline-check {
+  display: flex !important;
+  align-items: center;
+  align-self: center;
+  gap: 6px !important;
+}
+
+.admin-inline-check input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.admin-control-empty,
+.admin-control-note {
+  padding: 18px;
+  color: var(--muted);
+  background: #f8f9f6;
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+@media (max-width: 1080px) {
+  .admin-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-control-row { grid-template-columns: minmax(200px, 1fr) repeat(2, minmax(100px, 130px)); }
+}
+
+@media (max-width: 720px) {
+  .admin-control-grid,
+  .admin-control-split,
+  .admin-form-grid,
+  .admin-control-row { grid-template-columns: 1fr; }
+  .admin-control-card-wide,
+  .admin-field-wide { grid-column: auto; }
+}
