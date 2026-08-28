@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import DashboardIcon from "@/components/DashboardIcon";
 
@@ -25,7 +25,7 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [reservationFilter, setReservationFilter] = useState("pending");
 
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setNotice("");
     const { data: userData } = await supabase.auth.getUser();
@@ -44,11 +44,11 @@ export default function PartnerDashboard({ supabase, profileName, onLogout }: { 
     if (reservationError) setNotice("2단계 데이터베이스 SQL을 먼저 적용해 주세요.");
     setReservations(reservationData || []);
     setConversations(conversationData || []);
-    if (!selectedConversation && conversationData?.[0]) setSelectedConversation(conversationData[0].id);
+    if (conversationData?.[0]) setSelectedConversation((current) => current || conversationData[0].id);
     setLoading(false);
-  }
+  }, [supabase]);
 
-  useEffect(() => { loadDashboard(); }, []);
+  useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
   useEffect(() => {
     if (!selectedConversation) { setMessages([]); return; }
