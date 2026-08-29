@@ -1926,11 +1926,36 @@
     const userList = document.getElementById("masterChatUserList");
     const messageArea = document.getElementById("masterChatMessageArea");
     const title = document.getElementById("masterChatPartnerTitle");
+    const searchResult = document.getElementById("masterChatSearchResult");
     if (!partnerList || !userList || !messageArea || !title) return;
 
+    const query = String(document.getElementById("masterChatSearch")?.value || "").trim().toLowerCase();
+    const businessNames = new Map(adminChatBusinesses.map((business) => [business.id, String(business.business_name || "").toLowerCase()]));
+    const visibleConversations = adminChatConversations.filter((conversation) => {
+      if (!query) return true;
+      const searchText = [
+        businessNames.get(conversation.business_id),
+        conversation.customer_name,
+        conversation.group_name,
+        ...conversation.messages.map((message) => message.text),
+      ].join(" ").toLowerCase();
+      return searchText.includes(query);
+    });
+    const visibleBusinesses = adminChatBusinesses.filter((business) => !query
+      || businessNames.get(business.id)?.includes(query)
+      || visibleConversations.some((conversation) => conversation.business_id === business.id));
+
+    if (!visibleBusinesses.some((business) => business.id === masterSelectedChatPartner)) {
+      masterSelectedChatPartner = visibleBusinesses[0]?.id || "";
+      masterSelectedChatUser = "";
+    }
+    if (searchResult) searchResult.textContent = query
+      ? `${visibleBusinesses.length}개 업장 · ${visibleConversations.length}개 대화`
+      : `${adminChatConversations.length}개 대화`;
+
     partnerList.innerHTML = "";
-    adminChatBusinesses.forEach((business) => {
-      const count = adminChatConversations.filter((chat) => chat.business_id === business.id).length;
+    visibleBusinesses.forEach((business) => {
+      const count = visibleConversations.filter((chat) => chat.business_id === business.id).length;
       const button = document.createElement("button");
       button.className = `master-list-item ${masterSelectedChatPartner === business.id ? "active" : ""}`;
       button.innerHTML = `<strong>${escapeHtml(business.business_name)}</strong><small>이용자 대화 ${count}건</small>`;
@@ -1941,9 +1966,10 @@
       };
       partnerList.appendChild(button);
     });
+    if (!visibleBusinesses.length) partnerList.innerHTML = '<p class="master-chat-empty">검색 결과가 없습니다.</p>';
 
-    const business = adminChatBusinesses.find((item) => item.id === masterSelectedChatPartner);
-    const conversations = adminChatConversations.filter((chat) => chat.business_id === masterSelectedChatPartner);
+    const business = visibleBusinesses.find((item) => item.id === masterSelectedChatPartner);
+    const conversations = visibleConversations.filter((chat) => chat.business_id === masterSelectedChatPartner);
     if (!conversations.some((chat) => chat.id === masterSelectedChatUser)) masterSelectedChatUser = conversations[0]?.id || "";
     title.innerText = business ? `${business.business_name} 사장님 채팅` : "파트너를 선택해 주세요";
     userList.innerHTML = "";
@@ -1959,6 +1985,7 @@
       };
       userList.appendChild(button);
     });
+    if (!conversations.length) userList.innerHTML = '<p class="master-chat-empty">일치하는 대화가 없습니다.</p>';
 
     const conversation = conversations.find((chat) => chat.id === masterSelectedChatUser);
     if (!conversation) {
@@ -2076,6 +2103,9 @@
   }
 
   document.addEventListener("input", (event) => {
+    if (event.target.id === "masterChatSearch") {
+      window.renderMasterChatMonitor?.();
+    }
     if (event.target.matches('input[type="tel"], #motfBusinessPhone, #motfOwnerPhone, [data-phone-input]')) {
       event.target.value = formatPhoneInput(event.target.value);
     }

@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
   <link rel="stylesheet" href="/owner/styles.css?v=20260811-market-photo1">
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -685,7 +688,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="/owner/owner-data.css?v=20260829-control2">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260829-hotfix1">
 </head>
 <body>
 
@@ -1111,6 +1114,11 @@
       <section id="panel-master-chat-monitor" class="panel">
         <h2 class="panel-title">사장님별 전체 채팅 모니터링</h2>
         <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:20px;">파트너 업장을 먼저 선택한 뒤, 해당 사장님이 이용자들과 나눈 모든 대화를 읽기 전용으로 확인합니다.</p>
+        <div class="master-chat-search-wrap">
+          <i data-lucide="search"></i>
+          <input id="masterChatSearch" type="search" placeholder="업장명·이용자·단체명·대화 내용 검색" autocomplete="off">
+          <span id="masterChatSearchResult" aria-live="polite"></span>
+        </div>
         <div class="master-split-layout">
           <div class="master-list-card">
             <div class="master-list-header"><strong>파트너 사장님</strong></div>
@@ -1515,7 +1523,10 @@
 
     function switchMasterPanel(panelId) {
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      document.getElementById(`panel-${panelId}`).classList.add('active');
+      const targetPanel = document.getElementById(`panel-${panelId}`);
+      if (!targetPanel) return;
+      targetPanel.classList.add('active');
+      document.querySelectorAll('.menu-item').forEach(button => button.classList.remove('active'));
       
       const btns = {
         'master-stats': document.getElementById('m-btn-stats'),
@@ -3066,8 +3077,8 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260829-control2"></script>
+  <script src="/owner/owner-data.js?v=20260829-hotfix1"></script>
   <script src="/owner/owner-identity.js?v=20260829-kcp1"></script>
-  <script src="/owner/admin-control.js?v=20260829-control2"></script>
+  <script src="/owner/admin-control.js?v=20260829-hotfix1"></script>
 </body>
 </html>

@@ -297,6 +297,49 @@
   font-size: 13px;
 }
 
+.master-chat-search-wrap {
+  display: grid;
+  grid-template-columns: 20px minmax(240px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  max-width: 720px;
+  min-height: 46px;
+  margin: 0 0 16px;
+  padding: 0 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.master-chat-search-wrap svg {
+  width: 18px;
+  color: var(--muted);
+}
+
+.master-chat-search-wrap input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+}
+
+.master-chat-search-wrap span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.master-chat-empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .admin-guide {
   margin: 0 0 16px;
   padding: 13px 14px;
