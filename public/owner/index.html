@@ -685,7 +685,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="/owner/owner-data.css?v=20260721-catalog1">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260829-control2">
 </head>
 <body>
 
@@ -1054,8 +1054,11 @@
 
       <section id="panel-master-partners" class="panel">
         <h2 class="panel-title">전체 가입 유저 및 파트너 업장 정보 종합 매니지먼트</h2>
-        
+
         <h3 style="color:var(--teal-dark); margin-bottom:12px;"><i data-lucide="users" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 🎓 본사 가입 전체 대학생 유저 및 학생회 목록 (정지/해제 제어)</h3>
+        <div class="admin-filter-row motf-directory-search-row">
+          <input id="masterUserSearch" type="search" placeholder="회원 이름·이메일·전화번호·소속 검색">
+        </div>
         <table class="master-admin-table" style="margin-bottom:40px;">
           <thead>
             <tr>
@@ -1071,6 +1074,9 @@
 
         <h3 style="color:var(--teal-dark); margin-bottom:12px;"><i data-lucide="store" style="width:16px; display:inline; vertical-align:middle; margin-right:4px;"></i> 🏢 본사 가입 및 입점 심사 파트너사 목록 (업장 클릭 시 하단 누적 매출 전개)</h3>
         <p style="font-size:13px; color:var(--muted); margin-top:-6px; margin-bottom:16px;">아래 업장 행을 클릭하시면, 해당 파트너사에서 여태까지 발생한 누적 상세 매출 정보가 하단에 동적 전개됩니다.</p>
+        <div class="admin-filter-row motf-directory-search-row">
+          <input id="masterPartnerSearch" type="search" placeholder="업장명·대표자 이메일·사업자번호 검색">
+        </div>
         <table class="master-admin-table" style="margin-bottom:24px;">
           <thead>
             <tr>
@@ -1136,6 +1142,7 @@
         <h2 class="panel-title">운영팀 예약 관리</h2>
         <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:20px;">사장님이 직접 처리하기 어려운 예약을 운영팀이 대신 확정하거나 거절할 수 있습니다.</p>
         <div class="admin-filter-row">
+          <input id="masterOrderSearch" type="search" placeholder="숙소·객실·예약자 검색" oninput="renderMasterOrders()">
           <select id="masterOrderPartnerFilter" onchange="renderMasterOrders()"><option value="all">전체 파트너</option></select>
           <select id="masterOrderStatusFilter" onchange="renderMasterOrders()"><option value="all">전체 상태</option><option value="pending">확정 대기</option><option value="confirm">예약 확정</option><option value="past">지난 예약</option><option value="reject">거절</option></select>
         </div>
@@ -3059,8 +3066,8 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260811-market-photo1"></script>
+  <script src="/owner/owner-data.js?v=20260829-control2"></script>
   <script src="/owner/owner-identity.js?v=20260829-kcp1"></script>
-  <script src="/owner/admin-control.js?v=20260829-launch1"></script>
+  <script src="/owner/admin-control.js?v=20260829-control2"></script>
 </body>
 </html>

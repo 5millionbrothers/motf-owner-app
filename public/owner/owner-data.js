@@ -5,6 +5,10 @@
   const originalRenderMasterOrders = window.renderMasterOrders;
   const originalSendChatMessage = window.sendChatMessage;
   const originalRenderMasterCases = window.renderMasterCases;
+  let adminDirectoryProfiles = [];
+  let adminDirectoryBusinesses = [];
+  let adminDirectoryOfferings = [];
+  let directorySearchBound = false;
 
   const businessSelect = [
     "id",
@@ -1005,7 +1009,9 @@
   function renderUsers(profiles) {
     const body = document.getElementById("masterUserControlTableBody");
     if (!body) return;
-    const users = profiles.filter((profile) => profile.role === "user");
+    const query = document.getElementById("masterUserSearch")?.value.trim().toLowerCase() || "";
+    const users = profiles.filter((profile) => profile.role === "user" && [profile.full_name, profile.email, profile.phone, profile.organization]
+      .some((value) => String(value || "").toLowerCase().includes(query)));
     if (!users.length) {
       body.innerHTML = '<tr class="motf-admin-empty-row"><td colspan="5">가입한 이용자가 없습니다.</td></tr>';
       return;
@@ -1024,7 +1030,13 @@
   function renderPartners(profiles, businesses, offerings) {
     const body = document.getElementById("masterPartnerControlTableBody");
     if (!body) return;
-    const partners = profiles.filter((profile) => profile.role === "partner");
+    const query = document.getElementById("masterPartnerSearch")?.value.trim().toLowerCase() || "";
+    const partners = profiles.filter((profile) => {
+      if (profile.role !== "partner") return false;
+      const business = businesses.find((item) => item.owner_id === profile.id);
+      return [profile.full_name, profile.email, profile.phone, business?.business_name, business?.business_number]
+        .some((value) => String(value || "").toLowerCase().includes(query));
+    });
     if (!partners.length) {
       body.innerHTML = '<tr class="motf-admin-empty-row"><td colspan="5">가입한 파트너가 없습니다.</td></tr>';
       return;
@@ -1084,8 +1096,16 @@
     }
 
     const profiles = profileResult.data || [];
-    renderUsers(profiles);
-    renderPartners(profiles, businessResult.data || [], offeringResult.data || []);
+    adminDirectoryProfiles = profiles;
+    adminDirectoryBusinesses = businessResult.data || [];
+    adminDirectoryOfferings = offeringResult.data || [];
+    renderUsers(adminDirectoryProfiles);
+    renderPartners(adminDirectoryProfiles, adminDirectoryBusinesses, adminDirectoryOfferings);
+    if (!directorySearchBound) {
+      directorySearchBound = true;
+      document.getElementById("masterUserSearch")?.addEventListener("input", () => renderUsers(adminDirectoryProfiles));
+      document.getElementById("masterPartnerSearch")?.addEventListener("input", () => renderPartners(adminDirectoryProfiles, adminDirectoryBusinesses, adminDirectoryOfferings));
+    }
 
     const localDateKey = (value) => {
       const date = new Date(value);
@@ -1507,7 +1527,11 @@
       ...(orderResult.data || []).map((item) => ({ kind:"market", id:item.id, businessId:item.business_id, businessName:nameOf(item.business_id), customerName:item.customer_name, date:`${String(item.created_at || "").slice(0,10)} ${String(item.pickup_time || "").slice(0,5)}`.trim(), target:(item.market_order_items || []).map((row)=>`${row.item_name} ${row.quantity}개`).join(", "), amount:item.total_amount, status:item.status, rejectReason:item.reject_reason, refundStatus:item.refund_status, refundAmount:item.refund_amount })),
     ];
     const filter = document.getElementById("masterOrderPartnerFilter");
-    if (filter) filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
+    if (filter) {
+      const selected = filter.value || "all";
+      filter.innerHTML = '<option value="all">전체 파트너</option>' + businesses.map((item) => `<option value="${item.id}">${escapeHtml(item.business_name)}</option>`).join("");
+      filter.value = [...filter.options].some((option) => option.value === selected) ? selected : "all";
+    }
     renderAdminTransactionSummary();
     window.renderMasterOrders();
     loadMotfAdminSettlements();
@@ -1667,12 +1691,16 @@
     renderAvailabilityManager("master", null);
     const businessFilter = document.getElementById("masterOrderPartnerFilter")?.value || "all";
     const rawStatus = document.getElementById("masterOrderStatusFilter")?.value || "all";
+    const search = document.getElementById("masterOrderSearch")?.value.trim().toLowerCase() || "";
     const statusMap = { confirm:"confirmed", past:"completed", reject:"rejected" };
     const statusFilter = statusMap[rawStatus] || rawStatus;
+    const pendingStatuses = new Set(["pending", "prepared", "virtual_account_issued", "waiting_for_deposit"]);
     const rows = adminTransactions.filter((item) => {
       const matchesBusiness = businessFilter === "all" || item.businessId === businessFilter;
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter || (statusFilter === "pending" && item.status === "virtual_account_issued");
-      return matchesBusiness && matchesStatus;
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter || (statusFilter === "pending" && pendingStatuses.has(item.status));
+      const matchesSearch = !search || [item.businessName, item.customerName, item.target, item.date, item.id]
+        .some((value) => String(value || "").toLowerCase().includes(search));
+      return matchesBusiness && matchesStatus && matchesSearch;
     });
     area.innerHTML = rows.length ? rows.map((item) => transactionCard(item, true)).join("") : '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 실제 요청이 없습니다.</p>';
   };

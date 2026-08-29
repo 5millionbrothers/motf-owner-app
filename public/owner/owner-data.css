@@ -297,6 +297,65 @@
   font-size: 13px;
 }
 
+.admin-guide {
+  margin: 0 0 16px;
+  padding: 13px 14px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--teal) 5%, #fff);
+  border: 1px solid color-mix(in srgb, var(--teal) 18%, var(--line));
+  border-radius: 6px;
+}
+
+.admin-guide strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--teal-dark);
+  font-size: 13px;
+}
+
+.admin-guide p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.admin-list-toolbar,
+.motf-directory-search-row {
+  display: flex;
+  margin: 0 0 14px;
+}
+
+.admin-list-toolbar input,
+.motf-directory-search-row input,
+#masterOrderSearch {
+  width: min(100%, 420px);
+  min-height: 40px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.admin-control-card input[type="file"] {
+  min-height: 44px;
+  padding: 7px;
+  cursor: pointer;
+}
+
+.admin-control-card input[type="file"]::file-selector-button {
+  min-height: 28px;
+  margin-right: 8px;
+  padding: 0 10px;
+  color: var(--teal-dark);
+  background: var(--olive-soft);
+  border: 0;
+  border-radius: 4px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (max-width: 1080px) {
   .admin-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-control-row { grid-template-columns: minmax(200px, 1fr) repeat(2, minmax(100px, 130px)); }
