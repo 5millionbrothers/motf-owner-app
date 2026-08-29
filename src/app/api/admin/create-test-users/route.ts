@@ -8,6 +8,14 @@ function env(name: string) {
   return String(process.env[name] || "").trim();
 }
 
+function firstEnv(...names: string[]) {
+  for (const name of names) {
+    const value = env(name);
+    if (value) return value;
+  }
+  return "";
+}
+
 function response(status: number, body: Record<string, unknown>) {
   return NextResponse.json(body, {
     status,
@@ -91,11 +99,29 @@ async function ensureTestUser(
 }
 
 export async function POST(request: NextRequest) {
-  const url = env("NEXT_PUBLIC_SUPABASE_URL");
-  const publishableKey = env("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-  const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !publishableKey || !serviceRoleKey) {
-    return response(503, { ok: false, message: "Supabase 서버 환경변수가 설정되지 않았습니다." });
+  const url = firstEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL");
+  const publishableKey = firstEnv(
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_ANON_KEY",
+  );
+  const serviceRoleKey = firstEnv(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_KEY",
+  );
+  const missing = [
+    !url && "Supabase URL",
+    !publishableKey && "Publishable Key",
+    !serviceRoleKey && "Service Role 또는 Secret Key",
+  ].filter(Boolean);
+  if (missing.length) {
+    return response(503, {
+      ok: false,
+      message: `Vercel 서버 환경변수 누락: ${missing.join(", ")}`,
+      missing,
+    });
   }
 
   const authorization = request.headers.get("authorization") || "";
