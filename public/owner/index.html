@@ -688,7 +688,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="/owner/owner-data.css?v=20260829-hotfix1">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260829-ownerops1">
 </head>
 <body>
 
@@ -725,7 +725,7 @@
       <div class="auth-modal-head"><h2 id="signupTitle">파트너 회원가입</h2><button class="modal-close-btn" type="button" onclick="closeSignupModal()" aria-label="닫기">×</button></div>
       <div id="signupSuccessMessage" class="signup-success"></div>
       <form id="signupForm" onsubmit="handleSignup(event)">
-        <div class="owner-identity-step"><div><strong>1. 휴대폰 본인인증</strong><p>대표자 이름·연락처·생년월일을 확인합니다.</p></div><button type="button" class="secondary-btn" onclick="startOwnerIdentity('owner_signup')">본인인증</button></div>
+        <div class="owner-identity-step"><div><strong>1. 휴대폰 본인인증</strong><p>신규 파트너 가입에 필수입니다. 기존 가입 계정은 추가 인증 없이 로그인할 수 있습니다.</p></div><button type="button" class="secondary-btn" onclick="startOwnerIdentity('owner_signup')">본인인증</button></div>
         <div id="ownerSignupIdentityResult" class="owner-identity-result" hidden></div>
         <div class="form-group"><label for="signupRole" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">파트너 유형</label><select id="signupRole" required><option value="">유형을 선택하세요</option><option value="stay">숙소 사장님</option><option value="market">공판장 사장님</option></select></div>
         <div class="form-group"><label for="signupBusinessName" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">업장명</label><input id="signupBusinessName" type="text" placeholder="예: 가평 모티프 펜션" required></div>
@@ -765,11 +765,15 @@
       
       <nav class="sidebar-menu-wrapper" id="dynamic-sidebar-menu-target-box">
         <ul class="sidebar-menu">
-          <li><button class="menu-item active" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
+          <li><button class="menu-item active" onclick="switchPanel('operations')"><i data-lucide="layout-dashboard"></i> 운영 홈</button></li>
+          <li><button class="menu-item" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
           <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
           <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
           <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
+          <li><button class="menu-item" onclick="switchPanel('reviews')"><i data-lucide="star"></i> 리뷰 관리</button></li>
+          <li><button class="menu-item" onclick="switchPanel('settlements')"><i data-lucide="receipt-text"></i> 정산 내역</button></li>
           <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출 관리</button></li>
+          <li><button class="menu-item" onclick="switchPanel('mypage')"><i data-lucide="store"></i> 업장 정보</button></li>
         </ul>
       </nav>
     </aside>
@@ -784,7 +788,33 @@
         </button>
       </header>
 
-      <section id="panel-calendar" class="panel active">
+      <section id="panel-operations" class="panel active">
+        <div class="owner-operations-heading">
+          <div>
+            <p class="panel-eyebrow">오늘의 업장 운영</p>
+            <h2 class="panel-title">운영 홈</h2>
+            <p id="ownerOperationsGreeting">예약과 문의, 리뷰, 정산 상태를 한 번에 확인하세요.</p>
+          </div>
+          <button class="secondary-btn" type="button" onclick="motfRefreshPartnerOperations(true)"><i data-lucide="refresh-cw"></i> 새로고침</button>
+        </div>
+        <div id="ownerOperationsStats" class="owner-operations-stats" aria-live="polite"></div>
+        <div class="owner-operations-layout">
+          <section class="owner-operations-card owner-operations-card-wide">
+            <div class="owner-section-head"><div><h3>바로 처리할 일</h3><p>승인, 문의, 공실 상태를 놓치지 않도록 모았습니다.</p></div></div>
+            <div id="ownerOperationsTasks" class="owner-task-list"></div>
+          </section>
+          <section class="owner-operations-card">
+            <div class="owner-section-head"><div><h3>업장 준비 상태</h3><p>이용자에게 잘 노출되기 위한 필수 항목입니다.</p></div><button type="button" class="owner-text-button" onclick="switchPanel('mypage')">업장 정보 수정</button></div>
+            <div id="ownerBusinessHealth" class="owner-health-list"></div>
+          </section>
+          <section class="owner-operations-card">
+            <div class="owner-section-head"><div><h3>최근 활동</h3><p>최근 예약과 리뷰 변화를 확인하세요.</p></div></div>
+            <div id="ownerRecentActivity" class="owner-activity-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="panel-calendar" class="panel">
         <h2 class="panel-title">월간 스케줄 현황</h2>
         <div class="calendar-controls">
           <button class="secondary-btn" onclick="adjustMonth(-1)"><i data-lucide="chevron-left"></i> 이전 달</button>
@@ -806,6 +836,12 @@
 
       <section id="panel-orders" class="panel">
         <h2 class="panel-title" id="order-panel-main-title">예약 및 승인 관리</h2>
+        <div class="owner-list-toolbar">
+          <label class="owner-search-field"><i data-lucide="search"></i><input id="ownerOrderSearch" type="search" placeholder="예약자·단체·객실 검색" oninput="renderOrders()"></label>
+          <label><span>이용 시작</span><input id="ownerOrderDateFrom" type="date" onchange="renderOrders()"></label>
+          <label><span>이용 종료</span><input id="ownerOrderDateTo" type="date" onchange="renderOrders()"></label>
+          <button class="secondary-btn" type="button" onclick="motfExportPartnerOrders()"><i data-lucide="download"></i> 엑셀용 CSV</button>
+        </div>
         <div class="tab-container">
           <button class="tab-btn active" onclick="switchOrderTab('pending')">확정 대기</button>
           <button class="tab-btn" onclick="switchOrderTab('confirm')">예약 확정</button>
@@ -838,6 +874,34 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <section id="panel-reviews" class="panel">
+        <div class="owner-panel-heading-row">
+          <div><p class="panel-eyebrow">이용자 경험 확인</p><h2 class="panel-title">리뷰 관리</h2><p>우리 업장의 평점 흐름과 실제 후기를 한곳에서 확인합니다.</p></div>
+          <button class="secondary-btn" type="button" onclick="motfLoadPartnerReviews(true)"><i data-lucide="refresh-cw"></i> 새로고침</button>
+        </div>
+        <div id="ownerReviewStats" class="owner-review-summary"></div>
+        <div class="owner-list-toolbar owner-review-toolbar">
+          <label class="owner-search-field"><i data-lucide="search"></i><input id="ownerReviewSearch" type="search" placeholder="후기 내용·작성자 검색" oninput="motfRenderPartnerReviews()"></label>
+          <label><span>평점</span><select id="ownerReviewRatingFilter" onchange="motfRenderPartnerReviews()"><option value="all">전체 평점</option><option value="high">4점 이상</option><option value="low">3점 이하</option><option value="photo">사진 후기</option></select></label>
+        </div>
+        <div id="ownerReviewList" class="owner-review-list"></div>
+      </section>
+
+      <section id="panel-settlements" class="panel">
+        <div class="owner-panel-heading-row">
+          <div><p class="panel-eyebrow">거래별 지급 명세</p><h2 class="panel-title">정산 내역</h2><p>판매금액, 수수료와 실제 지급 예정액을 거래별로 확인합니다.</p></div>
+          <button class="secondary-btn" type="button" onclick="motfLoadPartnerSettlements(true)"><i data-lucide="refresh-cw"></i> 새로고침</button>
+        </div>
+        <div id="ownerSettlementStats" class="owner-operations-stats"></div>
+        <div class="owner-list-toolbar">
+          <label><span>정산 상태</span><select id="ownerSettlementStatus" onchange="motfRenderPartnerSettlements()"><option value="all">전체</option><option value="pending">정산 예정</option><option value="paid">정산 완료</option></select></label>
+          <label><span>시작일</span><input id="ownerSettlementFrom" type="date" onchange="motfRenderPartnerSettlements()"></label>
+          <label><span>종료일</span><input id="ownerSettlementTo" type="date" onchange="motfRenderPartnerSettlements()"></label>
+          <button class="secondary-btn" type="button" onclick="motfExportPartnerSettlements()"><i data-lucide="download"></i> 정산 CSV</button>
+        </div>
+        <div id="ownerSettlementList" class="owner-settlement-list"></div>
       </section>
 
       <section id="panel-revenue" class="panel">
@@ -902,7 +966,7 @@
           <label class="motf-field-wide">정산 예금주
             <input id="motfSettlementHolder" maxlength="50" placeholder="사업자 또는 대표자명과 동일하게 입력" />
           </label>
-          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌 정보는 입력 화면만 먼저 준비된 상태입니다. 실제 저장은 정산 DB 컬럼 연결 후 활성화됩니다.</p>
+          <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌는 변경사항 저장 시 함께 보관됩니다. 예금주는 사업자 또는 대표자명과 일치하게 입력해주세요.</p>
         </div>
 
         <h3>서비스 제공 유저화면 미리보기</h3>
@@ -1914,11 +1978,15 @@
       const menuBox = document.getElementById('dynamic-sidebar-menu-target-box');
       menuBox.innerHTML = `
         <ul class="sidebar-menu">
-          <li><button class="menu-item active" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
+          <li><button class="menu-item active" onclick="switchPanel('operations')"><i data-lucide="layout-dashboard"></i> 운영 홈</button></li>
+          <li><button class="menu-item" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
           <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
           <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
           <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
+          <li><button class="menu-item" onclick="switchPanel('reviews')"><i data-lucide="star"></i> 리뷰 관리</button></li>
+          <li><button class="menu-item" onclick="switchPanel('settlements')"><i data-lucide="receipt-text"></i> 정산 내역</button></li>
           <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출 관리</button></li>
+          <li><button class="menu-item" onclick="switchPanel('mypage')"><i data-lucide="store"></i> 업장 정보</button></li>
         </ul>
       `;
 
@@ -1927,7 +1995,7 @@
       const manageTitle = document.getElementById('partner-manage-title');
       if (manageTitle) manageTitle.innerText = '마이페이지';
 
-      switchPanel('calendar'); 
+      switchPanel('operations');
 
       document.getElementById('sidebar-owner-name').innerText = data.name;
 
@@ -2297,7 +2365,9 @@
     function switchPanel(panelId) {
       currentActivePanel = panelId;
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      document.getElementById(`panel-${panelId}`).classList.add('active');
+      const targetPanel = document.getElementById(`panel-${panelId}`);
+      if (!targetPanel) return;
+      targetPanel.classList.add('active');
       document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
       
       document.querySelectorAll('.menu-item').forEach(item => {
@@ -2934,6 +3004,7 @@
         window.loadMotfPartnerBusiness?.(business, window.motfCurrentProfile);
         window.loadMotfPartnerTransactions?.(business);
         window.loadMotfPartnerChats?.(business);
+        window.motfRefreshPartnerOperations?.(true);
       }
 
       window.handleLogin = async function(event) {
@@ -2953,6 +3024,7 @@
           document.getElementById('login-view').style.display = 'flex';
           window.motfCurrentProfile = null;
           window.motfCurrentBusiness = null;
+          window.motfCurrentSettlementAccount = null;
           const code = error.code || '';
           const message = String(error.message || '').toLowerCase();
           if (code === 'email_not_confirmed' || message.includes('email not confirmed')) {
@@ -2967,50 +3039,9 @@
         }
       };
 
-      window.handleSignup = async function(event) {
+      window.handleSignup = function(event) {
         event.preventDefault();
-        const submitButton = event.submitter;
-        const password = document.getElementById('signupPassword').value;
-        const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
-        if (password !== passwordConfirm) return alert('비밀번호 확인이 일치하지 않습니다.');
-
-        const email = document.getElementById('signupId').value.trim();
-        if (submitButton) { submitButton.disabled = true; submitButton.textContent = '가입 처리 중...'; }
-        try {
-          const { data, error } = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-              emailRedirectTo: `${location.origin}/`,
-              data: {
-                account_type: 'partner',
-                business_type: document.getElementById('signupRole').value,
-                business_name: document.getElementById('signupBusinessName').value.trim(),
-                full_name: document.getElementById('signupOwnerName').value.trim(),
-                phone: document.getElementById('signupPhone').value.trim()
-              }
-            }
-          });
-          if (error) {
-            const rateLimited = error.status === 429 || /rate limit/i.test(error.message || '');
-            return alert(rateLimited
-              ? '인증 메일 요청이 많습니다. 잠시 후 다시 시도해 주세요.'
-              : `회원가입을 완료하지 못했습니다. ${error.message || ''}`.trim());
-          }
-
-          document.getElementById('ownerId').value = email;
-          closeSignupModal();
-          document.getElementById('signupForm').reset();
-          if (Array.isArray(data?.user?.identities) && data.user.identities.length === 0) {
-            alert('이미 가입된 이메일일 수 있습니다. 로그인하거나 아래의 인증 메일 다시 받기를 이용해 주세요.');
-          } else {
-            alert('인증 메일을 보냈습니다. 메일의 인증 링크를 누른 뒤 로그인해 주세요.');
-          }
-        } catch (signupError) {
-          alert(`회원가입 요청 중 오류가 발생했습니다. ${signupError?.message || ''}`.trim());
-        } finally {
-          if (submitButton) { submitButton.disabled = false; submitButton.textContent = '가입 완료'; }
-        }
+        alert('휴대폰 본인인증 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       };
 
       window.handleConfirmationResend = async function() {
@@ -3056,6 +3087,7 @@
         document.getElementById('ownerPw').value = '';
         window.motfCurrentProfile = null;
         window.motfCurrentBusiness = null;
+        window.motfCurrentSettlementAccount = null;
       };
 
       window.handleKakaoLogin = function() {
@@ -3071,14 +3103,18 @@
             await supabaseClient.auth.signOut();
             document.getElementById('admin-main').style.display = 'none';
             document.getElementById('login-view').style.display = 'flex';
+            window.motfCurrentProfile = null;
+            window.motfCurrentBusiness = null;
+            window.motfCurrentSettlementAccount = null;
             console.warn(error.message);
           }
         }
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260829-hotfix1"></script>
-  <script src="/owner/owner-identity.js?v=20260829-kcp1"></script>
-  <script src="/owner/admin-control.js?v=20260829-hotfix1"></script>
+  <script src="/owner/owner-data.js?v=20260829-ownerops1"></script>
+  <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
+  <script src="/owner/admin-control.js?v=20260829-ownerops1"></script>
+  <script src="/owner/owner-operations.js?v=20260829-ownerops1"></script>
 </body>
 </html>

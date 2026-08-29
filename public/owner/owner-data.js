@@ -562,10 +562,13 @@
   function populateOwnerAccountFields() {
     const profile = window.motfCurrentProfile || {};
     const business = window.motfCurrentBusiness || {};
+    const settlement = window.motfCurrentSettlementAccount || {};
     const values = {
       motfOwnerEmail: profile.email || "",
       motfOwnerPhone: profile.phone || business.phone || "",
-      motfSettlementHolder: business.representative_name || profile.full_name || "",
+      motfSettlementBank: settlement.bank_name || "",
+      motfSettlementAccount: settlement.account_number || "",
+      motfSettlementHolder: settlement.account_holder || business.representative_name || profile.full_name || "",
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
@@ -756,6 +759,24 @@
     if (!business) return;
     ensurePartnerFields();
     populateOwnerAccountFields();
+    client().from("business_settlement_accounts")
+      .select("business_id,bank_name,account_number,account_holder,updated_at")
+      .eq("business_id", business.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) return console.warn("Could not load settlement account.", error);
+        window.motfCurrentSettlementAccount = data || null;
+        const settlementValues = {
+          motfSettlementBank: data?.bank_name || "",
+          motfSettlementAccount: data?.account_number || "",
+          motfSettlementHolder: data?.account_holder || business.representative_name || window.motfCurrentProfile?.full_name || "",
+        };
+        Object.entries(settlementValues).forEach(([id, value]) => {
+          const input = document.getElementById(id);
+          if (input) input.value = value;
+        });
+        window.motfRefreshPartnerOperations?.(true);
+      });
     const values = {
       motfBusinessName: business.business_name,
       motfRepresentativeName: business.representative_name,
@@ -885,6 +906,14 @@
       updated_at: new Date().toISOString(),
     };
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
+    const settlementPayload = {
+      business_id: business.id,
+      bank_name: document.getElementById("motfSettlementBank")?.value.trim() || "",
+      account_number: document.getElementById("motfSettlementAccount")?.value.replace(/[^0-9-]/g, "").trim() || "",
+      account_holder: document.getElementById("motfSettlementHolder")?.value.trim() || "",
+      updated_at: new Date().toISOString(),
+    };
+    const hasSettlementValue = Boolean(settlementPayload.bank_name || settlementPayload.account_number || settlementPayload.account_holder);
 
     if (!payload.business_name || !payload.representative_name || !payload.region || !payload.address || !payload.description) {
       alert("업장명, 대표자명, 주소와 소개 문구를 모두 입력해주세요. 운영 지역은 주소에서 자동 설정됩니다.");
@@ -894,6 +923,10 @@
     const offeringItems = window.motfReadOfferingsFromDashboard?.() || [];
     if (!offeringItems.length || offeringItems.some((item) => !item.name || Number(item.price) <= 0)) {
       alert("객실 또는 상품을 하나 이상 추가하고 이름과 가격을 입력해주세요.");
+      return;
+    }
+    if (hasSettlementValue && (!settlementPayload.bank_name || !settlementPayload.account_number || !settlementPayload.account_holder)) {
+      alert("정산 계좌를 등록하려면 은행, 계좌번호, 예금주를 모두 입력해주세요.");
       return;
     }
     const saveButton = document.querySelector('#panel-mypage button[onclick="saveMypageData()"]');
@@ -919,7 +952,7 @@
         .select(businessSelect)
         .single();
       if (businessResult.error) throw businessResult.error;
-      const [offeringResult, profileResult] = await Promise.all([
+      const [offeringResult, profileResult, settlementResult] = await Promise.all([
         client().rpc("save_business_offerings", {
           target_business_id: business.id,
           items: offeringItems,
@@ -927,8 +960,13 @@
         ownerPhone
           ? client().from("profiles").update({ phone: ownerPhone, updated_at: new Date().toISOString() }).eq("id", window.motfCurrentProfile?.id)
           : Promise.resolve({ error: null }),
+        hasSettlementValue
+          ? client().from("business_settlement_accounts").upsert(settlementPayload, { onConflict: "business_id" })
+          : Promise.resolve({ error: null }),
       ]);
-      if (offeringResult.error || profileResult.error) throw offeringResult.error || profileResult.error;
+      if (offeringResult.error || profileResult.error || settlementResult.error) {
+        throw offeringResult.error || profileResult.error || settlementResult.error;
+      }
       await Promise.all([
         client().rpc("refresh_business_nearby_distances", { target_business_id: business.id }),
         client().rpc("refresh_business_highlights", { target_business_id: business.id }),
@@ -938,6 +976,7 @@
 
       const data = refreshed.data;
       window.motfCurrentBusiness = data;
+      if (hasSettlementValue) window.motfCurrentSettlementAccount = settlementPayload;
       if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
       window.motfApplyBusinessToDashboard?.(data);
       window.motfSetPartnerOnboarding?.(false);
@@ -1018,7 +1057,7 @@
     }
     body.innerHTML = users.map((profile) => `
       <tr>
-        <td><strong>${escapeHtml(profile.full_name || "이름 미등록")}</strong><br><small>${escapeHtml(profile.email || "")}</small></td>
+        <td><strong>${escapeHtml(profile.full_name || "이름 미등록")}</strong>${profile.is_test_account ? ' <span class="master-status-badge master-badge-waiting">내부 테스트</span>' : ""}<br><small>${escapeHtml(profile.email || "")}</small></td>
         <td>${escapeHtml(profile.phone || "미등록")}</td>
         <td>${escapeHtml(profile.organization || "미등록")}</td>
         <td>${statusBadge(profile.status)}</td>
@@ -1077,7 +1116,7 @@
 
     const [profileResult, businessResult, offeringResult] = await Promise.all([
       client().from("profiles")
-        .select("id, email, full_name, phone, organization, role, status, created_at")
+        .select("id, email, full_name, phone, organization, role, status, is_test_account, created_at")
         .order("created_at", { ascending: false }),
       client().from("businesses")
         .select(businessSelect)
@@ -1501,12 +1540,49 @@
     const area = document.getElementById("orderListArea");
     if (!area) return;
     const activeStatus = activePartnerOrderStatus();
-    const rows = partnerTransactions.filter((item) => activeStatus === "pending"
-      ? ["pending", "virtual_account_issued"].includes(item.status)
-      : item.status === activeStatus);
+    const query = String(document.getElementById("ownerOrderSearch")?.value || "").trim().toLowerCase();
+    const from = document.getElementById("ownerOrderDateFrom")?.value || "";
+    const to = document.getElementById("ownerOrderDateTo")?.value || "";
+    const rows = partnerTransactions.filter((item) => {
+      const statusMatches = activeStatus === "pending"
+        ? ["pending", "virtual_account_issued"].includes(item.status)
+        : item.status === activeStatus;
+      const date = String(item.date || "").slice(0, 10);
+      const searchText = [item.businessName, item.customerName, item.target, item.id].join(" ").toLowerCase();
+      return statusMatches
+        && (!query || searchText.includes(query))
+        && (!from || date >= from)
+        && (!to || date <= to);
+    });
     area.innerHTML = rows.length
       ? rows.map((item) => transactionCard(item)).join("")
       : '<p style="padding:24px;text-align:center;color:var(--muted);">조건에 맞는 실제 요청이 없습니다.</p>';
+  };
+
+  function downloadCsv(filename, rows) {
+    const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  window.motfExportPartnerOrders = function exportPartnerOrders() {
+    const query = String(document.getElementById("ownerOrderSearch")?.value || "").trim().toLowerCase();
+    const from = document.getElementById("ownerOrderDateFrom")?.value || "";
+    const to = document.getElementById("ownerOrderDateTo")?.value || "";
+    const rows = partnerTransactions.filter((item) => {
+      const date = String(item.date || "").slice(0, 10);
+      const searchText = [item.businessName, item.customerName, item.target, item.id].join(" ").toLowerCase();
+      return (!query || searchText.includes(query)) && (!from || date >= from) && (!to || date <= to);
+    });
+    if (!rows.length) return alert("내보낼 예약·주문 내역이 없습니다.");
+    downloadCsv(`motf-${window.motfCurrentBusiness?.business_type === "market" ? "orders" : "reservations"}-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ["거래번호", "이용자", "이용일", "객실/상품", "금액", "상태", "환불상태"],
+      ...rows.map((item) => [item.id, item.customerName, item.date, item.target, item.amount, transactionDisplayStatus(item), item.refundStatus || "none"]),
+    ]);
   };
 
   window.loadMotfAdminTransactions = async function loadMotfAdminTransactions() {
