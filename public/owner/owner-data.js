@@ -1260,7 +1260,12 @@
         <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
       </div>
-    ` : `<div class="item-actions"><span class="master-status-badge ${item.status === "rejected" ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span></div>`;
+    ` : item.status === "confirmed" && admin ? `
+      <div class="item-actions">
+        <span class="master-status-badge master-badge-active">예약 확정</span>
+        <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','cancelled')">운영팀 취소·환불</button>
+      </div>
+    ` : `<div class="item-actions"><span class="master-status-badge ${["rejected", "cancelled"].includes(item.status) ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span></div>`;
     return `
       <div class="item-card">
         <div style="flex:1;">
@@ -1377,15 +1382,15 @@
     return `
       <div class="info-panel" style="margin-bottom:18px;">
         <div class="section-toolbar" style="margin-bottom:12px;">
-          <h3 style="margin:0;">수동 공실/품절 관리</h3>
-          <span>외부 예약이나 전화 예약이 들어오면 여기서 직접 방을 막아둘 수 있습니다.</span>
+          <h3 style="margin:0;">수기 예약·방 잡기</h3>
+          <span>전화·외부 예약 또는 현장 오류 대응 시 객실과 기간을 골라 즉시 판매를 막습니다.</span>
         </div>
         <div class="admin-filter-row">
           <select id="${scope}AvailabilityOffering">${options}</select>
           <input id="${scope}AvailabilityStart" type="date" value="${today}" />
           <input id="${scope}AvailabilityEnd" type="date" value="${tomorrow}" />
           <input id="${scope}AvailabilityNote" placeholder="메모 예: 네이버 예약, 전화 예약" />
-          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">품절 처리</button>
+          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">예약 잡기</button>
         </div>
         <table class="master-admin-table">
           <thead><tr><th>숙소</th><th>객실</th><th>기간</th><th>상태</th><th>메모</th><th>관리</th></tr></thead>
@@ -1783,12 +1788,17 @@
 
   window.motfProcessTransaction = async function motfProcessTransaction(kind, id, status) {
     let reason = null;
-    if (status === "rejected") {
-      reason = prompt("거절 사유를 입력해주세요.")?.trim();
+    if (["rejected", "cancelled"].includes(status)) {
+      reason = prompt(status === "cancelled" ? "운영팀 취소 사유를 입력해주세요." : "거절 사유를 입력해주세요.")?.trim();
       if (!reason) return;
     }
-    if (!confirm(status === "confirmed" ? "이 요청을 확정할까요?" : "이 요청을 거절할까요?")) return;
-    if (status === "rejected") {
+    const confirmMessage = status === "confirmed"
+      ? "이 요청을 확정할까요?"
+      : status === "cancelled"
+        ? "확정 예약을 취소하고 결제금과 사용 포인트를 전액 환불할까요?"
+        : "이 요청을 거절할까요?";
+    if (!confirm(confirmMessage)) return;
+    if (["rejected", "cancelled"].includes(status)) {
       const { data: sessionData } = await client().auth.getSession();
       const accessToken = sessionData?.session?.access_token;
       if (!accessToken) return alert("로그인이 만료되었습니다. 다시 로그인해주세요.");
@@ -1798,15 +1808,15 @@
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ kind, id, reason }),
+        body: JSON.stringify({ kind, id, reason, action: status === "cancelled" ? "cancel" : "reject" }),
       });
       const result = await response.json().catch(() => null);
       if (window.motfCurrentProfile?.role === "admin") await window.loadMotfAdminTransactions();
       else await window.loadMotfPartnerTransactions();
       if (!response.ok || !result?.ok) {
-        return alert(result?.message || "거절은 처리됐지만 자동 환불 요청에 실패했습니다. 관리자 확인이 필요합니다.");
+        return alert(result?.message || "상태는 변경됐지만 자동 환불 요청에 실패했습니다. 관리자 확인이 필요합니다.");
       }
-      alert(result.message || "거절 및 자동 환불 요청이 처리되었습니다.");
+      alert(result.message || "상태 변경 및 자동 환불이 처리되었습니다.");
       return;
     }
     const functionName = kind === "market" ? "set_market_order_status" : "set_reservation_status";
@@ -1818,6 +1828,37 @@
     if (window.motfCurrentProfile?.role === "admin") await window.loadMotfAdminTransactions();
     else await window.loadMotfPartnerTransactions();
     alert("요청 상태가 변경되었습니다.");
+  };
+
+  window.motfReconcilePayment = async function motfReconcilePayment(event) {
+    event?.preventDefault();
+    if (window.motfCurrentProfile?.role !== "admin") return alert("운영자 권한이 필요합니다.");
+    const form = event?.target || document.getElementById("masterPaymentRecoveryForm");
+    const orderId = String(form?.orderId?.value || "").trim();
+    if (!orderId) return alert("토스 주문번호를 입력해주세요.");
+    if (!confirm(`${orderId}\n토스 결제를 조회하고 누락된 예약·주문을 복구할까요?`)) return;
+    const button = form.querySelector('[type="submit"]');
+    const original = button?.textContent;
+    if (button) { button.disabled = true; button.textContent = "결제 조회 중..."; }
+    try {
+      const { data } = await client().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("로그인이 만료되었습니다.");
+      const response = await fetch("/api/admin/reconcile-payment", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok) throw new Error(result?.message || "결제·예약 복구에 실패했습니다.");
+      form.reset();
+      await window.loadMotfAdminTransactions();
+      alert(result.message || "결제·예약 복구가 완료되었습니다.");
+    } catch (error) {
+      alert(error.message || "결제·예약 복구에 실패했습니다.");
+    } finally {
+      if (button) { button.disabled = false; button.textContent = original; }
+    }
   };
 
   let adminChatBusinesses = [];

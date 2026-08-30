@@ -75,6 +75,22 @@
   text-align: center;
 }
 
+.motf-payment-recovery {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(260px, .8fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  background: #f7f9f5;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.motf-payment-recovery > div { display: grid; gap: 4px; }
+.motf-payment-recovery strong { color: var(--teal-dark); font-size: 14px; }
+.motf-payment-recovery span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.motf-payment-recovery input { min-height: 42px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+
 .motf-photo-upload-preview {
   display: none;
   margin-top: 12px;
@@ -108,6 +124,8 @@
   .motf-business-fields .motf-field-wide {
     grid-column: auto;
   }
+
+  .motf-payment-recovery { grid-template-columns: 1fr; align-items: stretch; }
 }
 .owner-description-preview {
   display: -webkit-box;
