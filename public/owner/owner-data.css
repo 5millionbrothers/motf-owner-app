@@ -731,13 +731,15 @@
   }
 
   .top-bar {
-    position: sticky;
-    top: 107px;
-    z-index: 24;
+    position: static !important;
+    top: auto !important;
+    z-index: auto;
     height: auto;
-    min-height: 52px;
-    justify-content: space-between;
-    padding: 10px 14px;
+    min-height: 0;
+    justify-content: flex-end;
+    padding: 8px 14px 4px;
+    background: transparent;
+    border-bottom: 0;
   }
 
   .panel {
@@ -756,12 +758,35 @@
     grid-template-columns: 1fr !important;
   }
 
+  .calendar-controls {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .calendar-controls h3 {
+    text-align: center;
+    font-size: 15px !important;
+  }
+
+  .calendar-controls .secondary-btn {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
   .calendar-grid {
-    min-width: 640px;
+    display: grid !important;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 
   .calendar-layout-split > div:first-child,
-  #calendarGridBody,
   table,
   .admin-table,
   .settlement-table {
@@ -769,6 +794,26 @@
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  #calendarGridBody {
+    display: grid !important;
+    max-width: 100%;
+    overflow-x: visible;
+  }
+
+  .calendar-cell {
+    min-width: 0;
+    min-height: 72px;
+    padding: 5px;
+  }
+
+  .cal-badge {
+    max-width: 100%;
+    padding: 4px 3px;
+    font-size: 9px;
+    line-height: 1.25;
+    white-space: normal;
   }
 
   .chat-sidebar {
@@ -794,12 +839,26 @@
 }
 
 @media (max-width: 520px) {
-  .top-bar {
-    top: 103px;
+  .calendar-grid {
+    min-width: 0;
   }
 
-  .calendar-grid {
-    min-width: 560px;
+  .calendar-day-label {
+    padding: 7px 2px;
+    font-size: 11px;
+  }
+
+  .calendar-cell {
+    min-height: 66px;
+    padding: 4px 3px;
+  }
+
+  .calendar-date-num {
+    font-size: 11px;
+  }
+
+  .calendar-controls .secondary-btn {
+    padding-inline: 7px;
   }
 
   .chat-bubble {
