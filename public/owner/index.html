@@ -100,6 +100,16 @@
     .login-divider { display:flex; align-items:center; gap:12px; color:var(--muted); font-size:12px; margin:18px 0; }
     .login-divider::before, .login-divider::after { content:""; height:1px; flex:1; background:var(--line); }
     .kakao-login-btn { width:100%; border:0; border-radius:8px; padding:13px; background:#FEE500; color:#191919; font-weight:700; cursor:pointer; font-family:inherit; }
+    .login-runtime-status {
+      min-height: 20px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      text-align: left;
+    }
+    .login-runtime-status[data-state="ready"] { color: #507044; }
+    .login-runtime-status[data-state="error"] { color: #b5483f; }
     .signup-link-btn { width:100%; margin-top:10px; border:1px solid var(--teal); border-radius:8px; padding:12px; background:var(--paper); color:var(--teal); font-weight:700; cursor:pointer; font-family:inherit; }
     .confirmation-resend-btn { width:100%; min-height:40px; margin-top:6px; border:0; background:transparent; color:var(--teal-dark); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:underline; text-underline-offset:3px; }
     .confirmation-resend-btn:hover { color:var(--teal); }
@@ -711,6 +721,7 @@
         </div>
         <button type="submit" class="primary-btn" style="width: 100%; justify-content: center; padding: 14px;">로그인</button>
       </form>
+      <p id="loginRuntimeStatus" class="login-runtime-status" role="status" aria-live="polite">로그인 서비스를 준비하고 있습니다.</p>
       <div class="login-divider">또는</div>
       <button class="kakao-login-btn" onclick="handleKakaoLogin()">카카오로 시작하기</button>
       <button class="signup-link-btn" onclick="openSignupModal()">회원가입</button>
@@ -2752,10 +2763,65 @@
       document.getElementById('calcMarginResult').innerText = margin.toFixed(1) + '%';
     }
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     /* Supabase 인증 연결층: 원본 화면/스타일은 변경하지 않고 로그인 함수만 교체 */
-    (() => {
+    (async () => {
+      const loginStatus = document.getElementById('loginRuntimeStatus');
+      const loginSubmit = document.querySelector('#loginForm button[type="submit"]');
+      const setLoginRuntimeStatus = (message, state = 'loading') => {
+        if (!loginStatus) return;
+        loginStatus.textContent = message;
+        loginStatus.dataset.state = state;
+      };
+      window.handleLogin = function(event) {
+        event.preventDefault();
+        setLoginRuntimeStatus('로그인 서비스를 준비하고 있습니다. 잠시만 기다려주세요.');
+      };
+      if (loginSubmit) loginSubmit.disabled = true;
+
+      const loadSupabaseSdk = async () => {
+        if (window.supabase?.createClient) return;
+        const sources = [
+          'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2/dist/umd/supabase.min.js',
+          'https://unpkg.com/@supabase/supabase-js@2.108.2/dist/umd/supabase.js'
+        ];
+        let lastError = null;
+        for (const source of sources) {
+          try {
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              const timeout = window.setTimeout(() => {
+                script.remove();
+                reject(new Error('SDK loading timed out'));
+              }, 8000);
+              script.src = source;
+              script.async = true;
+              script.onload = () => {
+                window.clearTimeout(timeout);
+                window.supabase?.createClient ? resolve() : reject(new Error('SDK global is unavailable'));
+              };
+              script.onerror = () => {
+                window.clearTimeout(timeout);
+                reject(new Error('SDK request failed'));
+              };
+              document.head.appendChild(script);
+            });
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('Supabase SDK unavailable');
+      };
+
+      try {
+        await loadSupabaseSdk();
+      } catch (error) {
+        console.error('[moTF owner] Supabase SDK initialization failed', error);
+        setLoginRuntimeStatus('로그인 서비스를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.', 'error');
+        return;
+      }
+
       const supabaseClient = window.supabase.createClient(
         'https://izbwcqnvwsdijoognoag.supabase.co',
         'sb_publishable_dPivJzpG1ZQWNyTupQ4HRw_dbo5sl9X'
@@ -3051,6 +3117,8 @@
         event.preventDefault();
         alert('휴대폰 본인인증 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       };
+      if (loginSubmit) loginSubmit.disabled = false;
+      setLoginRuntimeStatus('로그인 준비가 완료되었습니다.', 'ready');
 
       window.handleConfirmationResend = async function() {
         const now = Date.now();
