@@ -4,6 +4,7 @@
   let events = [];
   let submissions = [];
   let enhancing = false;
+  let enhanceScheduled = false;
 
   function client() { return window.motfSupabase; }
   function isAdmin() { return window.motfCurrentProfile?.role === "admin"; }
@@ -203,10 +204,23 @@
         loadSubmissions();
       }
       const placement = $("#adminCardForm select[name='placement'] option[value='hero']");
-      if (placement) placement.textContent = "moTF PICK (커뮤니티 첫 카드)";
-      $("#adminCouponList")?.querySelectorAll('[data-admin-delete^="coupons:"]').forEach((button) => { button.textContent = "사용 중지·삭제"; });
+      if (placement && placement.textContent !== "moTF PICK (커뮤니티 첫 카드)") {
+        placement.textContent = "moTF PICK (커뮤니티 첫 카드)";
+      }
+      $("#adminCouponList")?.querySelectorAll('[data-admin-delete^="coupons:"]').forEach((button) => {
+        if (button.textContent !== "사용 중지·삭제") button.textContent = "사용 중지·삭제";
+      });
       enhanceEventRows();
     } finally { enhancing = false; }
+  }
+
+  function scheduleEnhance() {
+    if (enhanceScheduled) return;
+    enhanceScheduled = true;
+    window.queueMicrotask(() => {
+      enhanceScheduled = false;
+      enhance();
+    });
   }
 
   document.addEventListener("submit", async (event) => {
@@ -252,8 +266,8 @@
     if (event.target.closest('[data-admin-content-tab="recreation"]')) window.setTimeout(loadSubmissions, 0);
   }, true);
 
-  const observer = new MutationObserver(() => enhance());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener("motf:auth-ready", enhance);
-  window.setTimeout(enhance, 0);
+  const observer = new MutationObserver(scheduleEnhance);
+  observer.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener("motf:auth-ready", scheduleEnhance);
+  window.setTimeout(scheduleEnhance, 0);
 })();
