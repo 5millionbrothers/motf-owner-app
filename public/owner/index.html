@@ -7,7 +7,12 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>moTF - 사장님 및 본사 통합 관리 대시보드</title>
+  <link rel="icon" type="image/svg+xml" href="/owner/assets/motf-favicon.svg?v=20260904">
+  <link rel="icon" type="image/png" sizes="32x32" href="/owner/assets/motf-favicon-32.png?v=20260904">
+  <link rel="apple-touch-icon" sizes="180x180" href="/owner/assets/motf-apple-touch-icon.png?v=20260904">
   <link rel="stylesheet" href="/owner/styles.css?v=20260831-owner-mobile2">
+  <link rel="stylesheet" href="/owner/loading.css?v=20260904-logo2">
+  <script src="/owner/loading.js?v=20260904-loader1"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
@@ -55,13 +60,7 @@
     }
     
     /* 깔끔한 텍스트 기반 로고 스타일 */
-    .motf-simple-text-logo {
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--teal);
-      letter-spacing: -0.5px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
+    .motf-symbol-logo { display: block; width: 38px; height: 42px; object-fit: contain; }
     
     .login-card h2 {
       margin-top: 0;
@@ -152,10 +151,7 @@
       gap: 12px;
       box-sizing: border-box;
     }
-    .sidebar-header .motf-simple-text-logo {
-      font-size: 24px;
-      flex-shrink: 0;
-    }
+    .sidebar-header .motf-symbol-logo { width: 32px; height: 36px; flex-shrink: 0; }
     .owner-title {
       font-size: 13px;
       font-weight: 700;
@@ -701,11 +697,14 @@
   <link rel="stylesheet" href="/owner/owner-data.css?v=20260831-owner-mobile2">
 </head>
 <body>
+  <div class="motf-loading-overlay" id="motfLoadingOverlay" role="status" aria-live="polite" aria-label="페이지를 불러오는 중입니다">
+    <div class="motf-loading-indicator"><svg class="motf-loading-logo" viewBox="0 0 64 64" aria-hidden="true"><path class="motf-loading-logo-guide" d="M32 13c-8.84 0-16 7.16-16 16 0 11.58 14.16 22.4 14.76 22.85a2.08 2.08 0 0 0 2.48 0C33.84 51.4 48 40.58 48 29c0-8.84-7.16-16-16-16Zm0 9a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z" /><path class="motf-loading-logo-stroke" pathLength="100" d="M32 13c-8.84 0-16 7.16-16 16 0 11.58 14.16 22.4 14.76 22.85a2.08 2.08 0 0 0 2.48 0C33.84 51.4 48 40.58 48 29c0-8.84-7.16-16-16-16Zm0 9a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z" /></svg><span>불러오는 중</span></div>
+  </div>
 
   <section id="login-view">
     <div class="login-card">
       <div class="login-logo-wrapper">
-        <div class="motf-simple-text-logo">moTF</div>
+        <img class="motf-symbol-logo" src="/owner/assets/motf-logo-icon.png" alt="moTF" />
       </div>
       <h2>moTF 대시보드 로그인</h2>
       <p class="login-subtitle">파트너와 운영팀을 위한 통합 관리 서비스</p>
@@ -770,7 +769,7 @@
   <main id="admin-main">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="motf-simple-text-logo">moTF</div>
+        <img class="motf-symbol-logo" src="/owner/assets/motf-logo-icon.png" alt="moTF" />
         <h3 id="sidebar-owner-name" class="owner-title">업장 정보를 불러오는 중...</h3>
       </div>
       
