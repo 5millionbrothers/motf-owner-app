@@ -1,0 +1,35 @@
+.stay-import-block-title strong em {
+  color: var(--teal);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.stay-import-images img {
+  background: #eef0eb;
+}
+
+.stay-import-images label.is-broken {
+  background: repeating-linear-gradient(135deg, #f4f4f1, #f4f4f1 10px, #e8e9e4 10px, #e8e9e4 20px);
+  cursor: not-allowed;
+}
+
+.stay-import-images label.is-broken img {
+  display: none;
+}
+
+.stay-import-images label.is-broken::after {
+  content: "원본 서버에서 사진을 불러올 수 없음";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.stay-import-images label.is-broken input,
+.stay-import-images label.is-broken span {
+  z-index: 2;
+}
