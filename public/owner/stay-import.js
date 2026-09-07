@@ -1,6 +1,7 @@
 (function setupStayWebsiteImporter() {
   const facilityLabels = { barbecue:"야외 바비큐", karaoke:"노래방·마이크", field:"야외 운동장", pool:"수영장", screen:"TV·스크린", wifi:"와이파이", parking:"주차", pickup:"픽업" };
   let state = { jobId:null, draft:null, pages:[] };
+  let progressTimer = null;
   const $ = (selector) => document.querySelector(selector);
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));
 
@@ -9,7 +10,13 @@
       <div class="view-title"><div><h1>숙소 웹사이트 자동 등록</h1><p>공식 웹사이트를 읽어 초안을 만들고, 확인한 정보만 모티프에 등록합니다.</p></div></div>
       <aside class="admin-guide"><strong>사용 순서</strong><p>웹사이트 분석 → 가격·객실·사진 검토 → 임시 사장님 계정과 숙소 등록. 같은 내용은 저장된 초안을 재사용하므로 분석 비용이 다시 들지 않습니다.</p></aside>
       <form id="stayImportAnalyzeForm" class="stay-import-source"><label><span>숙소 공식 웹사이트</span><input name="sourceUrl" type="url" required placeholder="https://example.com"></label><button class="primary-btn" type="submit"><i data-lucide="scan-search"></i> 분석하기</button></form>
-      <div id="stayImportStatus" class="stay-import-status" hidden aria-live="polite"></div><div id="stayImportEditor"></div>
+      <div id="stayImportStatus" class="stay-import-status" hidden aria-live="polite"></div>
+      <div id="stayImportProgress" class="stay-import-progress" hidden>
+        <div class="stay-import-progress-head"><strong id="stayImportProgressStage">사이트 탐색 중</strong><span id="stayImportProgressEstimate">예상 45초</span></div>
+        <div class="stay-import-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+        <small id="stayImportProgressDetail">공식 홈페이지의 객실과 시설 페이지를 찾고 있습니다.</small>
+      </div>
+      <div id="stayImportEditor"></div>
     </section>`;
   }
 
@@ -35,13 +42,53 @@
   async function accessToken() { const { data } = await window.motfSupabase.auth.getSession(); if (!data.session?.access_token) throw new Error("로그인이 만료되었습니다."); return data.session.access_token; }
   function setStatus(message, kind = "working") { const area = $("#stayImportStatus"); if (!area) return; area.hidden = !message; area.className = `stay-import-status is-${kind}`; area.innerHTML = kind === "working" ? `<span class="stay-import-spinner"></span>${escapeHtml(message)}` : escapeHtml(message); }
 
+  function startProgress(mode = "analyze") {
+    if (progressTimer) clearInterval(progressTimer);
+    const area = $("#stayImportProgress"); if (!area) return;
+    const startedAt = Date.now(); const expectedSeconds = mode === "commit" ? 35 : 45;
+    const stages = mode === "commit"
+      ? [
+          [0, "등록 정보 확인 중", "입력한 객실과 요금 정보를 검증하고 있습니다."],
+          [8, "사진 저장 중", "선택한 사진을 모티프 저장소로 옮기고 있습니다."],
+          [22, "숙소와 객실 등록 중", "숙소 정보와 객실 데이터를 연결하고 있습니다."],
+          [31, "사장님 계정 생성 중", "로그인 계정과 최종 연결 상태를 확인하고 있습니다."],
+        ]
+      : [
+          [0, "사이트 탐색 중", "공식 홈페이지의 객실과 시설 페이지를 찾고 있습니다."],
+          [10, "객실·요금 수집 중", "상세 페이지와 공식 예약표에서 가격과 기준 인원을 확인하고 있습니다."],
+          [22, "사진과 시설 확인 중", "갤러리, 배경 사진과 이미지형 안내를 선별하고 있습니다."],
+          [34, "등록 초안 생성 중", "수집한 근거를 숙소 등록 양식으로 정리하고 있습니다."],
+        ];
+    area.hidden = false;
+    const update = () => {
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const stage = [...stages].reverse().find(([second]) => elapsed >= second) || stages[0];
+      const percent = Math.min(92, Math.round(6 + 86 * (1 - Math.exp(-elapsed / 23))));
+      const remaining = Math.max(0, expectedSeconds - Math.round(elapsed));
+      $("#stayImportProgressStage").textContent = stage[1];
+      $("#stayImportProgressDetail").textContent = stage[2];
+      $("#stayImportProgressEstimate").textContent = remaining > 0 ? `약 ${Math.max(5, Math.ceil(remaining / 5) * 5)}초 남음` : "서버 응답을 기다리는 중";
+      const track = area.querySelector("[role='progressbar']"); track.setAttribute("aria-valuenow", String(percent)); track.querySelector("i").style.width = `${percent}%`;
+    };
+    update(); progressTimer = setInterval(update, 500);
+  }
+
+  function finishProgress(success) {
+    if (progressTimer) clearInterval(progressTimer); progressTimer = null;
+    const area = $("#stayImportProgress"); if (!area) return;
+    if (!success) { area.hidden = true; return; }
+    const track = area.querySelector("[role='progressbar']"); track.setAttribute("aria-valuenow", "100"); track.querySelector("i").style.width = "100%";
+    $("#stayImportProgressStage").textContent = "완료"; $("#stayImportProgressEstimate").textContent = "100%"; $("#stayImportProgressDetail").textContent = "결과를 화면에 표시했습니다.";
+    setTimeout(() => { area.hidden = true; }, 1200);
+  }
+
   async function analyze(event) {
-    event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button"); button.disabled = true; $("#stayImportEditor").innerHTML = ""; setStatus("웹사이트에서 객실·가격·시설·사진을 수집하고 있습니다.");
+    event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button"); button.disabled = true; $("#stayImportEditor").innerHTML = ""; setStatus("웹사이트에서 객실·가격·시설·사진을 수집하고 있습니다."); startProgress("analyze");
     try {
       const response = await fetch("/api/admin/stay-import/analyze", { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${await accessToken()}` }, body:JSON.stringify({ sourceUrl:form.sourceUrl.value.trim() }) });
       const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.message || "분석하지 못했습니다.");
-      state = { jobId:result.jobId, draft:result.draft, pages:result.crawledPages || [] }; setStatus(result.message, result.cached ? "cached" : "success"); renderEditor();
-    } catch (error) { setStatus(error.message || "분석하지 못했습니다.", "error"); }
+      state = { jobId:result.jobId, draft:result.draft, pages:result.crawledPages || [] }; setStatus(result.message, result.cached ? "cached" : "success"); finishProgress(true); renderEditor();
+    } catch (error) { finishProgress(false); setStatus(error.message || "분석하지 못했습니다.", "error"); }
     finally { button.disabled = false; window.lucide?.createIcons(); }
   }
 
@@ -89,13 +136,13 @@
     event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('[type="submit"]'); const draft = readEditor(form);
     if (draft.rooms.some((room) => room.price <= 0)) return setStatus("모든 객실의 1박 요금을 확인해주세요.", "error");
     if (!confirm(`${draft.businessName}과 객실 ${draft.rooms.length}개를 실제 데이터베이스에 등록할까요?`)) return;
-    button.disabled = true; setStatus("사진을 저장하고 숙소·객실·임시 사장님 계정을 만들고 있습니다.");
+    button.disabled = true; setStatus("사진을 저장하고 숙소·객실·임시 사장님 계정을 만들고 있습니다."); startProgress("commit");
     try {
       const response = await fetch("/api/admin/stay-import/commit", { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${await accessToken()}` }, body:JSON.stringify({ jobId:state.jobId, draft, rightsConfirmed:form.rightsConfirmed.checked }) });
-      const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.message || "등록하지 못했습니다."); setStatus(result.message, "success");
+      const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.message || "등록하지 못했습니다."); setStatus(result.message, "success"); finishProgress(true);
       $("#stayImportEditor").innerHTML = `<section class="stay-import-complete"><i data-lucide="circle-check-big"></i><div><h2>숙소 등록 완료</h2><p>${escapeHtml(draft.businessName)} · 객실 ${draft.rooms.length}개 · 사진 ${result.imageCount}장</p></div><dl><div><dt>사장님 로그인 이메일</dt><dd><code>${escapeHtml(result.account.email)}</code></dd></div><div><dt>임시 비밀번호</dt><dd><code>${escapeHtml(result.account.password)}</code></dd></div></dl><strong>비밀번호는 서버나 DB에 따로 저장되지 않으므로 지금 안전한 곳에 기록해주세요.</strong>${result.warnings?.length ? `<ul>${result.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}</section>`;
       state = { jobId:null, draft:null, pages:[] };
-    } catch (error) { setStatus(error.message || "등록하지 못했습니다.", "error"); button.disabled = false; }
+    } catch (error) { finishProgress(false); setStatus(error.message || "등록하지 못했습니다.", "error"); button.disabled = false; }
     window.lucide?.createIcons();
   }
 })();

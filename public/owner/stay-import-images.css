@@ -33,3 +33,47 @@
 .stay-import-images label.is-broken span {
   z-index: 2;
 }
+
+.stay-import-progress {
+  margin: 0 0 16px;
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.stay-import-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stay-import-progress-head strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.stay-import-progress-head span,
+.stay-import-progress small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.stay-import-progress-track {
+  height: 7px;
+  overflow: hidden;
+  margin-bottom: 9px;
+  background: #e5e9e1;
+  border-radius: 999px;
+}
+
+.stay-import-progress-track i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--teal);
+  border-radius: inherit;
+  transition: width 0.5s ease;
+}
