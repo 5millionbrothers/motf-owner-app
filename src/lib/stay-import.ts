@@ -14,6 +14,13 @@ export type StayImportRoom = {
   bathroomGenderSeparated: boolean;
   bathroomNote: string | null;
   featureSummary: string[];
+  imageUrls: string[];
+  offseasonWeekdayPrice: number;
+  offseasonWeekendPrice: number;
+  shoulderWeekdayPrice: number;
+  shoulderWeekendPrice: number;
+  peakWeekdayPrice: number;
+  peakWeekendPrice: number;
 };
 
 export type StayImportDraft = {
@@ -31,6 +38,10 @@ export type StayImportDraft = {
   extraFees: Array<{ label: string; amount: number | null; detail: string | null; category: "confirmed" | "optional" | "onsite" | "deposit" }>;
   rooms: StayImportRoom[];
   imageUrls: string[];
+  seasonRanges: {
+    shoulder: Array<{ startDate: string; endDate: string }>;
+    peak: Array<{ startDate: string; endDate: string }>;
+  };
   warnings: string[];
   evidence: string[];
 };
@@ -41,7 +52,7 @@ const nullableInteger = { anyOf: [{ type: "integer" }, { type: "null" }] } as co
 const outputSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["businessName", "representativeName", "phone", "postalCode", "address", "addressDetail", "region", "shortDescription", "description", "facilities", "extraFees", "rooms", "warnings", "evidence"],
+  required: ["businessName", "representativeName", "phone", "postalCode", "address", "addressDetail", "region", "shortDescription", "description", "facilities", "extraFees", "rooms", "seasonRanges", "warnings", "evidence"],
   properties: {
     businessName: { type: "string" }, representativeName: nullableString, phone: nullableString,
     postalCode: nullableString, address: nullableString, addressDetail: nullableString, region: nullableString,
@@ -70,14 +81,25 @@ const outputSchema = {
       type: "array", maxItems: 40,
       items: {
         type: "object", additionalProperties: false,
-        required: ["name", "description", "price", "minPeople", "basePeople", "maxPeople", "extraPersonFee", "bathroomCount", "bathroomGenderSeparated", "bathroomNote", "featureSummary"],
+        required: ["name", "description", "price", "minPeople", "basePeople", "maxPeople", "extraPersonFee", "bathroomCount", "bathroomGenderSeparated", "bathroomNote", "featureSummary", "imageUrls", "offseasonWeekdayPrice", "offseasonWeekendPrice", "shoulderWeekdayPrice", "shoulderWeekendPrice", "peakWeekdayPrice", "peakWeekendPrice"],
         properties: {
           name: { type: "string" }, description: nullableString, price: { type: "integer" },
           minPeople: nullableInteger, basePeople: nullableInteger, maxPeople: nullableInteger,
           extraPersonFee: { type: "integer" }, bathroomCount: { type: "integer" },
           bathroomGenderSeparated: { type: "boolean" }, bathroomNote: nullableString,
           featureSummary: { type: "array", maxItems: 8, items: { type: "string" } },
+          imageUrls: { type: "array", maxItems: 40, items: { type: "string" } },
+          offseasonWeekdayPrice: { type: "integer" }, offseasonWeekendPrice: { type: "integer" },
+          shoulderWeekdayPrice: { type: "integer" }, shoulderWeekendPrice: { type: "integer" },
+          peakWeekdayPrice: { type: "integer" }, peakWeekendPrice: { type: "integer" },
         },
+      },
+    },
+    seasonRanges: {
+      type: "object", additionalProperties: false, required: ["shoulder", "peak"],
+      properties: {
+        shoulder: { type: "array", maxItems: 30, items: { type: "object", additionalProperties: false, required: ["startDate", "endDate"], properties: { startDate: { type: "string" }, endDate: { type: "string" } } } },
+        peak: { type: "array", maxItems: 30, items: { type: "object", additionalProperties: false, required: ["startDate", "endDate"], properties: { startDate: { type: "string" }, endDate: { type: "string" } } } },
       },
     },
     warnings: { type: "array", maxItems: 30, items: { type: "string" } },
@@ -103,6 +125,7 @@ function clampInteger(value: unknown, fallback = 0) {
 }
 
 function cleanDraft(value: Omit<StayImportDraft, "sourceUrl" | "imageUrls">, site: CrawledSite): StayImportDraft {
+  const validImages = new Set(site.imageUrls);
   const rooms = (Array.isArray(value.rooms) ? value.rooms : []).map((room) => ({
     name: String(room.name || "객실").trim().slice(0, 100),
     description: room.description ? String(room.description).trim().slice(0, 2000) : null,
@@ -111,6 +134,13 @@ function cleanDraft(value: Omit<StayImportDraft, "sourceUrl" | "imageUrls">, sit
     extraPersonFee: clampInteger(room.extraPersonFee), bathroomCount: clampInteger(room.bathroomCount),
     bathroomGenderSeparated: Boolean(room.bathroomGenderSeparated), bathroomNote: room.bathroomNote ? String(room.bathroomNote).trim().slice(0, 160) : null,
     featureSummary: (room.featureSummary || []).map((item) => String(item).trim()).filter(Boolean).slice(0, 8),
+    imageUrls: [...new Set((room.imageUrls || []).map(String).filter((url) => validImages.has(url)))].slice(0, 40),
+    offseasonWeekdayPrice: clampInteger(room.offseasonWeekdayPrice, clampInteger(room.price)),
+    offseasonWeekendPrice: clampInteger(room.offseasonWeekendPrice, clampInteger(room.price)),
+    shoulderWeekdayPrice: clampInteger(room.shoulderWeekdayPrice, clampInteger(room.price)),
+    shoulderWeekendPrice: clampInteger(room.shoulderWeekendPrice, clampInteger(room.price)),
+    peakWeekdayPrice: clampInteger(room.peakWeekdayPrice, clampInteger(room.price)),
+    peakWeekendPrice: clampInteger(room.peakWeekendPrice, clampInteger(room.price)),
   }));
   const warnings = [...(value.warnings || [])];
   if (!rooms.length) warnings.push("객실과 가격을 자동으로 확정하지 못했습니다. 객실을 직접 추가해주세요.");
@@ -130,14 +160,18 @@ function cleanDraft(value: Omit<StayImportDraft, "sourceUrl" | "imageUrls">, sit
     facilities: (value.facilities || []).filter((item, index, all) => all.findIndex((other) => other.key === item.key) === index),
     extraFees: (value.extraFees || []).filter((item) => String(item.label || "").trim()).map((item) => ({ ...item, amount: item.amount == null ? null : clampInteger(item.amount) })),
     rooms,
-    imageUrls: site.imageUrls.slice(0, 80),
+    imageUrls: site.imageUrls,
+    seasonRanges: {
+      shoulder: (value.seasonRanges?.shoulder || []).filter((range) => /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate)).slice(0, 30),
+      peak: (value.seasonRanges?.peak || []).filter((range) => /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate)).slice(0, 30),
+    },
     warnings: [...new Set(warnings.map((item) => String(item).trim()).filter(Boolean))],
     evidence: (value.evidence || []).map((item) => String(item).trim()).filter(Boolean).slice(0, 30),
   };
 }
 
 export function siteHash(site: CrawledSite) {
-  return createHash("sha256").update(JSON.stringify({ version: 2, pages: site.pages, imageUrls: site.imageUrls })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ version: 3, pages: site.pages, imageUrls: site.imageUrls })).digest("hex");
 }
 
 export async function structureStaySite(site: CrawledSite): Promise<StayImportDraft> {
@@ -148,8 +182,9 @@ export async function structureStaySite(site: CrawledSite): Promise<StayImportDr
     `PAGE ${index + 1}: ${page.url}`,
     `TITLE: ${page.title}`,
     page.structuredData.length ? `JSON-LD:\n${page.structuredData.join("\n")}` : "",
+    page.imageUrls?.length ? `IMAGES FOUND ON THIS PAGE:\n${page.imageUrls.join("\n")}` : "",
     `VISIBLE TEXT:\n${page.text.slice(0, 8_000)}`,
-  ].filter(Boolean).join("\n")).join("\n\n---\n\n").slice(0, 180_000);
+  ].filter(Boolean).join("\n")).join("\n\n---\n\n").slice(0, 240_000);
   const content: Array<Record<string, unknown>> = [{ type: "input_text", text: `Extract one lodging draft from these crawled pages.\n\n${source}` }];
   for (const url of (site.visualEvidenceUrls || []).slice(0, 3)) {
     try {
@@ -174,6 +209,8 @@ export async function structureStaySite(site: CrawledSite): Promise<StayImportDr
         "Room detail pages are stronger evidence than menus or summaries. Korean text such as '기준 10명 / 최대 25명' must become basePeople=10 and maxPeople=25.",
         "Explicit facility statements such as 수영장 개장, 수영장 운영, or 수영장 이용 안내 confirm the pool facility; preserve any dates or conditions in detail.",
         "Official reservation-system and calendar price pages are valid price evidence. When several one-night prices are listed for a room, use the lowest currently advertised price and add a warning that season/day prices must be reviewed.",
+        "Assign only image URLs listed under a room's own detail page to that room.imageUrls. Shared exterior and facility images stay only in the business gallery. Never invent or rewrite an image URL.",
+        "When dated official calendar evidence supports it, fill all six room season prices and seasonRanges. Friday and Saturday are weekend. Dates without explicit elevated seasonal evidence remain offseason. If evidence is insufficient, repeat the confirmed room price in all six fields, leave seasonRanges empty, and add a warning.",
         "A room price must be one-night room/package price, not a deposit, per-person fee, or total for multiple nights.",
         "Do not describe text as corrupted unless the supplied text actually contains replacement characters. Phone and address found in CONTACT AND SITE METADATA are valid evidence.",
         "If a Naver Place source has only an explicit representative price and no room list, create one draft room named '대표 객실 (상세 확인 필요)' at that displayed starting price and add a warning that room name, capacity, and date-specific price require review.",

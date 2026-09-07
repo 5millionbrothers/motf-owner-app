@@ -433,6 +433,58 @@ main#admin-main { width: 100%; max-width: none; min-width: 0; margin: 0; padding
   color: #a3453f;
 }
 
+.motf-gallery-reuse-button {
+  margin-top: 10px;
+}
+
+.motf-gallery-picker {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.motf-gallery-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.motf-gallery-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  max-height: 430px;
+  margin-bottom: 12px;
+  overflow-y: auto;
+}
+
+.motf-gallery-picker-grid label {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.motf-gallery-picker-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.motf-gallery-picker-grid input {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  left: 6px;
+  width: 18px;
+  height: 18px;
+}
+
 .motf-photo-upload-preview.active {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

@@ -4,6 +4,7 @@ import https from "node:https";
 import * as cheerio from "cheerio";
 
 const MAX_PAGES = 36;
+const MAX_IMAGES = 300;
 const MAX_HTML_BYTES = 3_000_000;
 const PAGE_TIMEOUT_MS = 15_000;
 const LINK_HINT = /(객실|방|room|시설|부대|facility|수영|pool|요금|가격|price|예약|calendar|소개|about|오시는|위치|location|special|preview|detail)/i;
@@ -12,7 +13,7 @@ const IMAGE_LIKE = /\.(?:jpe?g|png|webp|gif)(?:$|[?#])/i;
 
 export type CrawledSite = {
   canonicalUrl: string;
-  pages: Array<{ url: string; title: string; text: string; structuredData: string[] }>;
+  pages: Array<{ url: string; title: string; text: string; structuredData: string[]; imageUrls?: string[] }>;
   imageUrls: string[];
   visualEvidenceUrls?: string[];
 };
@@ -166,63 +167,90 @@ function pushPage(pages: CrawledSite["pages"], page: CrawledSite["pages"][number
   if (!pages.some((item) => item.url === page.url)) pages.push(page);
 }
 
+function upcomingMonths(count = 12) {
+  const now = new Date();
+  return Array.from({ length: count }, (_, offset) => {
+    const date = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return { year: date.getFullYear(), month: date.getMonth() + 1, key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` };
+  });
+}
+
 async function addLetsNowGoPrices(htmlDocuments: string[], baseUrl: string, pages: CrawledSite["pages"]) {
   const combined = htmlDocuments.join("\n");
   const corpCode = combined.match(/corp_code\s*[:=]\s*["']([a-z0-9]+)["']/i)?.[1] || combined.match(/[?&]corp_code=([a-z0-9]+)/i)?.[1];
   if (!corpCode) return;
   const endpoint = new URL("/direct/get_calendar_price", baseUrl).toString();
-  try {
-    const { response } = await safeFetch(endpoint, "application/json", {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", Referer: baseUrl },
-      body: new URLSearchParams({ month: new Date().toISOString().slice(0, 7), corp_code: corpCode }).toString(),
+  const results = await Promise.all(upcomingMonths().map(async (month) => {
+    try {
+      const { response } = await safeFetch(endpoint, "application/json", {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", Referer: baseUrl },
+        body: new URLSearchParams({ month: month.key, corp_code: corpCode }).toString(),
+      });
+      const data = await response.json() as { prices?: Record<string, Record<string, number>> };
+      const lines = Object.entries(data.prices || {}).flatMap(([roomId, dates]) => Object.entries(dates || {}).map(([date, price]) => `객실 ID ${roomId} | ${date} | 1박 ${Number(price).toLocaleString("ko-KR")}원`));
+      return { month, lines };
+    } catch { return { month, lines: [] as string[] }; }
+  }));
+  results.forEach(({ month, lines }) => {
+    if (lines.length) pushPage(pages, { url: `${endpoint}?month=${month.key}#advertised-prices`, title: `${month.key} 공식 예약 달력 요금`, text: lines.join("\n"), structuredData: [] });
+  });
+}
+
+async function readLegacyRsvt(url: string) {
+  return new Promise<string>((resolve, reject) => {
+    const request = https.get(url, {
+      ciphers: "DEFAULT@SECLEVEL=0", minVersion: "TLSv1",
+      headers: { Accept: "text/html", Referer: "http://rsvt.co.kr/", "User-Agent": "Mozilla/5.0 moTFStayImporter/2.0" },
+    }, (response) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      response.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > MAX_HTML_BYTES) request.destroy(new Error("예약표 용량이 너무 큽니다.")); else chunks.push(chunk);
+      });
+      response.on("end", () => resolve(new TextDecoder("euc-kr").decode(Buffer.concat(chunks))));
     });
-    const data = await response.json() as unknown;
-    const prices = new Map<string, number[]>();
-    const visit = (value: unknown, key = ""): void => {
-      if (Array.isArray(value)) return value.forEach((item) => visit(item, key));
-      if (value && typeof value === "object") return Object.entries(value as Record<string, unknown>).forEach(([childKey, child]) => visit(child, /^\d{3,}$/.test(childKey) ? childKey : key));
-      const amount = Number(String(value).replace(/[^0-9]/g, ""));
-      if (key && amount >= 10_000 && amount <= 20_000_000) prices.set(key, [...(prices.get(key) || []), amount]);
-    };
-    visit(data);
-    const lines = [...prices.entries()].map(([id, values]) => `객실 ID ${id}: 현재 공식 예약표 1박 요금 ${[...new Set(values)].sort((a, b) => a - b).map((price) => `${price.toLocaleString("ko-KR")}원`).join(" / ")}`);
-    if (lines.length) pushPage(pages, { url: `${endpoint}#advertised-prices`, title: "공식 실시간 예약표 요금", text: lines.join("\n"), structuredData: [] });
-  } catch { /* optional price feed */ }
+    request.setTimeout(PAGE_TIMEOUT_MS, () => request.destroy(new Error("예약표 응답 시간이 초과됐습니다.")));
+    request.on("error", reject);
+  });
 }
 
 async function addRsvtPrices(htmlDocuments: string[], pages: CrawledSite["pages"]) {
   const combined = htmlDocuments.join("\n");
   const pId = combined.match(/[?&]p_id=([a-z0-9_-]+)/i)?.[1];
   if (!pId) return;
-  const now = new Date();
-  const url = `https://rsvt.co.kr:1447/rsvt_web_jw/index3.html?p_id=${encodeURIComponent(pId)}&year=${now.getFullYear()}&month=${now.getMonth() + 1}`;
-  try {
-    const html = await new Promise<string>((resolve, reject) => {
-      const request = https.get(url, {
-        ciphers: "DEFAULT@SECLEVEL=0",
-        minVersion: "TLSv1",
-        headers: { Accept: "text/html", Referer: "http://rsvt.co.kr/", "User-Agent": "Mozilla/5.0 moTFStayImporter/2.0" },
-      }, (response) => {
-        const chunks: Buffer[] = [];
-        let size = 0;
-        response.on("data", (chunk: Buffer) => {
-          size += chunk.length;
-          if (size > MAX_HTML_BYTES) request.destroy(new Error("예약표 용량이 너무 큽니다."));
-          else chunks.push(chunk);
-        });
-        response.on("end", () => resolve(new TextDecoder("euc-kr").decode(Buffer.concat(chunks))));
+  const results = await Promise.all(upcomingMonths().map(async (month) => {
+    const url = `https://rsvt.co.kr:1447/rsvt_web_jw/index3.html?p_id=${encodeURIComponent(pId)}&year=${month.year}&month=${month.month}`;
+    try {
+      const $ = cheerio.load(await readLegacyRsvt(url));
+      const datePrices = new Map<string, string[]>();
+      const roomPrices = new Map<string, Set<number>>();
+      $("[rdata]").each((_, element) => {
+        const node = $(element);
+        const href = node.closest("a").attr("href") || "";
+        const rawDate = href.match(/[?&]useStartDate=(\d{8})/)?.[1] || "";
+        const date = rawDate ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}` : month.key;
+        const text = compactText(node.attr("rdata") || node.text(), 500).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+        const room = text.match(/객실\s*:?\s*(.+?)\s*요금/)?.[1]?.trim();
+        const price = Number(text.match(/요금\s*:?\s*([\d,]+)/)?.[1]?.replace(/,/g, ""));
+        if (!room || !Number.isFinite(price) || price < 10_000) return;
+        const values = roomPrices.get(room) || new Set<number>();
+        values.add(price); roomPrices.set(room, values);
+        const daily = datePrices.get(date) || [];
+        const item = `${room} ${price.toLocaleString("ko-KR")}원`;
+        if (!daily.includes(item)) daily.push(item);
+        datePrices.set(date, daily);
       });
-      request.setTimeout(PAGE_TIMEOUT_MS, () => request.destroy(new Error("예약표 응답 시간이 초과됐습니다.")));
-      request.on("error", reject);
-    });
-    const $ = cheerio.load(html);
-    const records = new Set<string>();
-    $("[rdata]").each((_, element) => {
-      const text = compactText(`${$(element).text()} ${$(element).attr("rdata") || ""}`, 500);
-      if (/\d[\d,]{3,}/.test(text)) records.add(text);
-    });
-    if (records.size) pushPage(pages, { url: `${url}#advertised-prices`, title: "공식 예약 시스템 객실 요금", text: [...records].slice(0, 300).join("\n"), structuredData: [] });
-  } catch { /* optional reservation provider */ }
+      const records = [
+        ...[...roomPrices.entries()].map(([room, prices]) => `${room} 표시 요금 종류: ${[...prices].sort((a, b) => a - b).map((price) => `${price.toLocaleString("ko-KR")}원`).join(" / ")}`),
+        ...[...datePrices.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, prices]) => `${date} | ${prices.join("; ")}`),
+      ];
+      return { month, url, records };
+    } catch { return { month, url, records: [] as string[] }; }
+  }));
+  results.forEach(({ month, url, records }) => {
+    if (records.length) pushPage(pages, { url: `${url}#advertised-prices`, title: `${month.key} 공식 예약 달력 요금`, text: records.join("\n"), structuredData: [] });
+  });
 }
 
 function naverPlaceId(url: URL) {
@@ -241,7 +269,7 @@ async function crawlNaverPlace(seed: URL): Promise<CrawledSite | null> {
   const place = (result.placeDetail || result.place || result) as Record<string, unknown>;
   const imageBlock = (place.images || {}) as Record<string, unknown>;
   const imageItems = (Array.isArray(imageBlock.images) ? imageBlock.images : Array.isArray(place.images) ? place.images : []) as Array<Record<string, unknown>>;
-  const imageUrls = imageItems.map((item) => String(item.origin || item.url || "")).filter(Boolean).slice(0, 80);
+  const imageUrls = imageItems.map((item) => String(item.origin || item.url || "")).filter(Boolean).slice(0, MAX_IMAGES);
   let supplementalPhone = "";
   try {
     const homeUrl = `https://pcmap.place.naver.com/accommodation/${placeId}/home`;
@@ -289,7 +317,9 @@ export async function crawlStaySite(rawUrl: string): Promise<CrawledSite> {
     htmlDocuments.push(html);
     if (!pages.length) { canonicalUrl = finalUrl; origin = new URL(finalUrl).origin; }
     const $ = cheerio.load(html);
-    collectImages($, html, finalUrl, images);
+    const pageImages = new Map<string, number>();
+    collectImages($, html, finalUrl, pageImages);
+    pageImages.forEach((score, url) => images.set(url, Math.max(images.get(url) || 0, score)));
     $(".pop_layer img,[id^='pop'] img,.popup img").each((_, element) => {
       const url = absoluteUrl($(element).attr("src") || $(element).attr("data-src"), finalUrl);
       if (url) visualEvidence.add(url);
@@ -302,12 +332,13 @@ export async function crawlStaySite(rawUrl: string): Promise<CrawledSite> {
     pushPage(pages, {
       url: finalUrl, title: compactText($("title").first().text() || $("h1").first().text(), 200),
       text: compactText(`${$("body").text()}\n${contacts ? `CONTACT AND SITE METADATA:\n${contacts}` : ""}`), structuredData,
+      imageUrls: [...pageImages.entries()].sort((a, b) => b[1] - a[1]).map(([url]) => url).slice(0, 40),
     });
     for (const [url] of [...candidates.entries()].sort((a, b) => b[1] - a[1])) if (!visited.has(url) && !queue.includes(url)) queue.push(url);
   }
   if (!pages.length) throw new Error("웹사이트에서 읽을 수 있는 페이지를 찾지 못했습니다.");
   await Promise.all([addLetsNowGoPrices(htmlDocuments, canonicalUrl, pages), addRsvtPrices(htmlDocuments, pages)]);
-  const imageUrls = [...images.entries()].sort((a, b) => b[1] - a[1]).map(([url]) => url).slice(0, 100);
+  const imageUrls = [...images.entries()].sort((a, b) => b[1] - a[1]).map(([url]) => url).slice(0, MAX_IMAGES);
   return { canonicalUrl, pages, imageUrls, visualEvidenceUrls: [...visualEvidence].slice(0, 3) };
 }
 

@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="/owner/assets/motf-favicon.svg?v=20260904">
   <link rel="icon" type="image/png" sizes="32x32" href="/owner/assets/motf-favicon-32.png?v=20260904">
   <link rel="apple-touch-icon" sizes="180x180" href="/owner/assets/motf-apple-touch-icon.png?v=20260904">
-  <link rel="stylesheet" href="/owner/styles.css?v=20260831-owner-mobile2">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260907-import-gallery">
   <link rel="stylesheet" href="/owner/loading.css?v=20260904-logo2">
   <script src="/owner/loading.js?v=20260904-loader1"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -696,7 +696,7 @@
   </style>
   <link rel="stylesheet" href="/owner/owner-data.css?v=20260831-owner-mobile2">
   <link rel="stylesheet" href="/owner/stay-import.css?v=20260907-stayimport2">
-  <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport3">
+  <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport5">
 </head>
 <body>
   <div class="motf-loading-overlay" id="motfLoadingOverlay" role="status" aria-live="polite" aria-label="페이지를 불러오는 중입니다">
@@ -1041,6 +1041,8 @@
               <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 사진 영역: 전체 외관</span>
               <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
               <small style="display:block;margin-top:7px;color:var(--muted);">새 사진은 기존 사진 뒤에 추가됩니다. 대표 지정·순서 이동·개별 삭제가 가능합니다.</small>
+              <button type="button" id="motfReuseGalleryButton" class="secondary-btn motf-gallery-reuse-button" onclick="motfOpenGalleryPicker()" hidden><i data-lucide="images"></i> 전체 갤러리에서 선택</button>
+              <div id="motfGalleryPicker" class="motf-gallery-picker" hidden></div>
               <div id="motfPhotoUploadPreview" class="motf-photo-upload-preview"></div>
             </div>
           </div>
@@ -3015,8 +3017,13 @@
 
         if (profileError || !profile) throw new Error('회원 정보를 불러오지 못했습니다.');
         if (profile.status !== 'approved') {
-          await supabaseClient.auth.signOut();
-          throw new Error(profile.status === 'pending' ? '현재 입점 심사 중입니다.' : '현재 이용할 수 없는 계정입니다.');
+          const { data: importedDraft } = profile.role === 'partner' && profile.status === 'pending'
+            ? await supabaseClient.from('businesses').select('id').eq('owner_id', user.id).not('import_job_id', 'is', null).maybeSingle()
+            : { data: null };
+          if (!importedDraft) {
+            await supabaseClient.auth.signOut();
+            throw new Error(profile.status === 'pending' ? '현재 입점 심사 중입니다.' : '현재 이용할 수 없는 계정입니다.');
+          }
         }
 
         window.motfCurrentProfile = { id: user.id, login_email: user.email, ...profile };
@@ -3039,7 +3046,7 @@
           throw new Error('사장님 또는 운영팀 계정으로 로그인해 주세요.');
         }
 
-        const coreBusinessFields = 'id, owner_id, business_type, business_name, representative_name, phone, business_number, business_start_date, address, description, region, cover_image_url, facilities, latitude, longitude, approval_status, rejection_reason';
+        const coreBusinessFields = 'id, owner_id, business_type, business_name, representative_name, phone, business_number, business_start_date, address, description, region, cover_image_url, facilities, latitude, longitude, approval_status, rejection_reason, import_job_id';
         const { data: coreBusiness, error: businessError } = await supabaseClient
           .from('businesses')
           .select(coreBusinessFields)
@@ -3058,7 +3065,7 @@
         }
 
         if (!business) throw new Error('연결된 업장 정보를 찾을 수 없습니다.');
-        if (business.approval_status !== 'approved') {
+        if (business.approval_status !== 'approved' && !business.import_job_id) {
           await supabaseClient.auth.signOut();
           throw new Error(business.approval_status === 'pending' ? '현재 입점 심사 중입니다.' : '현재 이용할 수 없는 업장입니다.');
         }
@@ -3189,10 +3196,10 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260831-payment-recovery"></script>
+  <script src="/owner/owner-data.js?v=20260907-import-gallery"></script>
   <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
   <script src="/owner/admin-control.js?v=20260829-ownerops1"></script>
-  <script src="/owner/stay-import.js?v=20260907-stayimport3"></script>
+  <script src="/owner/stay-import.js?v=20260907-stayimport5"></script>
   <script src="/owner/admin-review-fixes.js?v=20260902-admin-loop1"></script>
   <script src="/owner/owner-operations.js?v=20260829-ownerops1"></script>
 </body>

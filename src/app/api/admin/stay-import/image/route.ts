@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const jobId = String(request.nextUrl.searchParams.get("jobId") || "");
     const index = Number(request.nextUrl.searchParams.get("index"));
-    if (!/^[0-9a-f-]{36}$/i.test(jobId) || !Number.isInteger(index) || index < 0 || index >= 100) {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId) || !Number.isInteger(index) || index < 0 || index >= 300) {
       return new NextResponse("Invalid image reference", { status: 400 });
     }
     const { data: job, error } = await serviceClient().from("stay_import_jobs").select("image_candidates").eq("id", jobId).maybeSingle();

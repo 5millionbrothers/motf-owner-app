@@ -579,6 +579,11 @@
   function updatePhotoPreview() {
     const preview = document.getElementById("motfPhotoUploadPreview");
     if (!preview) return;
+    const target = window.motfGetCurrentPhotoTarget?.();
+    const reuseButton = document.getElementById("motfReuseGalleryButton");
+    if (reuseButton) reuseButton.hidden = target?.type !== "offering" || !(window.motfCurrentBusiness?.gallery_image_urls || []).length;
+    const picker = document.getElementById("motfGalleryPicker");
+    if (picker) picker.hidden = true;
     const urls = window.motfGetCurrentPhotoUrls?.() || [];
     if (!urls.length) {
       preview.classList.remove("active");
@@ -600,6 +605,31 @@
   }
 
   window.motfRefreshPhotoPreview = updatePhotoPreview;
+
+  window.motfOpenGalleryPicker = function openGalleryPicker() {
+    const picker = document.getElementById("motfGalleryPicker");
+    const target = window.motfGetCurrentPhotoTarget?.();
+    const gallery = window.motfCurrentBusiness?.gallery_image_urls || [];
+    if (!picker || target?.type !== "offering" || !gallery.length) return;
+    const selected = new Set(window.motfGetCurrentPhotoUrls?.() || []);
+    picker.innerHTML = `<div class="motf-gallery-picker-head"><strong>전체 갤러리에서 객실 사진 선택</strong><button type="button" class="secondary-btn" onclick="document.getElementById('motfGalleryPicker').hidden=true">닫기</button></div><div class="motf-gallery-picker-grid">${gallery.map((url, index) => `<label><input type="checkbox" value="${escapeHtml(url)}" ${selected.has(url) ? "checked" : ""}><img src="${escapeHtml(url)}" alt="갤러리 사진 ${index + 1}"></label>`).join("")}</div><button type="button" class="primary-btn" onclick="motfApplyGallerySelection()">선택 사진을 이 객실에 적용</button>`;
+    picker.hidden = false;
+  };
+
+  window.motfApplyGallerySelection = async function applyGallerySelection() {
+    const picker = document.getElementById("motfGalleryPicker");
+    const gallery = new Set(window.motfCurrentBusiness?.gallery_image_urls || []);
+    const existing = window.motfGetCurrentPhotoUrls?.() || [];
+    const roomOnly = existing.filter((url) => !gallery.has(url));
+    const selected = [...(picker?.querySelectorAll('input[type="checkbox"]:checked') || [])].map((input) => input.value);
+    try {
+      await persistCurrentPhotoUrls([...new Set([...selected, ...roomOnly])]);
+      if (picker) picker.hidden = true;
+    } catch (error) {
+      console.error(error);
+      alert("전체 갤러리 사진을 객실에 연결하지 못했습니다.");
+    }
+  };
 
   async function persistCurrentPhotoUrls(urls) {
     const business = window.motfCurrentBusiness;
