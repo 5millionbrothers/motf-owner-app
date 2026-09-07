@@ -37,6 +37,7 @@
     if (error) throw error;
     transactions = (data || []).map((item) => ({
       ...item,
+      kind: isMarket ? "market" : "stay",
       displayName: item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name,
       targetName: isMarket ? "공판장 주문" : item.offering_name,
       activityDate: isMarket ? item.created_at : item.event_date,
@@ -219,13 +220,34 @@
       statCard("정산 예정", money(pendingPayout), `${settlements.filter((item) => item.status === "pending").length}건`, "is-accent"),
     ].join("");
 
+    const pendingCards = pending.slice(0, 5).map((item) => {
+      const kind = item.kind || (business.business_type === "market" ? "market" : "stay");
+      const dateText = String(item.activityDate || item.event_date || item.pickup_time || item.created_at || "").slice(0, 10);
+      const targetText = item.targetName || item.offering_name || "요청 항목";
+      const amount = Number(item.total_amount || item.amount || 0);
+      return `<article class="owner-urgent-card">
+        <div class="owner-urgent-main">
+          <span class="owner-urgent-badge">승인 필요</span>
+          <strong>${escapeHtml(item.displayName || item.customer_name || "이용자")}</strong>
+          <small>${escapeHtml(dateText || "날짜 확인 필요")} · ${escapeHtml(targetText)} · ${money(amount)}</small>
+        </div>
+        <div class="owner-urgent-actions">
+          <button type="button" class="primary-btn" onclick="motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))">확정</button>
+          <button type="button" class="motf-reject-action-btn" onclick="motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))">거절</button>
+        </div>
+      </article>`;
+    }).join("");
+
     const tasks = [];
     if (pending.length) tasks.push({ icon: "clipboard-check", title: `확정 대기 ${pending.length}건`, body: "일정과 객실을 확인한 뒤 승인 또는 거절해주세요.", panel: "orders", action: "예약 확인" });
     if (recentChats.length) tasks.push({ icon: "message-circle", title: `최근 문의 ${recentChats.length}건`, body: "답변을 기다리는 이용자가 있는지 확인해주세요.", panel: "chat", action: "채팅 열기" });
     if (business.business_type === "stay" && availabilityBlocks.length) tasks.push({ icon: "calendar-x", title: `현재 방막기 ${availabilityBlocks.length}건`, body: "외부 예약과 수동 차단 날짜가 정확한지 확인해주세요.", panel: "calendar", action: "캘린더 보기" });
     const lowReviews = visibleReviews.filter((review) => rating5(review.rating) <= 3);
     if (lowReviews.length) tasks.push({ icon: "message-square-warning", title: `확인이 필요한 리뷰 ${lowReviews.length}건`, body: "3점 이하 후기를 살펴보고 운영 개선에 반영해보세요.", panel: "reviews", action: "리뷰 보기" });
-    $("#ownerOperationsTasks").innerHTML = tasks.length ? tasks.map((task) => `<button type="button" class="owner-task-row" onclick="switchPanel('${task.panel}')"><i data-lucide="${task.icon}"></i><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.body)}</small></span><b>${escapeHtml(task.action)} <i data-lucide="chevron-right"></i></b></button>`).join("") : `<div class="owner-all-clear"><i data-lucide="circle-check-big"></i><div><strong>지금 바로 처리할 항목이 없습니다.</strong><p>새로운 예약이나 문의가 들어오면 이곳에 표시됩니다.</p></div></div>`;
+    const taskLinks = tasks.filter((task) => task.panel !== "orders").map((task) => `<button type="button" class="owner-task-row" onclick="switchPanel('${task.panel}')"><i data-lucide="${task.icon}"></i><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.body)}</small></span><b>${escapeHtml(task.action)} <i data-lucide="chevron-right"></i></b></button>`).join("");
+    $("#ownerOperationsTasks").innerHTML = pendingCards
+      ? `<div class="owner-urgent-list">${pendingCards}</div>${taskLinks ? `<div class="owner-secondary-task-list">${taskLinks}</div>` : ""}`
+      : `<div class="owner-all-clear"><i data-lucide="circle-check-big"></i><div><strong>지금 바로 승인할 예약은 없습니다.</strong><p>새로운 예약 요청이 들어오면 이곳에 먼저 표시됩니다.</p></div></div>${taskLinks ? `<div class="owner-secondary-task-list">${taskLinks}</div>` : ""}`;
 
     const settlement = window.motfCurrentSettlementAccount || {};
     const checks = [

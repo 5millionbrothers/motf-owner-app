@@ -880,6 +880,10 @@
             <ul class="chat-list" id="chatListContainer"></ul>
           </div>
           <div class="chat-main">
+            <div class="chat-mobile-room-head" id="chatMobileRoomHead">
+              <button type="button" onclick="motfBackToChatList()"><i data-lucide="chevron-left"></i> 채팅 목록</button>
+              <strong id="chatMobileRoomTitle">대화</strong>
+            </div>
             <div class="chat-body" id="chatBodyContainer"></div>
             <div class="chat-footer">
               <input type="text" id="chatMessageInput" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter') sendChatMessage()">
@@ -2645,6 +2649,7 @@
     function goToUserChat(userName) {
       currentSelectedChatUser = userName;
       switchPanel('chat');
+      document.querySelector('.chat-layout')?.classList.add('is-room-open');
       renderChatList();
       renderChatMessages();
     }
@@ -2659,6 +2664,7 @@
         li.className = `chat-user-item ${c.user === currentSelectedChatUser ? 'active' : ''}`;
         li.onclick = () => {
           currentSelectedChatUser = c.user;
+          document.querySelector('.chat-layout')?.classList.add('is-room-open');
           renderChatList();
           renderChatMessages();
           window.dispatchEvent(new CustomEvent('motf:owner-chat-change', {
@@ -2694,6 +2700,11 @@
       });
     }
 
+    function motfBackToChatList() {
+      document.querySelector('.chat-layout')?.classList.remove('is-room-open');
+    }
+    window.motfBackToChatList = motfBackToChatList;
+
     function renderChatMessages() {
       const container = document.getElementById('chatBodyContainer');
       container.innerHTML = '';
@@ -2701,6 +2712,8 @@
       const chat = data.chats.find(c => c.user === currentSelectedChatUser);
       
       if(!chat) return;
+      const mobileTitle = document.getElementById('chatMobileRoomTitle');
+      if(mobileTitle) mobileTitle.innerText = chat.user;
 
       chat.messages.forEach(m => {
         const bubble = document.createElement('div');
