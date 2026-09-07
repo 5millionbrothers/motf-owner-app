@@ -697,6 +697,7 @@
   <link rel="stylesheet" href="/owner/owner-data.css?v=20260831-owner-mobile2">
   <link rel="stylesheet" href="/owner/stay-import.css?v=20260907-stayimport2">
   <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport5">
+  <link rel="stylesheet" href="/owner/listing-review.css?v=20260907-review1">
 </head>
 <body>
   <div class="motf-loading-overlay" id="motfLoadingOverlay" role="status" aria-live="polite" aria-label="페이지를 불러오는 중입니다">
@@ -1074,8 +1075,10 @@
             <p style="margin:7px 0 0;color:var(--muted);font-size:12px;">입력한 시설과 요금은 이용자 숙소 상세 화면에 자동으로 정리됩니다.</p>
           </div>
 
-          <div style="margin-top:10px;">
+          <div id="motfListingReviewNotice" class="listing-review-notice" hidden></div>
+          <div class="listing-review-actions" style="margin-top:10px;">
             <button class="primary-btn" onclick="saveMypageData()"><i data-lucide="save"></i> 변경사항 저장하기</button>
+            <button id="motfSubmitListingButton" class="secondary-btn" type="button" onclick="motfSubmitInitialListing()" hidden><i data-lucide="send"></i> 등록 신청</button>
           </div>
         </div>
       </section>
@@ -1241,6 +1244,19 @@
           <select id="masterOrderStatusFilter" onchange="renderMasterOrders()"><option value="all">전체 상태</option><option value="pending">확정 대기</option><option value="confirm">예약 확정</option><option value="past">지난 예약</option><option value="reject">거절</option></select>
         </div>
         <div id="masterOrderListArea" class="item-list"></div>
+      </section>
+
+      <section id="panel-master-listing-reviews" class="panel listing-review-admin-panel">
+        <div class="listing-review-heading">
+          <div><h2 class="panel-title">입점 및 숙소 변경 심사</h2><p>신규 숙소는 승인 시 처음 공개되고, 기존 숙소 변경은 승인 시점에 반영됩니다.</p></div>
+          <button class="secondary-btn compact" type="button" onclick="motfLoadListingReviews()"><i data-lucide="refresh-cw"></i> 새로고침</button>
+        </div>
+        <div class="admin-filter-row">
+          <select id="motfListingReviewFilter" onchange="motfLoadListingReviews()">
+            <option value="pending">검토 대기</option><option value="approved">승인 완료</option><option value="rejected">반려</option><option value="all">전체</option>
+          </select>
+        </div>
+        <div id="motfListingReviewList" class="listing-review-list"><div class="admin-control-empty">심사 요청을 불러오는 중입니다.</div></div>
       </section>
 
       <section id="panel-master-content" class="panel">
@@ -1586,6 +1602,7 @@
         <ul class="sidebar-menu">
           <li><button class="menu-item active" id="m-btn-stats" onclick="switchMasterPanel('master-stats')"><i data-lucide="layout-dashboard"></i> 플랫폼 종합 현황</button></li>
           <li><button class="menu-item" id="m-btn-partners" onclick="switchMasterPanel('master-partners')"><i data-lucide="users"></i> 가입 회원 & 업장 관리</button></li>
+          <li><button class="menu-item" id="m-btn-listing-reviews" onclick="switchMasterPanel('master-listing-reviews')"><i data-lucide="clipboard-check"></i> 입점·변경 심사</button></li>
           <li><button class="menu-item" id="m-btn-locations" onclick="switchMasterPanel('master-locations')"><i data-lucide="map-pin"></i> 주변 기준 장소</button></li>
           <li><button class="menu-item" id="m-btn-chat-monitor" onclick="switchMasterPanel('master-chat-monitor')"><i data-lucide="messages-square"></i> 전체 채팅 모니터링</button></li>
           <li><button class="menu-item" id="m-btn-cases" onclick="switchMasterPanel('master-cases')"><i data-lucide="badge-help"></i> 문의 & 분쟁 관리</button></li>
@@ -1617,6 +1634,7 @@
       const btns = {
         'master-stats': document.getElementById('m-btn-stats'),
         'master-partners': document.getElementById('m-btn-partners'),
+        'master-listing-reviews': document.getElementById('m-btn-listing-reviews'),
         'master-locations': document.getElementById('m-btn-locations'),
         'master-chat-monitor': document.getElementById('m-btn-chat-monitor'),
         'master-cases': document.getElementById('m-btn-cases'),
@@ -1633,6 +1651,7 @@
 
       if(panelId === 'master-revenue') switchMasterRevSub(masterRevSubTab);
       if(panelId === 'master-chat-monitor') renderMasterChatMonitor();
+      if(panelId === 'master-listing-reviews') window.motfLoadListingReviews?.();
       if(panelId === 'master-cases') renderMasterCases();
       if(panelId === 'master-orders') renderMasterOrders();
       if(panelId === 'master-content') renderMasterContent();
@@ -3196,10 +3215,11 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260907-import-gallery"></script>
+  <script src="/owner/owner-data.js?v=20260907-review1"></script>
   <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
   <script src="/owner/admin-control.js?v=20260829-ownerops1"></script>
-  <script src="/owner/stay-import.js?v=20260907-stayimport5"></script>
+  <script src="/owner/stay-import.js?v=20260907-review1"></script>
+  <script src="/owner/listing-review.js?v=20260907-review1"></script>
   <script src="/owner/admin-review-fixes.js?v=20260902-admin-loop1"></script>
   <script src="/owner/owner-operations.js?v=20260829-ownerops1"></script>
 </body>

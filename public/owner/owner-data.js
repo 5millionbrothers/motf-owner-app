@@ -50,6 +50,7 @@
     "location_verified_at",
     "approval_status",
     "rejection_reason",
+    "import_job_id",
   ].join(", ");
 
   function client() {
@@ -636,6 +637,14 @@
     const target = window.motfGetCurrentPhotoTarget?.();
     if (!business || !target) return;
     window.motfReplaceCurrentPhotoUrls?.(urls);
+    if (business.approval_status === "approved") {
+      if (target.type === "business") {
+        business.cover_image_url = urls[0] || null;
+        business.gallery_image_urls = urls;
+      }
+      updatePhotoPreview();
+      return;
+    }
     if (target.type === "business") {
       const result = await client().from("businesses")
         .update({ cover_image_url: urls[0] || null, gallery_image_urls: urls, updated_at: new Date().toISOString() })
@@ -757,20 +766,27 @@
 
       if (target.type === "business") {
         const gallery = [...new Set([business.cover_image_url, ...(business.gallery_image_urls || []), ...uploadedUrls].filter(Boolean))];
-        const result = await client().from("businesses")
-          .update({ cover_image_url: gallery[0] || null, gallery_image_urls: gallery, updated_at: new Date().toISOString() })
-          .eq("id", business.id)
-          .select(businessSelect)
-          .single();
-        saveError = result.error;
-        if (!saveError) window.motfCurrentBusiness = result.data;
+        if (business.approval_status === "approved") {
+          business.cover_image_url = gallery[0] || null;
+          business.gallery_image_urls = gallery;
+        } else {
+          const result = await client().from("businesses")
+            .update({ cover_image_url: gallery[0] || null, gallery_image_urls: gallery, updated_at: new Date().toISOString() })
+            .eq("id", business.id)
+            .select(businessSelect)
+            .single();
+          saveError = result.error;
+          if (!saveError) window.motfCurrentBusiness = result.data;
+        }
       } else {
         window.motfSetCurrentPhotoUrls?.(uploadedUrls);
-        const result = await client().rpc("save_business_offerings", {
-          target_business_id: business.id,
-          items: window.motfReadOfferingsFromDashboard?.() || [],
-        });
-        saveError = result.error;
+        if (business.approval_status !== "approved") {
+          const result = await client().rpc("save_business_offerings", {
+            target_business_id: business.id,
+            items: window.motfReadOfferingsFromDashboard?.() || [],
+          });
+          saveError = result.error;
+        }
       }
 
       input.disabled = false;
@@ -781,7 +797,9 @@
         return;
       }
       updatePhotoPreview();
-      alert(`${uploadedUrls.length}장의 사진이 저장되었습니다. 이용자 화면에도 반영됩니다.`);
+      alert(business.approval_status === "approved"
+        ? `${uploadedUrls.length}장의 사진을 추가했습니다. 변경 승인 요청을 보내야 이용자 화면에 반영됩니다.`
+        : `${uploadedUrls.length}장의 사진을 비공개 초안에 저장했습니다.`);
     });
   }
 
@@ -871,11 +889,11 @@
     bindPhotoUpload();
     updatePhotoPreview(business.cover_image_url || null);
     const loadOfferings = async () => {
-      let result = await client().from("offerings")
+      let offeringQuery = client().from("offerings")
         .select("id, name, description, price, max_people, min_people, base_people, extra_person_fee, unit, category, image_url, image_urls, sort_order, feature_summary, amenity_details, detail_sections, origin, nutrition_info, is_alcohol, stock_quantity, is_active, offseason_weekday_price, offseason_weekend_price, shoulder_weekday_price, shoulder_weekend_price, peak_weekday_price, peak_weekend_price, bathroom_count, bathroom_gender_separated, bathroom_note")
-        .eq("business_id", business.id)
-        .eq("is_active", true)
-        .order("sort_order");
+        .eq("business_id", business.id);
+      if (business.approval_status === "approved") offeringQuery = offeringQuery.eq("is_active", true);
+      let result = await offeringQuery.order("sort_order");
 
       // Keep the operating portal usable while optional detail columns are being migrated.
       if (result.error) {
@@ -895,6 +913,7 @@
       updatePhotoPreview();
       const needsOnboarding = !business.region || !business.address || !business.description || !offerings.length;
       window.motfSetPartnerOnboarding?.(needsOnboarding);
+      window.motfUpdateListingReviewUi?.();
     };
     loadOfferings();
   };
@@ -933,6 +952,8 @@
       peak_season_ranges: seasonRanges.peak,
       amenity_details: window.motfReadAmenityDetailsFromDashboard?.() || [],
       extra_fees: extraFeeRows.filter((item) => item.label).map((item) => ({ label: item.label.trim(), amount: Number(item.amount) || null, detail: item.detail?.trim() || null, category: item.category || "optional" })),
+      cover_image_url: business.cover_image_url || null,
+      gallery_image_urls: business.gallery_image_urls || [],
       updated_at: new Date().toISOString(),
     };
     const ownerPhone = document.getElementById("motfOwnerPhone")?.value.trim() || null;
@@ -945,16 +966,11 @@
     };
     const hasSettlementValue = Boolean(settlementPayload.bank_name || settlementPayload.account_number || settlementPayload.account_holder);
 
-    if (!payload.business_name || !payload.representative_name || !payload.region || !payload.address || !payload.description) {
-      alert("업장명, 대표자명, 주소와 소개 문구를 모두 입력해주세요. 운영 지역은 주소에서 자동 설정됩니다.");
-      return;
-    }
-
-    const offeringItems = window.motfReadOfferingsFromDashboard?.() || [];
-    if (!offeringItems.length || offeringItems.some((item) => !item.name || Number(item.price) <= 0)) {
-      alert("객실 또는 상품을 하나 이상 추가하고 이름과 가격을 입력해주세요.");
-      return;
-    }
+    const offeringItems = (window.motfReadOfferingsFromDashboard?.() || []).map((item, index) => ({
+      ...item,
+      name: String(item.name || "").trim() || `${business.business_type === "stay" ? "객실" : "상품"} ${index + 1}`,
+      price: Math.max(0, Number(item.price) || 0),
+    }));
     if (hasSettlementValue && (!settlementPayload.bank_name || !settlementPayload.account_number || !settlementPayload.account_holder)) {
       alert("정산 계좌를 등록하려면 은행, 계좌번호, 예금주를 모두 입력해주세요.");
       return;
@@ -965,17 +981,56 @@
     try {
       if (saveButton) saveButton.textContent = "주소 확인 중...";
       const fields = ensurePartnerFields();
-      const addressIsVerified = fields?.dataset.locationAddress === payload.address
-        && Number.isFinite(Number(fields?.dataset.latitude))
-        && Number.isFinite(Number(fields?.dataset.longitude));
-      const location = addressIsVerified
-        ? { latitude: Number(fields.dataset.latitude), longitude: Number(fields.dataset.longitude) }
-        : await verifyBusinessLocation();
-      payload.latitude = location.latitude;
-      payload.longitude = location.longitude;
-      payload.location_verified_at = new Date().toISOString();
+      if (payload.address) {
+        const addressIsVerified = fields?.dataset.locationAddress === payload.address
+          && Number.isFinite(Number(fields?.dataset.latitude))
+          && Number.isFinite(Number(fields?.dataset.longitude));
+        let location = addressIsVerified
+          ? { latitude: Number(fields.dataset.latitude), longitude: Number(fields.dataset.longitude) }
+          : null;
+        if (!location) {
+          try { location = await verifyBusinessLocation(); }
+          catch (error) {
+            console.warn("Draft location verification skipped", error);
+            location = { latitude: business.latitude || null, longitude: business.longitude || null };
+          }
+        }
+        payload.latitude = location.latitude;
+        payload.longitude = location.longitude;
+        payload.location_verified_at = location.latitude != null && location.longitude != null
+          ? new Date().toISOString()
+          : null;
+      } else {
+        payload.latitude = business.latitude || null;
+        payload.longitude = business.longitude || null;
+        payload.location_verified_at = business.location_verified_at || null;
+      }
 
       if (saveButton) saveButton.textContent = "저장 중...";
+      if (business.approval_status === "approved") {
+        const [reviewResult, profileResult, settlementResult] = await Promise.all([
+          client().rpc("submit_business_listing_review", {
+            target_business_id: business.id,
+            proposed_business: payload,
+            proposed_offerings: offeringItems,
+            requested_type: "listing_update",
+          }),
+          ownerPhone
+            ? client().from("profiles").update({ phone: ownerPhone, updated_at: new Date().toISOString() }).eq("id", window.motfCurrentProfile?.id)
+            : Promise.resolve({ error: null }),
+          hasSettlementValue
+            ? client().from("business_settlement_accounts").upsert(settlementPayload, { onConflict: "business_id" })
+            : Promise.resolve({ error: null }),
+        ]);
+        if (reviewResult.error || profileResult.error || settlementResult.error) {
+          throw reviewResult.error || profileResult.error || settlementResult.error;
+        }
+        if (hasSettlementValue) window.motfCurrentSettlementAccount = settlementPayload;
+        if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
+        alert("변경 승인 요청을 보냈습니다. 운영팀 승인 전까지 현재 공개 정보가 유지됩니다.");
+        await window.motfUpdateListingReviewUi?.();
+        return;
+      }
       const businessResult = await client().from("businesses")
         .update(payload)
         .eq("id", business.id)
@@ -983,10 +1038,10 @@
         .single();
       if (businessResult.error) throw businessResult.error;
       const [offeringResult, profileResult, settlementResult] = await Promise.all([
-        client().rpc("save_business_offerings", {
+        offeringItems.length ? client().rpc("save_business_offerings", {
           target_business_id: business.id,
           items: offeringItems,
-        }),
+        }) : Promise.resolve({ error: null }),
         ownerPhone
           ? client().from("profiles").update({ phone: ownerPhone, updated_at: new Date().toISOString() }).eq("id", window.motfCurrentProfile?.id)
           : Promise.resolve({ error: null }),
@@ -1010,7 +1065,8 @@
       if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
       window.motfApplyBusinessToDashboard?.(data);
       window.motfSetPartnerOnboarding?.(false);
-      alert("업장 기본정보와 객실·상품, 지도 위치가 저장되었습니다.");
+      alert("비공개 초안을 저장했습니다. 점검을 마치면 아래 등록 신청 버튼을 눌러주세요.");
+      await window.motfUpdateListingReviewUi?.();
     } catch (error) {
       console.error(error);
       alert(error.message || "업장 정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
@@ -1060,6 +1116,9 @@
   }
 
   function partnerAction(profile, business, offerings) {
+    if (business?.import_job_id && profile.status === "pending") {
+      return `<button class="secondary-btn motf-admin-mini-btn" onclick="switchMasterPanel('master-listing-reviews')">심사 요청 확인</button>`;
+    }
     const statusAction = partnerStatusAction(profile);
     if (!business) return statusAction;
     const businessOfferings = offerings.filter((item) => item.business_id === business.id);

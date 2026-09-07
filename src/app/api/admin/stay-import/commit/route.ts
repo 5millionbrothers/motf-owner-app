@@ -35,8 +35,8 @@ function positiveOrNull(value: unknown) {
 
 function validateDraft(input: unknown): StayImportDraft {
   const value = (input || {}) as StayImportDraft;
-  const rooms = Array.isArray(value.rooms) ? value.rooms.slice(0, 40).map((room) => ({
-    name: text(room.name, 100, true)!, description: text(room.description, 2_000), price: number(room.price),
+  const rooms = Array.isArray(value.rooms) ? value.rooms.slice(0, 40).map((room, index) => ({
+    name: text(room.name, 100) || `객실 ${index + 1}`, description: text(room.description, 2_000), price: number(room.price),
     minPeople: positiveOrNull(room.minPeople), basePeople: positiveOrNull(room.basePeople), maxPeople: positiveOrNull(room.maxPeople),
     extraPersonFee: number(room.extraPersonFee), bathroomCount: number(room.bathroomCount),
     bathroomGenderSeparated: Boolean(room.bathroomGenderSeparated), bathroomNote: text(room.bathroomNote, 160),
@@ -46,12 +46,11 @@ function validateDraft(input: unknown): StayImportDraft {
     shoulderWeekdayPrice: number(room.shoulderWeekdayPrice ?? room.price), shoulderWeekendPrice: number(room.shoulderWeekendPrice ?? room.price),
     peakWeekdayPrice: number(room.peakWeekdayPrice ?? room.price), peakWeekendPrice: number(room.peakWeekendPrice ?? room.price),
   })) : [];
-  if (!rooms.length || rooms.some((room) => room.price <= 0)) throw new Error("객실을 한 개 이상 입력하고 모든 객실 가격을 확인해주세요.");
   return {
-    sourceUrl: text(value.sourceUrl, 2_000, true)!, businessName: text(value.businessName, 120, true)!,
+    sourceUrl: text(value.sourceUrl, 2_000, true)!, businessName: text(value.businessName, 120) || "숙소명 확인 필요",
     representativeName: text(value.representativeName, 80), phone: text(value.phone, 30), postalCode: text(value.postalCode, 10),
-    address: text(value.address, 300, true), addressDetail: text(value.addressDetail, 200), region: text(value.region, 80, true),
-    shortDescription: text(value.shortDescription, 140, true)!, description: text(value.description, 3_000, true)!,
+    address: text(value.address, 300), addressDetail: text(value.addressDetail, 200), region: text(value.region, 80),
+    shortDescription: text(value.shortDescription, 140) || "", description: text(value.description, 3_000) || "",
     facilities: (Array.isArray(value.facilities) ? value.facilities : []).filter((item) => FACILITY_KEYS.has(item.key)).map((item) => ({ key: item.key, detail: text(item.detail, 200) })),
     extraFees: (Array.isArray(value.extraFees) ? value.extraFees : []).slice(0, 20).map((fee) => ({
       label: text(fee.label, 40, true)!, amount: number(fee.amount, true), detail: text(fee.detail, 100),
@@ -116,7 +115,8 @@ export async function POST(request: NextRequest) {
     }, { onConflict: "id" });
     if (profileError) throw profileError;
 
-    const location = await geocode([draft.address, draft.addressDetail].filter(Boolean).join(" "));
+    const locationAddress = [draft.address, draft.addressDetail].filter(Boolean).join(" ");
+    const location = locationAddress ? await geocode(locationAddress).catch(() => null) : null;
     const amenityDetails = draft.facilities.map((item) => ({ key: item.key, label: item.key, available: true, params: {}, detail: item.detail }));
     const { data: business, error: businessError } = await service.from("businesses").insert({
       owner_id: createdUserId, business_type: "stay", business_name: draft.businessName,
@@ -167,15 +167,17 @@ export async function POST(request: NextRequest) {
       min_people: room.minPeople, base_people: room.basePeople, max_people: room.maxPeople,
       extra_person_fee: room.extraPersonFee, bathroom_count: room.bathroomCount,
       bathroom_gender_separated: room.bathroomGenderSeparated, bathroom_note: room.bathroomNote,
-      feature_summary: room.featureSummary, sort_order: index, is_active: true,
+      feature_summary: room.featureSummary, sort_order: index, is_active: false,
       image_urls: room.imageUrls.map((url) => importedImageMap.get(url)).filter((url): url is string => Boolean(url)),
       image_url: room.imageUrls.map((url) => importedImageMap.get(url)).find((url): url is string => Boolean(url)) || null,
       offseason_weekday_price: room.offseasonWeekdayPrice, offseason_weekend_price: room.offseasonWeekendPrice,
       shoulder_weekday_price: room.shoulderWeekdayPrice, shoulder_weekend_price: room.shoulderWeekendPrice,
       peak_weekday_price: room.peakWeekdayPrice, peak_weekend_price: room.peakWeekendPrice,
     }));
-    const { error: offeringError } = await service.from("offerings").insert(offerings);
-    if (offeringError) throw offeringError;
+    if (offerings.length) {
+      const { error: offeringError } = await service.from("offerings").insert(offerings);
+      if (offeringError) throw offeringError;
+    }
 
     await Promise.allSettled([
       service.rpc("refresh_business_highlights", { target_business_id: createdBusinessId }),
