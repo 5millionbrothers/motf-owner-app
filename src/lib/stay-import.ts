@@ -171,7 +171,7 @@ function cleanDraft(value: Omit<StayImportDraft, "sourceUrl" | "imageUrls">, sit
 }
 
 export function siteHash(site: CrawledSite) {
-  return createHash("sha256").update(JSON.stringify({ version: 3, pages: site.pages, imageUrls: site.imageUrls })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ version: 4, pages: site.pages, imageUrls: site.imageUrls })).digest("hex");
 }
 
 export async function structureStaySite(site: CrawledSite): Promise<StayImportDraft> {

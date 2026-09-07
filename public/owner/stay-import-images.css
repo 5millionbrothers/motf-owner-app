@@ -34,6 +34,21 @@
   z-index: 2;
 }
 
+.stay-import-images label.is-duplicate {
+  display: none;
+}
+
+.stay-import-dedupe-status {
+  display: inline-flex !important;
+  margin-top: 8px !important;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.stay-import-dedupe-status.is-complete {
+  color: var(--teal-dark);
+}
+
 .stay-import-progress {
   margin: 0 0 16px;
   padding: 16px;

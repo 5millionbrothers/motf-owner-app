@@ -94,6 +94,44 @@
 
   function field(label, name, value, options = {}) { const attrs = [options.required ? "required" : "", options.type ? `type="${options.type}"` : "", options.min != null ? `min="${options.min}"` : ""].filter(Boolean).join(" "); return `<label class="${options.wide ? "wide" : ""}"><span>${label}</span><input name="${name}" value="${escapeHtml(value ?? "")}" ${attrs}></label>`; }
 
+  async function sha256Image(url) {
+    const response = await fetch(url, { cache:"force-cache" });
+    if (!response.ok) return null;
+    const digest = await crypto.subtle.digest("SHA-256", await response.arrayBuffer());
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function removeDuplicateImages() {
+    const gallery = $(".stay-import-images");
+    const status = $("#stayImportDedupeStatus");
+    if (!gallery || !status || !state.jobId) return;
+    const cards = [...gallery.querySelectorAll("label")];
+    const seen = new Map();
+    let next = 0;
+    let duplicates = 0;
+    const inspectNext = async () => {
+      while (next < cards.length) {
+        const index = next++;
+        const card = cards[index];
+        try {
+          const hash = await sha256Image(card.querySelector("img").src);
+          if (!hash) continue;
+          if (seen.has(hash)) {
+            card.querySelector("input").checked = false;
+            card.classList.add("is-duplicate");
+            duplicates += 1;
+          } else seen.set(hash, index);
+        } catch { /* 다운로드 실패 표시는 이미지 onerror가 처리합니다. */ }
+      }
+    };
+    await Promise.all(Array.from({ length:Math.min(6, cards.length) }, inspectNext));
+    const uniqueCount = cards.length - duplicates;
+    const count = $("#stayImportImageCount");
+    if (count) count.textContent = `${uniqueCount}장`;
+    status.textContent = duplicates ? `같은 사진 ${duplicates}장을 자동으로 숨겼습니다.` : "중복 사진 확인 완료";
+    status.classList.add("is-complete");
+  }
+
   function renderEditor() {
     const draft = state.draft; if (!draft) return;
     draft.seasonRanges = draft.seasonRanges || { shoulder:[], peak:[] };
@@ -107,10 +145,10 @@
       <section class="stay-import-block"><div class="stay-import-block-title"><div><strong>2. 시설</strong><span>공식 사이트에서 확인된 항목만 선택하세요.</span></div></div><div class="stay-import-facilities">${facilities}</div></section>
       <section class="stay-import-block"><div class="stay-import-block-title"><div><strong>3. 객실과 요금</strong><span>공식 예약 달력이 있으면 시즌별 평일·주말 요금과 시즌 기간을 함께 제안합니다.</span></div><button type="button" class="secondary-btn compact" id="stayImportAddRoom"><i data-lucide="plus"></i> 객실 추가</button></div>${seasonSummary ? `<div class="stay-import-season-summary"><strong>자동 감지한 시즌 기간</strong>${seasonSummary}<small>등록 후 사장님 화면의 시즌 달력에서 날짜별로 수정할 수 있습니다.</small></div>` : ""}<div id="stayImportRooms"></div></section>
       <section class="stay-import-block"><div class="stay-import-block-title"><div><strong>4. 추가요금</strong><span>바비큐·인원추가·보증금 등 실제 총비용에 필요한 항목입니다.</span></div><button type="button" class="secondary-btn compact" id="stayImportAddFee"><i data-lucide="plus"></i> 요금 추가</button></div><div id="stayImportFees"></div></section>
-      <section class="stay-import-block"><div class="stay-import-block-title"><div><strong>5. 가져올 사진 <em>${draft.imageUrls.length}장</em></strong><span>정상적으로 확인되는 사진은 모두 선택되어 있으며, 원하지 않는 사진만 해제하면 됩니다.</span></div></div><div class="stay-import-images">${draft.imageUrls.map((url, index) => `<label><input type="checkbox" data-image-url="${escapeHtml(url)}" checked><img src="/api/admin/stay-import/image?jobId=${encodeURIComponent(state.jobId)}&index=${index}" alt="가져오기 후보 ${index + 1}" loading="lazy" onerror="this.closest('label').classList.add('is-broken');this.nextElementSibling.textContent='제외';this.previousElementSibling.checked=false"><span>${index + 1}</span></label>`).join("") || "<p>자동으로 찾은 사진이 없습니다.</p>"}</div></section>
+      <section class="stay-import-block"><div class="stay-import-block-title"><div><strong>5. 가져올 사진 <em id="stayImportImageCount">${draft.imageUrls.length}장</em></strong><span>정상적으로 확인되는 사진은 모두 선택되어 있으며, 원하지 않는 사진만 해제하면 됩니다.</span><small id="stayImportDedupeStatus" class="stay-import-dedupe-status">중복 사진 확인 중...</small></div></div><div class="stay-import-images">${draft.imageUrls.map((url, index) => `<label><input type="checkbox" data-image-url="${escapeHtml(url)}" checked><img src="/api/admin/stay-import/image?jobId=${encodeURIComponent(state.jobId)}&index=${index}" alt="가져오기 후보 ${index + 1}" loading="lazy" onerror="this.closest('label').classList.add('is-broken');this.nextElementSibling.textContent='제외';this.previousElementSibling.checked=false"><span>${index + 1}</span></label>`).join("") || "<p>자동으로 찾은 사진이 없습니다.</p>"}</div></section>
       <section class="stay-import-block stay-import-final"><label class="stay-import-rights"><input name="rightsConfirmed" type="checkbox" required><span>이 숙소의 공식 정보와 사진을 모티프에 등록할 권한을 확인했습니다.</span></label><p>가격이나 일부 정보가 비어 있어도 비공개 초안과 임시 사장님 계정을 만들 수 있습니다. 사장님이 점검 후 등록 신청하고, 운영팀이 승인해야 이용자 화면에 노출됩니다.</p><button class="primary-btn" type="submit"><i data-lucide="database"></i> 비공개 초안 등록</button></section>
     </form>`;
-    renderRooms(); renderFees();
+    renderRooms(); renderFees(); removeDuplicateImages();
     $("#stayImportAddRoom").onclick = () => { draft.rooms.push({ name:"새 객실", description:null, price:0, minPeople:null, basePeople:null, maxPeople:null, extraPersonFee:0, bathroomCount:0, bathroomGenderSeparated:false, bathroomNote:null, featureSummary:[], imageUrls:[], offseasonWeekdayPrice:0, offseasonWeekendPrice:0, shoulderWeekdayPrice:0, shoulderWeekendPrice:0, peakWeekdayPrice:0, peakWeekendPrice:0 }); renderRooms(); };
     $("#stayImportAddFee").onclick = () => { draft.extraFees.push({ label:"", amount:null, detail:null, category:"optional" }); renderFees(); };
     $("#stayImportCommitForm").addEventListener("submit", commit); window.lucide?.createIcons();

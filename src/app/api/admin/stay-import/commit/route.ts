@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticatedAdmin, env } from "@/lib/admin-server";
 import { downloadPublicImage } from "@/lib/safe-site-crawler";
@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
 
     stage = "숙소 사진 저장";
     const storedImageUrls: Array<string | null> = new Array(draft.imageUrls.length).fill(null);
+    const imageImports = new Map<string, Promise<string | null>>();
     let nextImageIndex = 0;
     const importNextImage = async () => {
       while (nextImageIndex < draft.imageUrls.length) {
@@ -166,19 +167,30 @@ export async function POST(request: NextRequest) {
         if (!imageUrl) continue;
       try {
         const image = await downloadPublicImage(imageUrl);
-        const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as Record<string, string>)[image.contentType] || "jpg";
-        const path = `${createdUserId}/${createdBusinessId}/import-${String(index + 1).padStart(2, "0")}.${extension}`;
-        const { error } = await service.storage.from("catalog-images").upload(path, image.data, { contentType: image.contentType, cacheControl: "86400", upsert: false });
-        if (error) throw error;
-        uploadedPaths.push(path);
-        storedImageUrls[index] = service.storage.from("catalog-images").getPublicUrl(path).data.publicUrl;
+        const hash = createHash("sha256").update(Buffer.from(image.data)).digest("hex");
+        let imageImport = imageImports.get(hash);
+        if (!imageImport) {
+          imageImport = (async () => {
+            const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as Record<string, string>)[image.contentType] || "jpg";
+            const path = `${createdUserId}/${createdBusinessId}/import-${String(index + 1).padStart(2, "0")}.${extension}`;
+            const { error } = await service.storage.from("catalog-images").upload(path, image.data, { contentType: image.contentType, cacheControl: "86400", upsert: false });
+            if (error) throw error;
+            uploadedPaths.push(path);
+            return service.storage.from("catalog-images").getPublicUrl(path).data.publicUrl;
+          })();
+          imageImports.set(hash, imageImport);
+        }
+        storedImageUrls[index] = await imageImport;
       } catch (error) {
         console.warn("stay-import image skipped", imageUrl, error);
       }
       }
     };
     await Promise.all(Array.from({ length: Math.min(8, draft.imageUrls.length) }, () => importNextImage()));
-    const successfulImageUrls = storedImageUrls.filter((url): url is string => Boolean(url));
+    const downloadedImageUrls = storedImageUrls.filter((url): url is string => Boolean(url));
+    const successfulImageUrls = [...new Set(downloadedImageUrls)];
+    const duplicateImageCount = downloadedImageUrls.length - successfulImageUrls.length;
+    const failedImageCount = draft.imageUrls.length - downloadedImageUrls.length;
     const importedImageMap = new Map(draft.imageUrls.map((sourceUrl, index) => [sourceUrl, storedImageUrls[index]]));
     if (successfulImageUrls.length) {
       const { error } = await service.from("businesses").update({ cover_image_url: successfulImageUrls[0], gallery_image_urls: successfulImageUrls }).eq("id", createdBusinessId);
@@ -192,7 +204,7 @@ export async function POST(request: NextRequest) {
       extra_person_fee: room.extraPersonFee, bathroom_count: room.bathroomCount,
       bathroom_gender_separated: room.bathroomGenderSeparated, bathroom_note: room.bathroomNote,
       feature_summary: room.featureSummary, sort_order: index, is_active: false,
-      image_urls: room.imageUrls.map((url) => importedImageMap.get(url)).filter((url): url is string => Boolean(url)),
+      image_urls: [...new Set(room.imageUrls.map((url) => importedImageMap.get(url)).filter((url): url is string => Boolean(url)))],
       image_url: room.imageUrls.map((url) => importedImageMap.get(url)).find((url): url is string => Boolean(url)) || null,
       offseason_weekday_price: room.offseasonWeekdayPrice, offseason_weekend_price: room.offseasonWeekendPrice,
       shoulder_weekday_price: room.shoulderWeekdayPrice, shoulder_weekend_price: room.shoulderWeekendPrice,
@@ -221,7 +233,7 @@ export async function POST(request: NextRequest) {
     return json(200, {
       ok: true, businessId: createdBusinessId, account: { email: account.email, password: account.password },
       imageCount: successfulImageUrls.length,
-      warnings: [!location && "주소 좌표는 사장님 화면에서 다시 확인해주세요.", successfulImageUrls.length < draft.imageUrls.length && `${draft.imageUrls.length - successfulImageUrls.length}개 이미지는 형식·용량·접근 문제로 제외됐습니다.`].filter(Boolean),
+      warnings: [!location && "주소 좌표는 사장님 화면에서 다시 확인해주세요.", duplicateImageCount > 0 && `완전히 같은 사진 ${duplicateImageCount}장을 자동으로 제외했습니다.`, failedImageCount > 0 && `${failedImageCount}개 이미지는 형식·용량·접근 문제로 제외됐습니다.`].filter(Boolean),
       message: "승인 대기 숙소와 임시 사장님 계정을 등록했습니다. 운영자 입점 승인 전까지 이용자 화면에는 노출되지 않습니다.",
     });
   } catch (error) {

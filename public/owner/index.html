@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="/owner/assets/motf-favicon.svg?v=20260904">
   <link rel="icon" type="image/png" sizes="32x32" href="/owner/assets/motf-favicon-32.png?v=20260904">
   <link rel="apple-touch-icon" sizes="180x180" href="/owner/assets/motf-apple-touch-icon.png?v=20260904">
-  <link rel="stylesheet" href="/owner/styles.css?v=20260907-import-gallery">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260908-photo-manager1">
   <link rel="stylesheet" href="/owner/loading.css?v=20260904-logo2">
   <script src="/owner/loading.js?v=20260904-loader1"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -696,7 +696,7 @@
   </style>
   <link rel="stylesheet" href="/owner/owner-data.css?v=20260831-owner-mobile2">
   <link rel="stylesheet" href="/owner/stay-import.css?v=20260907-stayimport2">
-  <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport5">
+  <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260908-dedup1">
   <link rel="stylesheet" href="/owner/listing-review.css?v=20260907-review1">
 </head>
 <body>
@@ -793,10 +793,6 @@
 
     <div class="content-area">
       <header class="top-bar">
-        <button class="motf-mobile-menu-back" type="button" onclick="switchPanel('operations')">
-          <i data-lucide="chevron-left"></i> 메뉴
-        </button>
-        <strong class="motf-mobile-page-title" id="motfMobilePageTitle">운영 홈</strong>
         <button class="mypage-btn" id="topbar-mypage-trigger-btn" onclick="switchPanel('mypage')">
           <i data-lucide="user-round-cog"></i> <span id="topbar-partner-manage-label">마이페이지</span>
         </button>
@@ -884,10 +880,6 @@
             <ul class="chat-list" id="chatListContainer"></ul>
           </div>
           <div class="chat-main">
-            <div class="chat-mobile-room-head" id="chatMobileRoomHead">
-              <button type="button" onclick="motfBackToChatList()"><i data-lucide="chevron-left"></i> 채팅 목록</button>
-              <strong id="chatMobileRoomTitle">대화</strong>
-            </div>
             <div class="chat-body" id="chatBodyContainer"></div>
             <div class="chat-footer">
               <input type="text" id="chatMessageInput" placeholder="메시지를 입력하세요..." onkeydown="if(event.key==='Enter') sendChatMessage()">
@@ -1046,10 +1038,16 @@
           <div>
             <label style="display:block; font-weight:600; margin-bottom:4px;" id="mypage-upload-title">구역별 사진 여러 장 관리</label>
             <div class="photo-tab-wrapper" id="photoCategoryContainer"></div>
-            <div style="background-color: var(--cream); border:1px solid var(--line); padding:16px; border-radius:8px; margin-top:12px;">
+            <div id="motfPhotoManager" class="motf-photo-manager" style="background-color: var(--cream); border:1px solid var(--line); padding:16px; border-radius:8px; margin-top:12px;">
               <span id="currentSelectedTabLabelInfo" style="font-size:13px; font-weight:600; color:var(--teal-dark);">선택된 사진 영역: 전체 외관</span>
-              <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" style="margin-top:12px; display:block;">
-              <small style="display:block;margin-top:7px;color:var(--muted);">새 사진은 기존 사진 뒤에 추가됩니다. 대표 지정·순서 이동·개별 삭제가 가능합니다.</small>
+              <div id="motfPhotoDropzone" class="motf-photo-dropzone" tabindex="0" role="button" aria-label="사진을 선택하거나 이곳에 끌어다 놓기">
+                <i data-lucide="image-up"></i>
+                <div><strong>사진 여러 장 선택</strong><span>파일을 이곳에 끌어다 놓아도 됩니다.</span></div>
+                <button type="button" class="secondary-btn" onclick="document.getElementById('motfPhotoUploadInput').click()">파일 선택</button>
+                <input type="file" id="motfPhotoUploadInput" multiple accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+              </div>
+              <small style="display:block;margin-top:7px;color:var(--muted);">한 번에 최대 100장, 장당 5MB. 카드를 끌어 순서를 바꾸고 여러 장을 선택해 삭제할 수 있습니다.</small>
+              <div id="motfPhotoBulkActions" class="motf-photo-bulk-actions" hidden><span><b id="motfPhotoSelectedCount">0</b>장 선택</span><button type="button" class="secondary-btn" onclick="motfToggleAllPhotos()">전체 선택</button><button type="button" class="secondary-btn danger" onclick="motfRemoveSelectedPhotos()"><i data-lucide="trash-2"></i> 선택 삭제</button></div>
               <button type="button" id="motfReuseGalleryButton" class="secondary-btn motf-gallery-reuse-button" onclick="motfOpenGalleryPicker()" hidden><i data-lucide="images"></i> 전체 갤러리에서 선택</button>
               <div id="motfGalleryPicker" class="motf-gallery-picker" hidden></div>
               <div id="motfPhotoUploadPreview" class="motf-photo-upload-preview"></div>
@@ -1387,7 +1385,7 @@
 
   <script>
     let currentOwnerType = 'stay'; 
-    let currentActivePanel = 'operations';
+    let currentActivePanel = 'calendar';
     let currentOrderTab = 'pending';
     let currentRevSubMenu = 'profit';
     let currentSelectedChatUser = '';
@@ -2423,22 +2421,6 @@
         const action = item.getAttribute('onclick') || '';
         if (action.includes(`'${panelId}'`) || action.includes(`"${panelId}"`)) item.classList.add('active');
       });
-      const mobileTitleMap = {
-        operations: '운영 홈',
-        calendar: '캘린더',
-        orders: '예약 관리',
-        availability: '수동 방막기',
-        chat: '채팅 문의',
-        reviews: '리뷰 관리',
-        settlements: '정산 내역',
-        revenue: '매출 관리',
-        mypage: '업장 정보'
-      };
-      const adminMain = document.getElementById('admin-main');
-      const isPartnerMobileDetail = window.motfCurrentProfile?.role === 'partner' && panelId !== 'operations';
-      adminMain?.classList.toggle('partner-mobile-detail-view', Boolean(isPartnerMobileDetail));
-      const mobilePageTitle = document.getElementById('motfMobilePageTitle');
-      if (mobilePageTitle) mobilePageTitle.innerText = mobileTitleMap[panelId] || '상세 관리';
       if (panelId === 'availability') {
         window.motfRenderAvailabilityManager?.('partner', window.motfCurrentBusiness?.id);
       }
@@ -2669,7 +2651,6 @@
     function goToUserChat(userName) {
       currentSelectedChatUser = userName;
       switchPanel('chat');
-      document.querySelector('.chat-layout')?.classList.add('is-room-open');
       renderChatList();
       renderChatMessages();
     }
@@ -2684,7 +2665,6 @@
         li.className = `chat-user-item ${c.user === currentSelectedChatUser ? 'active' : ''}`;
         li.onclick = () => {
           currentSelectedChatUser = c.user;
-          document.querySelector('.chat-layout')?.classList.add('is-room-open');
           renderChatList();
           renderChatMessages();
           window.dispatchEvent(new CustomEvent('motf:owner-chat-change', {
@@ -2720,11 +2700,6 @@
       });
     }
 
-    function motfBackToChatList() {
-      document.querySelector('.chat-layout')?.classList.remove('is-room-open');
-    }
-    window.motfBackToChatList = motfBackToChatList;
-
     function renderChatMessages() {
       const container = document.getElementById('chatBodyContainer');
       container.innerHTML = '';
@@ -2732,8 +2707,6 @@
       const chat = data.chats.find(c => c.user === currentSelectedChatUser);
       
       if(!chat) return;
-      const mobileTitle = document.getElementById('chatMobileRoomTitle');
-      if(mobileTitle) mobileTitle.innerText = chat.user;
 
       chat.messages.forEach(m => {
         const bubble = document.createElement('div');
@@ -3248,10 +3221,10 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260907-review1"></script>
+  <script src="/owner/owner-data.js?v=20260908-photo-manager1"></script>
   <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
   <script src="/owner/admin-control.js?v=20260829-ownerops1"></script>
-  <script src="/owner/stay-import.js?v=20260907-review1"></script>
+  <script src="/owner/stay-import.js?v=20260908-dedup1"></script>
   <script src="/owner/listing-review.js?v=20260907-review1"></script>
   <script src="/owner/admin-review-fixes.js?v=20260902-admin-loop1"></script>
   <script src="/owner/owner-operations.js?v=20260829-ownerops1"></script>
