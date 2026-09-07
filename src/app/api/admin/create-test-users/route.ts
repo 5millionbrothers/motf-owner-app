@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -39,19 +38,19 @@ async function findUserByEmail(
 
 async function ensureTestUser(
   service: SupabaseClient,
-  spec: { email: string; name: string; index: number },
-  password: string,
+  spec: { email: string; name: string; password: string; reviewProvider?: string },
 ) {
   const metadata = {
     account_type: "user",
     full_name: spec.name,
     internal_test: true,
+    review_provider: spec.reviewProvider || null,
   };
   let user: User | null = null;
   const existing = await findUserByEmail(service, spec.email);
   if (existing) {
     const { data, error } = await service.auth.admin.updateUserById(existing.id, {
-      password,
+      password: spec.password,
       email_confirm: true,
       user_metadata: { ...(existing.user_metadata || {}), ...metadata },
     });
@@ -60,7 +59,7 @@ async function ensureTestUser(
   } else {
     const { data, error } = await service.auth.admin.createUser({
       email: spec.email,
-      password,
+      password: spec.password,
       email_confirm: true,
       user_metadata: metadata,
     });
@@ -95,7 +94,13 @@ async function ensureTestUser(
   }, { onConflict: "user_id", ignoreDuplicates: true });
   if (pointError) throw pointError;
 
-  return { email: spec.email, password, name: spec.name, userId: user.id };
+  return {
+    email: spec.email,
+    password: spec.password,
+    name: spec.name,
+    reviewProvider: spec.reviewProvider || null,
+    userId: user.id,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -115,6 +120,8 @@ export async function POST(request: NextRequest) {
     !url && "Supabase URL",
     !publishableKey && "Publishable Key",
     !serviceRoleKey && "Service Role 또는 Secret Key",
+    !env("MOTF_FIXED_TEST_PASSWORD") && "MOTF_FIXED_TEST_PASSWORD",
+    !env("MOTF_TOSS_REVIEW_PASSWORD") && "MOTF_TOSS_REVIEW_PASSWORD",
   ].filter(Boolean);
   if (missing.length) {
     return response(503, {
@@ -150,19 +157,35 @@ export async function POST(request: NextRequest) {
       return response(403, { ok: false, message: "승인된 운영자만 테스트 계정을 만들 수 있습니다." });
     }
 
-    const password = `Mtf!${randomBytes(4).toString("hex")}`;
-    const specs = Array.from({ length: 5 }, (_, offset) => {
+    const testPassword = env("MOTF_FIXED_TEST_PASSWORD");
+    const tossPassword = env("MOTF_TOSS_REVIEW_PASSWORD");
+    const specs: Array<{
+      email: string;
+      name: string;
+      password: string;
+      reviewProvider?: string;
+    }> = Array.from({ length: 5 }, (_, offset) => {
       const index = offset + 1;
       const suffix = String(index).padStart(2, "0");
-      return { index, email: `motf-test${suffix}@motf.co.kr`, name: `모티프 테스트${suffix}` };
+      return {
+        email: `motf-test${suffix}@motf.co.kr`,
+        name: `모티프 테스트${suffix}`,
+        password: testPassword,
+      };
+    });
+    specs.push({
+      email: "toss-review@motf.co.kr",
+      name: "토스 심사 계정",
+      password: tossPassword,
+      reviewProvider: "toss",
     });
     const accounts = [];
-    for (const spec of specs) accounts.push(await ensureTestUser(service, spec, password));
+    for (const spec of specs) accounts.push(await ensureTestUser(service, spec));
 
     return response(200, {
       ok: true,
       accounts,
-      message: "테스트 이용자 5개를 생성하거나 같은 비밀번호로 초기화했습니다.",
+      message: "고정 테스트 이용자 5개와 토스 심사 계정 1개를 준비했습니다.",
     });
   } catch (error) {
     console.error("create-test-users", error);
