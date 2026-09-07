@@ -1471,7 +1471,7 @@
     return `
       <div class="info-panel" style="margin-bottom:18px;">
         <div class="section-toolbar" style="margin-bottom:12px;">
-          <h3 style="margin:0;">수기 예약·방 잡기</h3>
+          <h3 style="margin:0;">수동 방막기</h3>
           <span>전화·외부 예약 또는 현장 오류 대응 시 객실과 기간을 골라 즉시 판매를 막습니다.</span>
         </div>
         <div class="admin-filter-row">
@@ -1479,7 +1479,7 @@
           <input id="${scope}AvailabilityStart" type="date" value="${today}" />
           <input id="${scope}AvailabilityEnd" type="date" value="${tomorrow}" />
           <input id="${scope}AvailabilityNote" placeholder="메모 예: 네이버 예약, 전화 예약" />
-          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">예약 잡기</button>
+          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">기간 막기</button>
         </div>
         <table class="master-admin-table">
           <thead><tr><th>숙소</th><th>객실</th><th>기간</th><th>상태</th><th>메모</th><th>관리</th></tr></thead>
