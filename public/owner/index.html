@@ -793,6 +793,10 @@
 
     <div class="content-area">
       <header class="top-bar">
+        <button class="motf-mobile-menu-back" type="button" onclick="switchPanel('operations')">
+          <i data-lucide="chevron-left"></i> 메뉴
+        </button>
+        <strong class="motf-mobile-page-title" id="motfMobilePageTitle">운영 홈</strong>
         <button class="mypage-btn" id="topbar-mypage-trigger-btn" onclick="switchPanel('mypage')">
           <i data-lucide="user-round-cog"></i> <span id="topbar-partner-manage-label">마이페이지</span>
         </button>
@@ -1383,7 +1387,7 @@
 
   <script>
     let currentOwnerType = 'stay'; 
-    let currentActivePanel = 'calendar';
+    let currentActivePanel = 'operations';
     let currentOrderTab = 'pending';
     let currentRevSubMenu = 'profit';
     let currentSelectedChatUser = '';
@@ -2419,6 +2423,22 @@
         const action = item.getAttribute('onclick') || '';
         if (action.includes(`'${panelId}'`) || action.includes(`"${panelId}"`)) item.classList.add('active');
       });
+      const mobileTitleMap = {
+        operations: '운영 홈',
+        calendar: '캘린더',
+        orders: '예약 관리',
+        availability: '수동 방막기',
+        chat: '채팅 문의',
+        reviews: '리뷰 관리',
+        settlements: '정산 내역',
+        revenue: '매출 관리',
+        mypage: '업장 정보'
+      };
+      const adminMain = document.getElementById('admin-main');
+      const isPartnerMobileDetail = window.motfCurrentProfile?.role === 'partner' && panelId !== 'operations';
+      adminMain?.classList.toggle('partner-mobile-detail-view', Boolean(isPartnerMobileDetail));
+      const mobilePageTitle = document.getElementById('motfMobilePageTitle');
+      if (mobilePageTitle) mobilePageTitle.innerText = mobileTitleMap[panelId] || '상세 관리';
       if (panelId === 'availability') {
         window.motfRenderAvailabilityManager?.('partner', window.motfCurrentBusiness?.id);
       }
