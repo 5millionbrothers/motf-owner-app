@@ -78,21 +78,6 @@ function absoluteUrl(value: string | undefined, base: string) {
   } catch { return null; }
 }
 
-const IMAGE_VARIANT_PARAMS = new Set([
-  "w", "width", "h", "height", "size", "resize", "quality", "q", "format", "fm",
-  "fit", "crop", "thumbnail", "thumb", "dpr", "auto", "cache", "cb", "v", "ver", "version",
-]);
-
-function imageIdentity(value: string) {
-  const url = new URL(value);
-  url.hash = "";
-  for (const key of [...url.searchParams.keys()]) {
-    if (IMAGE_VARIANT_PARAMS.has(key.toLowerCase())) url.searchParams.delete(key);
-  }
-  url.searchParams.sort();
-  return url.toString();
-}
-
 function compactText(value: string, max = 22_000) {
   return value.replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim().slice(0, max);
 }
@@ -132,15 +117,6 @@ function addImage(images: Map<string, number>, value: string | undefined, base: 
   const pathname = new URL(absolute).pathname;
   if (!IMAGE_LIKE.test(absolute) && !/(image|photo|img|phinf|cdn)/i.test(absolute)) return;
   if (IMAGE_SKIP.test(`${pathname} ${context}`)) return;
-  const identity = imageIdentity(absolute);
-  for (const [existingUrl, existingScore] of images) {
-    if (imageIdentity(existingUrl) !== identity) continue;
-    if (score > existingScore) {
-      images.delete(existingUrl);
-      images.set(absolute, score);
-    }
-    return;
-  }
   images.set(absolute, Math.max(images.get(absolute) || 0, score));
 }
 
@@ -343,7 +319,7 @@ export async function crawlStaySite(rawUrl: string): Promise<CrawledSite> {
     const $ = cheerio.load(html);
     const pageImages = new Map<string, number>();
     collectImages($, html, finalUrl, pageImages);
-    pageImages.forEach((score, url) => addImage(images, url, finalUrl, score));
+    pageImages.forEach((score, url) => images.set(url, Math.max(images.get(url) || 0, score)));
     $(".pop_layer img,[id^='pop'] img,.popup img").each((_, element) => {
       const url = absoluteUrl($(element).attr("src") || $(element).attr("data-src"), finalUrl);
       if (url) visualEvidence.add(url);

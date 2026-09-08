@@ -589,13 +589,10 @@
     if (!urls.length) {
       preview.classList.remove("active");
       preview.innerHTML = "";
-      updatePhotoBulkActions();
       return;
     }
     preview.classList.add("active");
-    preview.innerHTML = urls.map((url, index) => `<figure class="owner-photo-item" draggable="true" data-photo-index="${index}">
-      <label class="owner-photo-select" title="사진 선택"><input type="checkbox" data-photo-select="${index}" aria-label="사진 ${index + 1} 선택"></label>
-      <span class="owner-photo-drag" title="끌어서 순서 변경"><i data-lucide="grip-vertical"></i></span>
+    preview.innerHTML = urls.map((url, index) => `<figure class="owner-photo-item">
       <img src="${escapeHtml(url)}" alt="등록된 사진 ${index + 1}">
       <figcaption>${index === 0 ? "대표사진" : `사진 ${index + 1}`}</figcaption>
       <div class="owner-photo-actions">
@@ -605,61 +602,8 @@
         <button type="button" class="danger" title="사진 삭제" onclick="motfRemovePhoto(${index})"><i data-lucide="trash-2"></i></button>
       </div>
     </figure>`).join("");
-    bindPhotoSorting(preview);
-    preview.querySelectorAll("[data-photo-select]").forEach((input) => input.addEventListener("change", updatePhotoBulkActions));
-    updatePhotoBulkActions();
     window.lucide?.createIcons();
   }
-
-  function updatePhotoBulkActions() {
-    const actions = document.getElementById("motfPhotoBulkActions");
-    const selected = document.querySelectorAll("#motfPhotoUploadPreview [data-photo-select]:checked").length;
-    const count = document.getElementById("motfPhotoSelectedCount");
-    if (count) count.textContent = String(selected);
-    if (actions) actions.hidden = !(window.motfGetCurrentPhotoUrls?.() || []).length;
-  }
-
-  function bindPhotoSorting(preview) {
-    let draggedIndex = null;
-    preview.querySelectorAll("[data-photo-index]").forEach((card) => {
-      card.addEventListener("dragstart", (event) => {
-        if (event.target.closest("button,input,label")) { event.preventDefault(); return; }
-        draggedIndex = Number(card.dataset.photoIndex);
-        card.classList.add("is-dragging");
-        event.dataTransfer.effectAllowed = "move";
-      });
-      card.addEventListener("dragend", () => {
-        draggedIndex = null;
-        preview.querySelectorAll(".is-dragging,.is-drag-over").forEach((item) => item.classList.remove("is-dragging", "is-drag-over"));
-      });
-      card.addEventListener("dragover", (event) => { event.preventDefault(); card.classList.add("is-drag-over"); });
-      card.addEventListener("dragleave", () => card.classList.remove("is-drag-over"));
-      card.addEventListener("drop", async (event) => {
-        event.preventDefault();
-        const targetIndex = Number(card.dataset.photoIndex);
-        card.classList.remove("is-drag-over");
-        if (draggedIndex == null || draggedIndex === targetIndex) return;
-        const urls = [...(window.motfGetCurrentPhotoUrls?.() || [])];
-        const [moved] = urls.splice(draggedIndex, 1);
-        urls.splice(targetIndex, 0, moved);
-        try { await persistCurrentPhotoUrls(urls); } catch (error) { console.error(error); alert("사진 순서를 저장하지 못했습니다."); }
-      });
-    });
-  }
-
-  window.motfToggleAllPhotos = function toggleAllPhotos() {
-    const inputs = [...document.querySelectorAll("#motfPhotoUploadPreview [data-photo-select]")];
-    const shouldSelect = inputs.some((input) => !input.checked);
-    inputs.forEach((input) => { input.checked = shouldSelect; });
-    updatePhotoBulkActions();
-  };
-
-  window.motfRemoveSelectedPhotos = async function removeSelectedPhotos() {
-    const selected = new Set([...document.querySelectorAll("#motfPhotoUploadPreview [data-photo-select]:checked")].map((input) => Number(input.dataset.photoSelect)));
-    if (!selected.size || !confirm(`선택한 사진 ${selected.size}장을 목록에서 삭제할까요?`)) return;
-    const urls = (window.motfGetCurrentPhotoUrls?.() || []).filter((_, index) => !selected.has(index));
-    try { await persistCurrentPhotoUrls(urls); } catch (error) { console.error(error); alert("선택한 사진을 삭제하지 못했습니다."); }
-  };
 
   window.motfRefreshPhotoPreview = updatePhotoPreview;
 
@@ -774,15 +718,18 @@
   window.motfAddExtraFeeRow = () => { extraFeeRows.push({ label: "", amount: null, detail: "", category: "optional" }); renderExtraFeeRows(); };
   window.motfRemoveExtraFeeRow = (index) => { extraFeeRows.splice(index, 1); renderExtraFeeRows(); };
 
-  async function uploadPhotoFiles(fileList) {
+  function bindPhotoUpload() {
     const input = document.getElementById("motfPhotoUploadInput");
-      const files = [...(fileList || [])];
+    if (!input || input.dataset.storageBound) return;
+    input.dataset.storageBound = "true";
+    input.addEventListener("change", async () => {
+      const files = [...(input.files || [])];
       const business = window.motfCurrentBusiness;
       const profile = window.motfCurrentProfile;
       const target = window.motfGetCurrentPhotoTarget?.();
       if (!files.length || !business || !profile || !target) return;
-      if (files.length > 100) {
-        alert("사진은 한 번에 최대 100장까지 업로드할 수 있습니다.");
+      if (files.length > 10) {
+        alert("사진은 한 번에 최대 10장까지 업로드할 수 있습니다.");
         input.value = "";
         return;
       }
@@ -853,19 +800,7 @@
       alert(business.approval_status === "approved"
         ? `${uploadedUrls.length}장의 사진을 추가했습니다. 변경 승인 요청을 보내야 이용자 화면에 반영됩니다.`
         : `${uploadedUrls.length}장의 사진을 비공개 초안에 저장했습니다.`);
-  }
-
-  function bindPhotoUpload() {
-    const input = document.getElementById("motfPhotoUploadInput");
-    const dropzone = document.getElementById("motfPhotoDropzone");
-    if (!input || !dropzone || input.dataset.storageBound) return;
-    input.dataset.storageBound = "true";
-    input.addEventListener("change", () => uploadPhotoFiles(input.files));
-    dropzone.addEventListener("click", (event) => { if (!event.target.closest("button")) input.click(); });
-    dropzone.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); } });
-    ["dragenter", "dragover"].forEach((name) => dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.add("is-drag-over"); }));
-    ["dragleave", "drop"].forEach((name) => dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.remove("is-drag-over"); }));
-    dropzone.addEventListener("drop", (event) => uploadPhotoFiles(event.dataTransfer?.files));
+    });
   }
 
   window.loadMotfPartnerBusiness = function loadMotfPartnerBusiness(business) {
@@ -1536,7 +1471,7 @@
     return `
       <div class="info-panel" style="margin-bottom:18px;">
         <div class="section-toolbar" style="margin-bottom:12px;">
-          <h3 style="margin:0;">수기 예약·방 잡기</h3>
+          <h3 style="margin:0;">수동 방막기</h3>
           <span>전화·외부 예약 또는 현장 오류 대응 시 객실과 기간을 골라 즉시 판매를 막습니다.</span>
         </div>
         <div class="admin-filter-row">
@@ -1544,7 +1479,7 @@
           <input id="${scope}AvailabilityStart" type="date" value="${today}" />
           <input id="${scope}AvailabilityEnd" type="date" value="${tomorrow}" />
           <input id="${scope}AvailabilityNote" placeholder="메모 예: 네이버 예약, 전화 예약" />
-          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">예약 잡기</button>
+          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">기간 막기</button>
         </div>
         <table class="master-admin-table">
           <thead><tr><th>숙소</th><th>객실</th><th>기간</th><th>상태</th><th>메모</th><th>관리</th></tr></thead>

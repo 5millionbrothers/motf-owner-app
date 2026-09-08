@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticatedAdmin, env } from "@/lib/admin-server";
 import { downloadPublicImage } from "@/lib/safe-site-crawler";
@@ -11,19 +11,6 @@ const FACILITY_KEYS = new Set(["barbecue", "karaoke", "field", "pool", "screen",
 
 function json(status: number, body: Record<string, unknown>) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store, max-age=0" } });
-}
-
-function errorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object") {
-    const value = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
-    const parts = [value.message, value.details, value.hint]
-      .map((item) => String(item ?? "").trim())
-      .filter(Boolean);
-    const code = String(value.code ?? "").trim();
-    if (parts.length) return `${parts.join(" / ")}${code ? ` (${code})` : ""}`;
-  }
-  return String(error || "알 수 없는 서버 오류");
 }
 
 function text(value: unknown, max: number, required = false) {
@@ -101,27 +88,20 @@ async function geocode(address: string) {
 export async function POST(request: NextRequest) {
   let createdUserId: string | null = null;
   let createdBusinessId: string | null = null;
-  let activeJobId: string | null = null;
-  let stage = "요청 확인";
   const uploadedPaths: string[] = [];
   try {
-    stage = "관리자 인증";
     const { user: admin, service } = await authenticatedAdmin(request.headers.get("authorization") || "");
     const body = await request.json().catch(() => null);
     if (!body?.rightsConfirmed) return json(400, { ok: false, message: "숙소 측이 제공한 공식 정보·사진을 등록할 권한이 있는지 확인해주세요." });
     const jobId = text(body?.jobId, 80, true)!;
-    activeJobId = jobId;
     const draft = validateDraft(body?.draft);
 
-    stage = "가져오기 작업 조회";
     const { data: job, error: jobError } = await service.from("stay_import_jobs").select("id,status,canonical_url").eq("id", jobId).maybeSingle();
-    if (jobError) throw jobError;
-    if (!job) throw new Error("가져오기 작업을 찾지 못했습니다.");
+    if (jobError || !job) throw new Error("가져오기 작업을 찾지 못했습니다.");
     if (job.status === "committed") return json(409, { ok: false, message: "이미 등록이 끝난 작업입니다." });
     const { data: duplicate } = await service.from("businesses").select("id,business_name").eq("source_url", draft.sourceUrl).limit(1).maybeSingle();
     if (duplicate) return json(409, { ok: false, message: `같은 출처로 등록된 숙소가 있습니다: ${duplicate.business_name}` });
 
-    stage = "임시 사장님 계정 생성";
     const account = credentials(draft.businessName);
     const { data: authData, error: authError } = await service.auth.admin.createUser({
       email: account.email, password: account.password, email_confirm: true,
@@ -129,14 +109,12 @@ export async function POST(request: NextRequest) {
     });
     if (authError || !authData.user) throw authError || new Error("임시 사장님 계정을 만들지 못했습니다.");
     createdUserId = authData.user.id;
-    stage = "사장님 프로필 저장";
     const { error: profileError } = await service.from("profiles").upsert({
       id: createdUserId, email: account.email, full_name: draft.representativeName || draft.businessName,
       phone: draft.phone, role: "partner", status: "pending", updated_at: new Date().toISOString(),
     }, { onConflict: "id" });
     if (profileError) throw profileError;
 
-    stage = "숙소 기본정보 저장";
     const locationAddress = [draft.address, draft.addressDetail].filter(Boolean).join(" ");
     const location = locationAddress ? await geocode(locationAddress).catch(() => null) : null;
     const amenityDetails = draft.facilities.map((item) => ({ key: item.key, label: item.key, available: true, params: {}, detail: item.detail }));
@@ -155,9 +133,7 @@ export async function POST(request: NextRequest) {
     if (businessError || !business) throw businessError || new Error("숙소 기본 정보를 저장하지 못했습니다.");
     createdBusinessId = business.id;
 
-    stage = "숙소 사진 저장";
     const storedImageUrls: Array<string | null> = new Array(draft.imageUrls.length).fill(null);
-    const imageImports = new Map<string, Promise<string | null>>();
     let nextImageIndex = 0;
     const importNextImage = async () => {
       while (nextImageIndex < draft.imageUrls.length) {
@@ -167,44 +143,32 @@ export async function POST(request: NextRequest) {
         if (!imageUrl) continue;
       try {
         const image = await downloadPublicImage(imageUrl);
-        const hash = createHash("sha256").update(Buffer.from(image.data)).digest("hex");
-        let imageImport = imageImports.get(hash);
-        if (!imageImport) {
-          imageImport = (async () => {
-            const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as Record<string, string>)[image.contentType] || "jpg";
-            const path = `${createdUserId}/${createdBusinessId}/import-${String(index + 1).padStart(2, "0")}.${extension}`;
-            const { error } = await service.storage.from("catalog-images").upload(path, image.data, { contentType: image.contentType, cacheControl: "86400", upsert: false });
-            if (error) throw error;
-            uploadedPaths.push(path);
-            return service.storage.from("catalog-images").getPublicUrl(path).data.publicUrl;
-          })();
-          imageImports.set(hash, imageImport);
-        }
-        storedImageUrls[index] = await imageImport;
+        const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" } as Record<string, string>)[image.contentType] || "jpg";
+        const path = `${createdUserId}/${createdBusinessId}/import-${String(index + 1).padStart(2, "0")}.${extension}`;
+        const { error } = await service.storage.from("catalog-images").upload(path, image.data, { contentType: image.contentType, cacheControl: "86400", upsert: false });
+        if (error) throw error;
+        uploadedPaths.push(path);
+        storedImageUrls[index] = service.storage.from("catalog-images").getPublicUrl(path).data.publicUrl;
       } catch (error) {
         console.warn("stay-import image skipped", imageUrl, error);
       }
       }
     };
     await Promise.all(Array.from({ length: Math.min(8, draft.imageUrls.length) }, () => importNextImage()));
-    const downloadedImageUrls = storedImageUrls.filter((url): url is string => Boolean(url));
-    const successfulImageUrls = [...new Set(downloadedImageUrls)];
-    const duplicateImageCount = downloadedImageUrls.length - successfulImageUrls.length;
-    const failedImageCount = draft.imageUrls.length - downloadedImageUrls.length;
+    const successfulImageUrls = storedImageUrls.filter((url): url is string => Boolean(url));
     const importedImageMap = new Map(draft.imageUrls.map((sourceUrl, index) => [sourceUrl, storedImageUrls[index]]));
     if (successfulImageUrls.length) {
       const { error } = await service.from("businesses").update({ cover_image_url: successfulImageUrls[0], gallery_image_urls: successfulImageUrls }).eq("id", createdBusinessId);
       if (error) throw error;
     }
 
-    stage = "객실정보 저장";
     const offerings = draft.rooms.map((room, index) => ({
       business_id: createdBusinessId, name: room.name, description: room.description, price: room.price,
       min_people: room.minPeople, base_people: room.basePeople, max_people: room.maxPeople,
       extra_person_fee: room.extraPersonFee, bathroom_count: room.bathroomCount,
       bathroom_gender_separated: room.bathroomGenderSeparated, bathroom_note: room.bathroomNote,
       feature_summary: room.featureSummary, sort_order: index, is_active: false,
-      image_urls: [...new Set(room.imageUrls.map((url) => importedImageMap.get(url)).filter((url): url is string => Boolean(url)))],
+      image_urls: room.imageUrls.map((url) => importedImageMap.get(url)).filter((url): url is string => Boolean(url)),
       image_url: room.imageUrls.map((url) => importedImageMap.get(url)).find((url): url is string => Boolean(url)) || null,
       offseason_weekday_price: room.offseasonWeekdayPrice, offseason_weekend_price: room.offseasonWeekendPrice,
       shoulder_weekday_price: room.shoulderWeekdayPrice, shoulder_weekend_price: room.shoulderWeekendPrice,
@@ -215,7 +179,6 @@ export async function POST(request: NextRequest) {
       if (offeringError) throw offeringError;
     }
 
-    stage = "가져오기 완료 처리";
     await Promise.allSettled([
       service.rpc("refresh_business_highlights", { target_business_id: createdBusinessId }),
       service.rpc("refresh_business_nearby_distances", { target_business_id: createdBusinessId }),
@@ -233,26 +196,20 @@ export async function POST(request: NextRequest) {
     return json(200, {
       ok: true, businessId: createdBusinessId, account: { email: account.email, password: account.password },
       imageCount: successfulImageUrls.length,
-      warnings: [!location && "주소 좌표는 사장님 화면에서 다시 확인해주세요.", duplicateImageCount > 0 && `완전히 같은 사진 ${duplicateImageCount}장을 자동으로 제외했습니다.`, failedImageCount > 0 && `${failedImageCount}개 이미지는 형식·용량·접근 문제로 제외됐습니다.`].filter(Boolean),
+      warnings: [!location && "주소 좌표는 사장님 화면에서 다시 확인해주세요.", successfulImageUrls.length < draft.imageUrls.length && `${draft.imageUrls.length - successfulImageUrls.length}개 이미지는 형식·용량·접근 문제로 제외됐습니다.`].filter(Boolean),
       message: "승인 대기 숙소와 임시 사장님 계정을 등록했습니다. 운영자 입점 승인 전까지 이용자 화면에는 노출되지 않습니다.",
     });
   } catch (error) {
-    const detail = errorMessage(error);
-    const message = `${stage} 단계 실패: ${detail}`;
-    console.error("stay-import commit", { stage, error });
+    console.error("stay-import commit", error);
     try {
       const { service } = await authenticatedAdmin(request.headers.get("authorization") || "");
       if (uploadedPaths.length) await service.storage.from("catalog-images").remove(uploadedPaths);
       if (createdBusinessId) await service.from("businesses").delete().eq("id", createdBusinessId);
       if (createdUserId) await service.auth.admin.deleteUser(createdUserId);
-      if (activeJobId) {
-        await service.from("stay_import_jobs").update({
-          status: "failed", error_message: message.slice(0, 2_000), updated_at: new Date().toISOString(),
-        }).eq("id", activeJobId);
-      }
     } catch (cleanupError) {
       console.error("stay-import cleanup", cleanupError);
     }
+    const message = error instanceof Error ? error.message : "숙소를 등록하지 못했습니다.";
     return json(/로그인|권한/.test(message) ? 403 : 500, { ok: false, message });
   }
 }
