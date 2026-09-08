@@ -17,6 +17,7 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
   const rating5 = (value) => Math.max(0, Math.min(5, Number(value || 0) / 2));
+  const isStarDemoId = (value) => String(value || "").startsWith("demo-star");
 
   function statCard(label, value, detail, tone = "") {
     return `<article class="owner-operation-stat ${tone}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small></article>`;
@@ -24,6 +25,34 @@
 
   function empty(message) {
     return `<div class="owner-empty-state"><i data-lucide="inbox"></i><p>${escapeHtml(message)}</p></div>`;
+  }
+
+  function applyStarPensionOperationsOverlay() {
+    const business = window.motfCurrentBusiness;
+    if (!window.motfIsStarPensionDemoBusiness?.(business)) return;
+    const demo = window.motfBuildStarPensionDemoData?.(business);
+    if (!demo) return;
+    transactions = [
+      ...demo.transactions.map((item) => ({
+        ...item,
+        displayName: item.customerName,
+        targetName: item.target,
+        total_amount: item.amount,
+        activityDate: item.date,
+        event_date: item.date,
+        created_at: item.status === "completed" ? `${item.date}T10:30:00+09:00` : "2026-09-08T10:30:00+09:00",
+      })),
+      ...transactions.filter((item) => !isStarDemoId(item.id)),
+    ];
+    conversations = [
+      ...demo.chats.map((item, index) => ({
+        id: item.conversationId,
+        customer_name: item.user,
+        group_name: "",
+        last_message_at: index === 0 ? new Date().toISOString() : "2026-09-07T18:20:00+09:00",
+      })),
+      ...conversations.filter((item) => !isStarDemoId(item.id)),
+    ];
   }
 
   async function loadTransactions(business) {
@@ -280,6 +309,7 @@
       window.motfLoadPartnerSettlements(true),
     ]).then(() => {
       lastLoadedAt = Date.now();
+      applyStarPensionOperationsOverlay();
       renderOperations();
     }).catch((error) => {
       console.error("Partner operations failed", error);
