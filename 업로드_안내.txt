@@ -1,0 +1,11 @@
+motf-owner-app 저장소에 아래 2개 파일만 경로 그대로 업로드하세요.
+
+1. next.config.ts
+2. src/app/api/admin/create-test-users/route.ts
+
+업로드 후 Vercel Production 배포를 새로 완료한 다음:
+- /owner/index.html 주소가 / 로 정리되는지 확인
+- 운영자 화면에서 테스트 계정 생성 버튼 다시 실행
+
+버튼이 또 실패하면 이번에는 URL, Publishable Key, Service Key 중
+Vercel에 실제로 누락된 항목의 이름이 오류 문구에 정확히 표시됩니다.

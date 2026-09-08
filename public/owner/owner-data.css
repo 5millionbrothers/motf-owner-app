@@ -2204,3 +2204,182 @@
     padding-top: 16px !important;
   }
 }
+
+.mobile-header-mypage-btn,
+.revenue-mobile-back {
+  display: none;
+}
+
+.mobile-header-mypage-btn[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 820px) {
+  #admin-main > .sidebar .sidebar-header {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 12px 14px 10px !important;
+  }
+
+  #admin-main > .sidebar .owner-title {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 14px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-header-mypage-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--teal-dark);
+    font-size: 11px;
+    font-weight: 850;
+    box-shadow: 0 8px 18px rgba(47, 61, 43, .07);
+  }
+
+  .mobile-header-mypage-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  #admin-main:not(.partner-mobile-detail-view) .top-bar {
+    display: none !important;
+  }
+
+  #admin-main:not(.partner-mobile-detail-view) .sidebar-menu-wrapper {
+    padding: 12px 12px 16px !important;
+    overflow: visible !important;
+  }
+
+  #admin-main:not(.partner-mobile-detail-view) .sidebar-menu {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #admin-main:not(.partner-mobile-detail-view) .sidebar-menu li {
+    min-width: 0 !important;
+  }
+
+  #admin-main:not(.partner-mobile-detail-view) .menu-item {
+    display: grid !important;
+    width: 100% !important;
+    min-height: 68px !important;
+    place-items: center !important;
+    align-content: center !important;
+    gap: 5px !important;
+    padding: 10px 4px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    background: #fbfaf7 !important;
+    color: var(--muted);
+    font-size: 11px !important;
+    font-weight: 850;
+    line-height: 1.2;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: keep-all;
+  }
+
+  #admin-main:not(.partner-mobile-detail-view) .menu-item svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+
+  #panel-revenue .stats-grid-4,
+  #panel-revenue .revenue-content-card {
+    display: none !important;
+  }
+
+  #panel-revenue.mobile-revenue-sub-open .stats-grid-4 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  #panel-revenue.mobile-revenue-sub-open .revenue-menu {
+    display: none !important;
+  }
+
+  #panel-revenue.mobile-revenue-sub-open .revenue-content-card {
+    display: block !important;
+  }
+
+  #panel-revenue .revenue-layout {
+    display: block !important;
+  }
+
+  #panel-revenue .revenue-menu {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  #panel-revenue .rev-menu-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 56px;
+    padding: 15px 16px !important;
+    border-radius: 14px !important;
+    background: #fff !important;
+    color: var(--ink) !important;
+    font-size: 14px !important;
+    font-weight: 850;
+    text-align: left;
+  }
+
+  #panel-revenue .rev-menu-btn::after {
+    content: "›";
+    color: var(--muted);
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  #panel-revenue .revenue-content-card {
+    padding: 16px !important;
+  }
+
+  .revenue-mobile-back {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 16px;
+    padding: 8px 11px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--warm);
+    color: var(--teal-dark);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  .revenue-mobile-back svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  #admin-main:not(.partner-mobile-detail-view) .sidebar-menu {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .mobile-header-mypage-btn span {
+    display: none;
+  }
+}
