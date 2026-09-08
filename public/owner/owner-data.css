@@ -2235,21 +2235,21 @@
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    min-height: 34px;
-    padding: 7px 10px;
+    gap: 6px;
+    min-height: 40px;
+    padding: 9px 13px;
     border: 1px solid var(--line);
     border-radius: 999px;
     background: #fff;
     color: var(--teal-dark);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 850;
     box-shadow: 0 8px 18px rgba(47, 61, 43, .07);
   }
 
   .mobile-header-mypage-btn svg {
-    width: 14px;
-    height: 14px;
+    width: 17px;
+    height: 17px;
   }
 
   #admin-main:not(.partner-mobile-detail-view) .top-bar {
@@ -2298,16 +2298,19 @@
     height: 19px !important;
   }
 
-  #panel-revenue .stats-grid-4,
   #panel-revenue .revenue-content-card {
     display: none !important;
   }
 
-  #panel-revenue.mobile-revenue-sub-open .stats-grid-4 {
+  #panel-revenue .stats-grid-4 {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 10px !important;
-    margin-bottom: 14px !important;
+    margin-bottom: 16px !important;
+  }
+
+  #panel-revenue.mobile-revenue-sub-open .stats-grid-4 {
+    display: none !important;
   }
 
   #panel-revenue.mobile-revenue-sub-open .revenue-menu {
@@ -2372,6 +2375,41 @@
     width: 14px;
     height: 14px;
   }
+
+  .owner-order-status-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    margin: -2px 0 14px !important;
+    padding: 0 !important;
+    border-bottom: 0 !important;
+    overflow: visible !important;
+  }
+
+  .owner-order-status-tabs .tab-btn {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 6px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+    background: #fff !important;
+    color: var(--muted) !important;
+    font-size: 12px !important;
+    font-weight: 850;
+    line-height: 1.15;
+    white-space: normal;
+    box-shadow: none !important;
+  }
+
+  .owner-order-status-tabs .tab-btn.active {
+    border-color: var(--teal) !important;
+    background: var(--teal) !important;
+    color: var(--paper) !important;
+  }
+
+  .owner-order-status-tabs .tab-btn.active::after {
+    display: none !important;
+  }
 }
 
 @media (max-width: 420px) {
@@ -2380,6 +2418,15 @@
   }
 
   .mobile-header-mypage-btn span {
-    display: none;
+    display: inline;
+  }
+
+  .mobile-header-mypage-btn {
+    min-height: 38px;
+    padding-inline: 11px;
+  }
+
+  .owner-order-status-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }

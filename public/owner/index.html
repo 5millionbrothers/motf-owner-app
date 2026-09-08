@@ -794,8 +794,8 @@
 
     <div class="content-area">
       <header class="top-bar">
-        <button class="motf-mobile-menu-back" type="button" onclick="switchPanel('operations')">
-          <i data-lucide="chevron-left"></i> 메뉴
+        <button class="motf-mobile-menu-back" type="button" onclick="motfMobileBack()">
+          <i data-lucide="chevron-left"></i> 뒤로
         </button>
         <strong class="motf-mobile-page-title" id="motfMobilePageTitle">운영 홈</strong>
         <button class="mypage-btn" id="topbar-mypage-trigger-btn" onclick="switchPanel('mypage')">
@@ -854,17 +854,17 @@
 
       <section id="panel-orders" class="panel">
         <h2 class="panel-title" id="order-panel-main-title">예약 및 승인 관리</h2>
+        <div class="tab-container owner-order-status-tabs">
+          <button class="tab-btn active" onclick="switchOrderTab('pending')">확정 대기</button>
+          <button class="tab-btn" onclick="switchOrderTab('confirm')">예약 확정</button>
+          <button class="tab-btn" onclick="switchOrderTab('past')">지난 예약</button>
+          <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
+        </div>
         <div class="owner-list-toolbar">
           <label class="owner-search-field"><i data-lucide="search"></i><input id="ownerOrderSearch" type="search" placeholder="예약자·단체·객실 검색" oninput="renderOrders()"></label>
           <label><span>이용 시작</span><input id="ownerOrderDateFrom" type="date" onchange="renderOrders()"></label>
           <label><span>이용 종료</span><input id="ownerOrderDateTo" type="date" onchange="renderOrders()"></label>
           <button class="secondary-btn" type="button" onclick="motfExportPartnerOrders()"><i data-lucide="download"></i> 엑셀용 CSV</button>
-        </div>
-        <div class="tab-container">
-          <button class="tab-btn active" onclick="switchOrderTab('pending')">확정 대기</button>
-          <button class="tab-btn" onclick="switchOrderTab('confirm')">예약 확정</button>
-          <button class="tab-btn" onclick="switchOrderTab('past')">지난 예약</button>
-          <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
         </div>
         <div id="orderListArea" class="item-list"></div>
       </section>
@@ -953,6 +953,7 @@
             <button class="rev-menu-btn" onclick="switchRevSubMenu('period')">기간별 매출 조회</button>
             <button class="rev-menu-btn" onclick="switchRevSubMenu('room')">항목/객실별 매출</button>
             <button class="rev-menu-btn" onclick="switchRevSubMenu('trend')">매출 변동 추이</button>
+            <button class="rev-menu-btn" onclick="openSettlementFromRevenue()">정산 내역 확인</button>
           </div>
           <div class="revenue-content-card" id="revenueSubContent"></div>
         </div>
@@ -2442,10 +2443,25 @@
       if (panelId === 'revenue') {
         document.getElementById('panel-revenue')?.classList.remove('mobile-revenue-sub-open');
       }
+      if (panelId !== 'settlements') {
+        window.motfMobileReturnPanel = '';
+      }
       if (panelId === 'availability') {
         window.motfRenderAvailabilityManager?.('partner', window.motfCurrentBusiness?.id);
       }
       window.dispatchEvent(new CustomEvent('motf:owner-panel-change', { detail: { panelId } }));
+    }
+
+    function motfMobileBack() {
+      if (currentActivePanel === 'revenue' && document.getElementById('panel-revenue')?.classList.contains('mobile-revenue-sub-open')) {
+        backToRevenueMenu();
+        return;
+      }
+      if (currentActivePanel === 'settlements' && window.motfMobileReturnPanel === 'revenue') {
+        switchPanel('revenue');
+        return;
+      }
+      switchPanel('operations');
     }
 
     function adjustMonth(val) {
@@ -2582,7 +2598,7 @@
 
     function switchOrderTab(tab) {
       currentOrderTab = tab;
-      document.querySelectorAll('.tab-btn').forEach(btn => {
+      document.querySelectorAll('.owner-order-status-tabs .tab-btn').forEach(btn => {
         btn.classList.remove('active');
         if(btn.innerText.includes(tab==='pending'?'확정 대기':tab==='confirm'?'예약 확정':tab==='past'?'지난 예약':'거절한 예약')) {
           btn.classList.add('active');
@@ -2779,6 +2795,11 @@
       document.getElementById('panel-revenue')?.classList.remove('mobile-revenue-sub-open');
       const mobilePageTitle = document.getElementById('motfMobilePageTitle');
       if (mobilePageTitle) mobilePageTitle.innerText = '매출·정산';
+    }
+
+    function openSettlementFromRevenue() {
+      window.motfMobileReturnPanel = 'revenue';
+      switchPanel('settlements');
     }
 
     function renderRevenueSubMenu() {
