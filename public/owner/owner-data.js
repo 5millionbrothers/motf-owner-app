@@ -5,10 +5,172 @@
   const originalRenderMasterOrders = window.renderMasterOrders;
   const originalSendChatMessage = window.sendChatMessage;
   const originalRenderMasterCases = window.renderMasterCases;
+  const STAR_DEMO_PREFIX = "demo-star";
   let adminDirectoryProfiles = [];
   let adminDirectoryBusinesses = [];
   let adminDirectoryOfferings = [];
   let directorySearchBound = false;
+
+  function isStarPensionBusiness(business = window.motfCurrentBusiness) {
+    const name = [
+      business?.business_name,
+      business?.displayName,
+      business?.name,
+      mockData?.stay?.displayName,
+    ].join(" ");
+    return /별찌|byeol|star/i.test(name);
+  }
+
+  function starDemoOverrides() {
+    window.motfStarPensionDemoOverrides ||= {};
+    return window.motfStarPensionDemoOverrides;
+  }
+
+  function applyDemoOverride(item) {
+    const override = starDemoOverrides()[item.id];
+    return override ? { ...item, ...override } : item;
+  }
+
+  function buildStarPensionDemoData(business = window.motfCurrentBusiness) {
+    const businessName = business?.business_name || "별찌펜션";
+    const transactions = [
+      {
+        kind: "stay",
+        id: `${STAR_DEMO_PREFIX}-reservation-001`,
+        businessName,
+        customerName: "[시연] 중앙대 경영학회",
+        date: "2026-09-20",
+        target: "별찌 단체룸 · 32명",
+        amount: 680000,
+        status: "pending",
+        rejectReason: "",
+        refundStatus: "none",
+        refundAmount: null,
+        created_at: "2026-09-08T10:20:00+09:00",
+      },
+      {
+        kind: "stay",
+        id: `${STAR_DEMO_PREFIX}-reservation-002`,
+        businessName,
+        customerName: "[시연] 홍익대 밴드동아리",
+        date: "2026-09-27",
+        target: "전체 대관 · 38명",
+        amount: 980000,
+        status: "confirmed",
+        rejectReason: "",
+        refundStatus: "none",
+        refundAmount: null,
+        created_at: "2026-09-07T18:40:00+09:00",
+      },
+      {
+        kind: "stay",
+        id: `${STAR_DEMO_PREFIX}-reservation-003`,
+        businessName,
+        customerName: "[시연] 국민대 사진동아리",
+        date: "2026-08-24",
+        target: "별관 단체룸 · 18명",
+        amount: 420000,
+        status: "completed",
+        rejectReason: "",
+        refundStatus: "none",
+        refundAmount: null,
+        created_at: "2026-08-21T14:05:00+09:00",
+      },
+      {
+        kind: "stay",
+        id: `${STAR_DEMO_PREFIX}-reservation-004`,
+        businessName,
+        customerName: "[시연] 한양대 축구동아리",
+        date: "2026-09-14",
+        target: "별찌 단체룸 · 45명",
+        amount: 760000,
+        status: "rejected",
+        rejectReason: "최대 수용 인원 초과로 예약 진행이 어렵습니다.",
+        refundStatus: "none",
+        refundAmount: null,
+        created_at: "2026-09-06T12:10:00+09:00",
+      },
+    ].map(applyDemoOverride);
+    const chats = [
+      {
+        conversationId: `${STAR_DEMO_PREFIX}-chat-001`,
+        user: "[시연] 중앙대 경영학회",
+        status: "예약 문의",
+        preview: "바비큐장은 몇 시부터 사용할 수 있나요?",
+        messages: [
+          { type: "in", text: "안녕하세요. 바비큐장은 몇 시부터 사용할 수 있나요?" },
+          { type: "out", text: "안녕하세요. 오후 6시부터 사용 가능하고, 숯·그릴은 현장에서 준비해드립니다." },
+          { type: "in", text: "32명 기준이면 테이블은 충분할까요?" },
+        ],
+      },
+      {
+        conversationId: `${STAR_DEMO_PREFIX}-chat-002`,
+        user: "[시연] 홍익대 밴드동아리",
+        status: "예약 확정",
+        preview: "노래방 마이크 2개 맞을까요?",
+        messages: [
+          { type: "in", text: "노래방 마이크 2개 맞을까요? 공연 연습도 조금 하려고 합니다." },
+          { type: "out", text: "네, 무선 마이크 2개 준비되어 있고 23시 전까지 이용 가능합니다." },
+        ],
+      },
+    ];
+    const reviews = [
+      { id: `${STAR_DEMO_PREFIX}-review-001`, author_name: "[시연] 홍익대 밴드동아리", rating: 10, body: "단체 인원이 많았는데 공간이 넓고 바비큐 동선이 편했습니다.", tags: ["단체 MT", "바비큐", "공간 넓음"], image_urls: [], is_hidden: false, created_at: "2026-09-04T12:20:00+09:00" },
+      { id: `${STAR_DEMO_PREFIX}-review-002`, author_name: "[시연] 국민대 사진동아리", rating: 8, body: "대성리역에서 가까워 이동이 편했고 문의 답변도 빨랐습니다.", tags: ["역 근처", "친절한 응대"], image_urls: [], is_hidden: false, created_at: "2026-08-25T09:30:00+09:00" },
+      { id: `${STAR_DEMO_PREFIX}-review-003`, author_name: "[시연] 한양대 축구동아리", rating: 6, body: "시설은 좋았지만 최대 인원 기준은 조금 더 명확히 안내되면 좋겠습니다.", tags: ["인원 안내 필요"], image_urls: [], is_hidden: false, created_at: "2026-08-16T16:10:00+09:00" },
+    ];
+    const settlements = transactions.map((item, index) => {
+      const gross = Number(item.amount || 0);
+      const commissionRate = 0.1;
+      const commission = Math.round(gross * commissionRate);
+      return {
+        transaction_id: `${STAR_DEMO_PREFIX}-settlement-${String(index + 1).padStart(3, "0")}`,
+        business_id: business?.id || "star-demo-business",
+        customer_name: item.customerName,
+        target_name: item.target,
+        transaction_date: item.date,
+        created_at: item.created_at,
+        gross_amount: gross,
+        customer_paid_amount: gross,
+        platform_discount_amount: 0,
+        commission_rate: commissionRate,
+        commission_amount: commission,
+        payout_amount: gross - commission,
+        status: item.status === "completed" ? "paid" : "pending",
+        paid_at: item.status === "completed" ? item.date : null,
+      };
+    });
+    return { transactions, chats, reviews, settlements };
+  }
+
+  function demoStatusToLegacy(status) {
+    return ({ confirmed: "confirm", completed: "past", rejected: "reject", cancelled: "reject" })[status] || "pending";
+  }
+
+  function syncPartnerTransactionsToMock() {
+    mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
+      id: item.id,
+      user: item.customerName,
+      date: String(item.date || "").slice(0, 10),
+      target: item.target,
+      price: Number(item.amount || 0),
+      status: item.id?.startsWith?.(STAR_DEMO_PREFIX) ? demoStatusToLegacy(item.status) : item.status,
+      rejectReason: item.rejectReason || "",
+      refundStatus: item.refundStatus || "none",
+      refundAmount: item.refundAmount || null,
+    }));
+  }
+
+  function applyStarPensionTransactionOverlay(business = window.motfCurrentBusiness) {
+    if (!isStarPensionBusiness(business)) return;
+    partnerTransactions = [
+      ...buildStarPensionDemoData(business).transactions,
+      ...partnerTransactions.filter((item) => !String(item.id || "").startsWith(STAR_DEMO_PREFIX)),
+    ];
+  }
+
+  window.motfIsStarPensionDemoBusiness = isStarPensionBusiness;
+  window.motfBuildStarPensionDemoData = buildStarPensionDemoData;
 
   const businessSelect = [
     "id",
@@ -1595,17 +1757,8 @@
       refundAmount: item.refund_amount,
       })),
     ];
-    mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
-      id: item.id,
-      user: item.customerName,
-      date: String(item.date || "").slice(0, 10),
-      target: item.target,
-      price: Number(item.amount || 0),
-      status: item.status,
-      rejectReason: item.rejectReason || "",
-      refundStatus: item.refundStatus || "none",
-      refundAmount: item.refundAmount || null,
-    }));
+    applyStarPensionTransactionOverlay(business);
+    syncPartnerTransactionsToMock();
     const active = partnerTransactions.filter((item) => !["rejected", "cancelled"].includes(item.status));
     const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const settled = active.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -1876,30 +2029,30 @@
   };
 
   window.motfProcessTransaction = async function motfProcessTransaction(kind, id, status) {
-    if (window.motfDemoMode) {
+    if (String(id || "").startsWith(STAR_DEMO_PREFIX)) {
       let reason = null;
       if (["rejected", "cancelled"].includes(status)) {
         reason = prompt(status === "cancelled" ? "취소 사유를 입력해주세요." : "거절 사유를 입력해주세요.")?.trim();
         if (!reason) return;
       }
       const confirmMessage = status === "confirmed"
-        ? "이 시연 요청을 확정할까요?"
+        ? "이 시연 예약을 확정할까요?"
         : status === "cancelled"
-          ? "이 시연 요청을 취소할까요?"
-          : "이 시연 요청을 거절할까요?";
+          ? "이 시연 예약을 취소할까요?"
+          : "이 시연 예약을 거절할까요?";
       if (!confirm(confirmMessage)) return;
-      const demoStatusMap = { confirmed: "confirm", rejected: "reject", cancelled: "reject" };
-      const targetType = kind === "market" ? "market" : "stay";
-      const order = mockData[targetType]?.orders?.find((item) => String(item.id) === String(id));
-      if (order) {
-        order.status = demoStatusMap[status] || status;
-        if (reason) order.rejectReason = reason;
-      }
+      starDemoOverrides()[id] = {
+        status,
+        rejectReason: reason || "",
+        refundStatus: "none",
+        refundAmount: null,
+      };
+      applyStarPensionTransactionOverlay(window.motfCurrentBusiness);
+      syncPartnerTransactionsToMock();
       window.renderOrders?.();
       window.renderCalendar?.();
-      window.refreshMasterDataDisplays?.();
-      await window.motfRefreshPartnerOperations?.(true);
-      alert("시연 요청 상태가 변경되었습니다.");
+      window.motfRefreshPartnerOperations?.(true);
+      alert("시연 예약 상태가 변경되었습니다.");
       return;
     }
     let reason = null;
@@ -1995,9 +2148,10 @@
   }
 
   function selectedPartnerConversationId() {
-    return mockData[currentOwnerType]?.chats
+    const conversationId = mockData[currentOwnerType]?.chats
       ?.find((item) => item.user === currentSelectedChatUser)
       ?.conversationId || "";
+    return String(conversationId).startsWith(STAR_DEMO_PREFIX) ? "" : conversationId;
   }
 
   function isPartnerChatVisible() {
@@ -2095,7 +2249,12 @@
         isSupport: true,
       };
     });
-    const chats = [...supportChats, ...businessChats];
+    const demoChats = isStarPensionBusiness(business) ? buildStarPensionDemoData(business).chats : [];
+    const chats = [
+      ...supportChats,
+      ...demoChats,
+      ...businessChats.filter((item) => !String(item.conversationId || "").startsWith(STAR_DEMO_PREFIX)),
+    ];
     mockData[currentOwnerType].chats = chats;
     currentSelectedChatUser = chats.find((item) => item.conversationId === selectedConversationId)?.user
       || chats[0]?.user
@@ -2111,6 +2270,7 @@
     const text = input?.value.trim();
     if (!text) return;
     const chat = mockData[currentOwnerType].chats.find((item) => item.user === currentSelectedChatUser);
+    if (String(chat?.conversationId || "").startsWith(STAR_DEMO_PREFIX)) return originalSendChatMessage?.();
     if (!chat?.conversationId) return originalSendChatMessage?.();
     input.disabled = true;
     const { error } = await client().rpc("send_chat_message", {

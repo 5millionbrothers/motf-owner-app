@@ -723,7 +723,6 @@
         </div>
         <button type="submit" class="primary-btn" style="width: 100%; justify-content: center; padding: 14px;">로그인</button>
       </form>
-      <p class="login-help" style="margin-top:12px;">시연용 숙소: <strong>stay / stay</strong> · 공판장: <strong>market / market</strong></p>
       <p id="loginRuntimeStatus" class="login-runtime-status" role="status" aria-live="polite">로그인 서비스를 준비하고 있습니다.</p>
       <div class="login-divider">또는</div>
       <button class="kakao-login-btn" onclick="handleKakaoLogin()">카카오로 시작하기</button>
@@ -1551,83 +1550,39 @@
 
     const mockData = {
       stay: {
-        name: "대성리 리버펜션 님 홈",
-        displayName: "대성리 리버펜션",
-        desc: "대성리역 인근 단체 MT 이용에 맞춘 독채형 숙소입니다. 바비큐장, 노래방, 야외운동장 이용이 가능합니다.",
-        revenue: { rawTotal: 2840000, rawSettled: 840000, rawExpected: 2000000 },
-        rooms: [
-          { id: "demo-stay-room-main", name: "본관 단체룸", price: 680000, base_people: 25, max_people: 40, extra_person_fee: 18000, image_urls: [], feature_summary: ["독채", "노래방", "바비큐장"], offseason_weekday_price: 580000, offseason_weekend_price: 680000, shoulder_weekday_price: 720000, shoulder_weekend_price: 840000, peak_weekday_price: 880000, peak_weekend_price: 980000, bathroom_count: 3, bathroom_gender_separated: false, bathroom_note: "객실 내부 3개, 샤워 가능" },
-          { id: "demo-stay-room-annex", name: "별관 단체룸", price: 420000, base_people: 15, max_people: 24, extra_person_fee: 15000, image_urls: [], feature_summary: ["소규모 MT", "취사 가능", "개별 바비큐"], offseason_weekday_price: 360000, offseason_weekend_price: 420000, shoulder_weekday_price: 460000, shoulder_weekend_price: 520000, peak_weekday_price: 560000, peak_weekend_price: 640000, bathroom_count: 2, bathroom_gender_separated: false, bathroom_note: "객실 내부 2개" },
-          { id: "demo-stay-room-all", name: "전체 대관", price: 980000, base_people: 35, max_people: 60, extra_person_fee: 18000, image_urls: [], feature_summary: ["전체 대관", "운동장 포함", "단체 행사"], offseason_weekday_price: 880000, offseason_weekend_price: 980000, shoulder_weekday_price: 1080000, shoulder_weekend_price: 1180000, peak_weekday_price: 1280000, peak_weekend_price: 1380000, bathroom_count: 5, bathroom_gender_separated: true, bathroom_note: "본관 3개, 별관 2개" }
-        ],
+        name: "숙소 사장님 홈",
+        displayName: "숙소",
+        desc: "",
+        revenue: { rawTotal: 0, rawSettled: 0, rawExpected: 0 },
+        rooms: [],
         photoTabs: ["전체 외관"],
         facilities: [
-          { key: "barbecue", name: "야외바베큐", checked: true, desc: "단체 인원에 맞춰 테이블과 그릴을 준비합니다.", params: { capacity: 60, setup: "숯·그릴·집게", price: 70000 } },
-          { key: "karaoke", name: "노래방/마이크", checked: true, desc: "본관 공용실에서 이용 가능합니다.", params: { available_until: "23:00", mic_count: 2, included_rooms: ["본관 단체룸", "전체 대관"] } },
-          { key: "field", name: "야외운동장", checked: true, desc: "족구와 단체 레크레이션이 가능한 마당이 있습니다.", params: { equipment: ["족구네트", "공", "접이식 테이블"] } },
+          { key: "barbecue", name: "야외바베큐", checked: false, desc: "", params: {} },
+          { key: "karaoke", name: "노래방/마이크", checked: false, desc: "", params: {} },
+          { key: "field", name: "야외운동장", checked: false, desc: "", params: { equipment: [] } },
           { key: "pool", name: "수영장", checked: false, desc: "", params: {} },
-          { key: "screen", name: "TV/화면", checked: true, desc: "HDMI 연결 가능한 대형 TV가 있습니다.", params: { ports: "HDMI, USB-C", included_rooms: ["본관 단체룸", "전체 대관"], price: 0 } },
-          { key: "wifi", name: "무료 와이파이", checked: true, desc: "객실과 공용공간에서 사용 가능합니다.", params: {} },
-          { key: "parking", name: "주차", checked: true, desc: "승용차 기준 12대까지 주차 가능합니다.", params: {} },
-          { key: "pickup", name: "픽업", checked: true, desc: "대성리역 픽업은 사전 문의가 필요합니다.", params: { price: 30000, hours: "14:00~18:00", place: "대성리역 2번 출구" } }
+          { key: "screen", name: "TV/화면", checked: false, desc: "", params: {} },
+          { key: "wifi", name: "무료 와이파이", checked: false, desc: "", params: {} },
+          { key: "parking", name: "주차", checked: false, desc: "", params: {} },
+          { key: "pickup", name: "픽업", checked: false, desc: "", params: {} }
         ],
-        orders: [
-          { id: 1001, user: "[시연] 중앙대 경영학회", target: "본관 단체룸 · 32명", date: "2026-09-20", price: 680000, status: "pending" },
-          { id: 1002, user: "[시연] 홍익대 밴드동아리", target: "전체 대관 · 38명", date: "2026-09-27", price: 980000, status: "confirm" },
-          { id: 1003, user: "[시연] 국민대 사진동아리", target: "별관 단체룸 · 18명", date: "2026-08-24", price: 420000, status: "past" },
-          { id: 1004, user: "[시연] 한양대 축구동아리", target: "본관 단체룸 · 45명", date: "2026-09-14", price: 760000, status: "reject", rejectReason: "최대 수용 인원 초과로 예약 진행이 어렵습니다." }
-        ],
-        chats: [
-          { user: "[시연] 중앙대 경영학회", status: "예약 대기", preview: "바비큐장은 몇 시부터 사용할 수 있나요?", messages: [
-            { type: "in", text: "안녕하세요. 바비큐장은 몇 시부터 사용할 수 있나요?" },
-            { type: "out", text: "안녕하세요. 오후 6시부터 사용 가능합니다. 숯·그릴은 현장에서 준비해드립니다." },
-            { type: "in", text: "32명 기준이면 테이블은 충분할까요?" }
-          ] },
-          { user: "[시연] 홍익대 밴드동아리", status: "예약 확정", preview: "노래방 마이크 2개 맞을까요?", messages: [
-            { type: "in", text: "노래방 마이크 2개 맞을까요? 공연 연습도 조금 하려고 합니다." },
-            { type: "out", text: "네, 무선 마이크 2개 준비되어 있고 23시 전까지 이용 가능합니다." }
-          ] },
-          { user: "모티프 운영팀", status: "운영 안내", preview: "오늘 설명 때 보여줄 시연 데이터가 준비되어 있습니다.", messages: [
-            { type: "in", text: "오늘 사장님 기능 설명용 시연 데이터가 들어가 있습니다." },
-            { type: "out", text: "확인했습니다. 예약 요청과 채팅 흐름 위주로 안내하겠습니다." }
-          ] }
-        ]
+        orders: [],
+        chats: []
       },
       market: {
-        name: "대성 공판장 님 홈",
-        displayName: "대성 공판장",
-        desc: "MT에 필요한 식자재와 일회용품을 숙소 일정에 맞춰 준비하는 대성리 공판장입니다.",
-        revenue: { rawTotal: 612000, rawSettled: 248000, rawExpected: 364000 },
-        rooms: [
-          { id: "demo-market-water", name: "생수 2L 6개입", price: 7200, unit: "6개입", category: "음료", stock_quantity: 80, origin: "국내산", description: "단체 MT 기본 생수 묶음 상품입니다.", is_alcohol: false, image_urls: [], feature_summary: ["대량 구매", "숙소 배송"], detail_sections: { storage: "상온 보관", sellerNote: "수량이 많으면 전날 예약 권장" }, nutrition_info: { description: "해당 없음" } },
-          { id: "demo-market-pork", name: "국내산 삼겹살 세트", price: 129000, unit: "약 5kg", category: "육류", stock_quantity: 12, origin: "돼지고기 국내산", description: "바비큐용 삼겹살과 기본 쌈 구성을 함께 준비합니다.", is_alcohol: false, image_urls: [], feature_summary: ["바비큐", "냉장 배송"], detail_sections: { storage: "냉장 보관", sellerNote: "입고 상황에 따라 부위 구성이 일부 변경될 수 있습니다." }, nutrition_info: { description: "돼지고기 포함" } },
-          { id: "demo-market-cup", name: "일회용품 패키지", price: 24500, unit: "30인 기준", category: "일회용품", stock_quantity: 30, origin: "국내/중국 혼합", description: "종이컵, 접시, 젓가락, 집게를 묶은 MT 기본 패키지입니다.", is_alcohol: false, image_urls: [], feature_summary: ["30인 구성", "행사용"], detail_sections: { storage: "상온 보관", sellerNote: "인원수에 맞춰 추가 구매 가능합니다." }, nutrition_info: { description: "해당 없음" } },
-          { id: "demo-market-ramen", name: "라면 20개 묶음", price: 19800, unit: "20개", category: "간편식", stock_quantity: 25, origin: "국내 제조", description: "야식용으로 가장 많이 찾는 봉지라면 묶음입니다.", is_alcohol: false, image_urls: [], feature_summary: ["야식", "대량 구매"], detail_sections: { storage: "상온 보관", sellerNote: "브랜드는 재고에 따라 변경될 수 있습니다." }, nutrition_info: { description: "밀, 대두 함유 가능" } },
-          { id: "demo-market-snack", name: "과자 안주 박스", price: 36000, unit: "1박스", category: "간식", stock_quantity: 18, origin: "국내 제조", description: "여러 종류의 과자를 섞은 단체 간식 박스입니다.", is_alcohol: false, image_urls: [], feature_summary: ["간식", "단체 구성"], detail_sections: { storage: "상온 보관", sellerNote: "구성은 매장 재고에 따라 달라질 수 있습니다." }, nutrition_info: { description: "제품별 표시사항 확인" } },
-          { id: "demo-market-charcoal", name: "숯·그릴 보조 세트", price: 32000, unit: "1세트", category: "바비큐용품", stock_quantity: 16, origin: "국내/수입 혼합", description: "숯, 토치, 장갑, 집게를 포함한 바비큐 보조 세트입니다.", is_alcohol: false, image_urls: [], feature_summary: ["바비큐", "소모품"], detail_sections: { storage: "건조 보관", sellerNote: "숙소 자체 제공품과 중복 여부를 확인해주세요." }, nutrition_info: { description: "해당 없음" } }
-        ],
+        name: "공판장 사장님 홈",
+        displayName: "공판장",
+        desc: "",
+        revenue: { rawTotal: 0, rawSettled: 0, rawExpected: 0 },
+        rooms: [],
         photoTabs: ["전체 외관"],
         facilities: [
-          { key: "delivery", name: "숙소 배송", checked: true, desc: "대성리·청평 인근 숙소는 주문 시간에 맞춰 배송합니다.", placeholder: "배송 가능 지역, 최소 주문금액과 시간을 입력" },
-          { key: "pickup", name: "매장 픽업", checked: true, desc: "매장 방문 수령은 10:00~20:00 가능합니다.", placeholder: "픽업 가능 시간과 수령 위치를 입력" },
-          { key: "cold_storage", name: "냉장·냉동 보관", checked: true, desc: "육류와 냉장 식품은 아이스박스로 분리 포장합니다.", placeholder: "보관 및 포장 방식을 입력" }
+          { key: "delivery", name: "숙소 배송", checked: false, desc: "", placeholder: "배송 가능 지역, 최소 주문금액과 시간을 입력" },
+          { key: "pickup", name: "매장 픽업", checked: false, desc: "", placeholder: "픽업 가능 시간과 수령 위치를 입력" },
+          { key: "cold_storage", name: "냉장·냉동 보관", checked: false, desc: "", placeholder: "보관 및 포장 방식을 입력" }
         ],
-        orders: [
-          { id: 2001, user: "[시연] 숭실대 총학생회", target: "국내산 삼겹살 세트 외 4개", date: "2026-09-18", price: 284000, status: "pending" },
-          { id: 2002, user: "[시연] 동국대 영화동아리", target: "생수 2L 6개입 외 3개", date: "2026-09-19", price: 128000, status: "confirm" },
-          { id: 2003, user: "[시연] 서울여대 과학생회", target: "일회용품 패키지 외 2개", date: "2026-08-30", price: 92000, status: "past" },
-          { id: 2004, user: "[시연] 건국대 여행동아리", target: "과자 안주 박스 외 1개", date: "2026-09-12", price: 108000, status: "reject", rejectReason: "요청하신 배송 시간이 매장 운영시간 외입니다." }
-        ],
-        chats: [
-          { user: "[시연] 숭실대 총학생회", status: "주문 대기", preview: "고기는 숙소 도착 시간에 맞춰 받을 수 있나요?", messages: [
-            { type: "in", text: "고기는 숙소 도착 시간에 맞춰 받을 수 있나요?" },
-            { type: "out", text: "네, 주문 확정 후 희망 배송시간을 남겨주시면 맞춰서 준비하겠습니다." }
-          ] },
-          { user: "[시연] 동국대 영화동아리", status: "주문 확정", preview: "일회용품 10명분만 추가 가능할까요?", messages: [
-            { type: "in", text: "일회용품 10명분만 추가 가능할까요?" },
-            { type: "out", text: "가능합니다. 결제 전 수량만 조정해주시면 됩니다." }
-          ] }
-        ]
+        orders: [],
+        chats: []
       }
     };
 
@@ -3150,7 +3105,6 @@
       };
 
       async function openDashboardForUser(user) {
-        window.motfDemoMode = false;
         const { data: profile, error: profileError } = await supabaseClient
           .from('profiles')
           .select('email, full_name, phone, organization, role, status')
@@ -3231,53 +3185,6 @@
         window.motfRefreshPartnerOperations?.(true);
       }
 
-      async function openDashboardForDemo(type) {
-        window.motfDemoMode = true;
-        currentOwnerType = type === 'market' ? 'market' : 'stay';
-        applyOwnerTypeEditorLayout();
-        const data = mockData[currentOwnerType];
-        window.motfCurrentProfile = {
-          id: `demo-${currentOwnerType}`,
-          login_email: `demo-${currentOwnerType}@motf.co.kr`,
-          email: `demo-${currentOwnerType}@motf.co.kr`,
-          full_name: currentOwnerType === 'market' ? '공판장 시연 계정' : '숙소 시연 계정',
-          role: 'partner',
-          status: 'approved'
-        };
-        window.motfCurrentBusiness = {
-          id: `demo-${currentOwnerType}-business`,
-          owner_id: `demo-${currentOwnerType}`,
-          business_type: currentOwnerType,
-          business_name: data.displayName,
-          representative_name: '시연 사장님',
-          phone: '010-0000-0000',
-          business_number: '000-00-00000',
-          address: currentOwnerType === 'market' ? '경기도 가평군 대성리 200-1' : '경기도 가평군 청평면 대성리 100-1',
-          description: data.desc,
-          short_description: data.desc,
-          region: '가평',
-          approval_status: 'approved',
-          business_number_verification_status: 'verified',
-          latitude: 37.684,
-          longitude: 127.379,
-          gallery_image_urls: [],
-          cover_image_url: '',
-          facilities: data.facilities,
-          import_job_id: null
-        };
-        window.motfCurrentSettlementAccount = {
-          bank_name: '국민은행',
-          account_number: '000000-00-000000',
-          account_holder: currentOwnerType === 'market' ? '대성 공판장' : '대성리 리버펜션'
-        };
-        document.getElementById('login-view').style.display = 'none';
-        document.getElementById('admin-main').style.display = 'flex';
-        document.getElementById('topbar-mypage-trigger-btn').style.display = 'flex';
-        document.getElementById('topbar-admin-logout-btn').style.display = 'none';
-        initDashboard();
-        window.motfRefreshPartnerOperations?.(true);
-      }
-
       window.handleLogin = async function(event) {
         event.preventDefault();
         const inputId = document.getElementById('ownerId').value.trim();
@@ -3286,11 +3193,6 @@
         if (submitButton) { submitButton.disabled = true; submitButton.textContent = '로그인 중...'; }
 
         try {
-          if ((inputId === 'stay' && password === 'stay') || (inputId === 'market' && password === 'market')) {
-            await supabaseClient.auth.signOut().catch(() => {});
-            await openDashboardForDemo(inputId);
-            return;
-          }
           const { data, error } = await supabaseClient.auth.signInWithPassword({ email: inputId, password });
           if (error) throw error;
           await openDashboardForUser(data.user);
@@ -3301,7 +3203,6 @@
           window.motfCurrentProfile = null;
           window.motfCurrentBusiness = null;
           window.motfCurrentSettlementAccount = null;
-          window.motfDemoMode = false;
           const code = error.code || '';
           const message = String(error.message || '').toLowerCase();
           if (code === 'email_not_confirmed' || message.includes('email not confirmed')) {
@@ -3367,7 +3268,6 @@
         window.motfCurrentProfile = null;
         window.motfCurrentBusiness = null;
         window.motfCurrentSettlementAccount = null;
-        window.motfDemoMode = false;
       };
 
       window.handleKakaoLogin = function() {
@@ -3386,7 +3286,6 @@
             window.motfCurrentProfile = null;
             window.motfCurrentBusiness = null;
             window.motfCurrentSettlementAccount = null;
-            window.motfDemoMode = false;
             console.warn(error.message);
           }
         }
