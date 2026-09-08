@@ -78,6 +78,21 @@ function absoluteUrl(value: string | undefined, base: string) {
   } catch { return null; }
 }
 
+const IMAGE_VARIANT_PARAMS = new Set([
+  "w", "width", "h", "height", "size", "resize", "quality", "q", "format", "fm",
+  "fit", "crop", "thumbnail", "thumb", "dpr", "auto", "cache", "cb", "v", "ver", "version",
+]);
+
+function imageIdentity(value: string) {
+  const url = new URL(value);
+  url.hash = "";
+  for (const key of [...url.searchParams.keys()]) {
+    if (IMAGE_VARIANT_PARAMS.has(key.toLowerCase())) url.searchParams.delete(key);
+  }
+  url.searchParams.sort();
+  return url.toString();
+}
+
 function compactText(value: string, max = 22_000) {
   return value.replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim().slice(0, max);
 }
@@ -117,6 +132,15 @@ function addImage(images: Map<string, number>, value: string | undefined, base: 
   const pathname = new URL(absolute).pathname;
   if (!IMAGE_LIKE.test(absolute) && !/(image|photo|img|phinf|cdn)/i.test(absolute)) return;
   if (IMAGE_SKIP.test(`${pathname} ${context}`)) return;
+  const identity = imageIdentity(absolute);
+  for (const [existingUrl, existingScore] of images) {
+    if (imageIdentity(existingUrl) !== identity) continue;
+    if (score > existingScore) {
+      images.delete(existingUrl);
+      images.set(absolute, score);
+    }
+    return;
+  }
   images.set(absolute, Math.max(images.get(absolute) || 0, score));
 }
 
@@ -288,12 +312,16 @@ async function crawlNaverPlace(seed: URL): Promise<CrawledSite | null> {
     coordinate.longitude && coordinate.latitude ? `좌표: ${String(coordinate.longitude)}, ${String(coordinate.latitude)}` : "",
     "네이버 플레이스 공식 업체 요약 정보이며 방문자 리뷰와 방문자 사진은 수집하지 않았습니다.",
   ].filter((line) => !/: $/.test(line));
-  return { canonicalUrl: seed.toString(), pages: [{ url: apiUrl, title: String(place.name || "네이버 플레이스 숙소"), text: facts.join("\n"), structuredData: [] }], imageUrls };
+  return { canonicalUrl: seed.toString(), pages: [{ url: apiUrl, title: String(place.name || "네이버 플레이스 숙소"), text: facts.join("\n"), structuredData: [], imageUrls }], imageUrls };
 }
 
 export async function crawlStaySite(rawUrl: string): Promise<CrawledSite> {
   const normalizedInput = /^https?:\/\//i.test(rawUrl.trim()) ? rawUrl.trim() : `https://${rawUrl.trim()}`;
-  const seed = await assertPublicUrl(normalizedInput);
+  let seed = await assertPublicUrl(normalizedInput);
+  if (/(?:^|\.)naver\.me$/i.test(seed.hostname)) {
+    const { finalUrl } = await readHtml(seed.toString());
+    seed = await assertPublicUrl(finalUrl);
+  }
   const naver = await crawlNaverPlace(seed);
   if (naver) return naver;
   const seedSection = seed.pathname.split("/").filter(Boolean)[0] || "";
@@ -319,7 +347,7 @@ export async function crawlStaySite(rawUrl: string): Promise<CrawledSite> {
     const $ = cheerio.load(html);
     const pageImages = new Map<string, number>();
     collectImages($, html, finalUrl, pageImages);
-    pageImages.forEach((score, url) => images.set(url, Math.max(images.get(url) || 0, score)));
+    pageImages.forEach((score, url) => addImage(images, url, finalUrl, score));
     $(".pop_layer img,[id^='pop'] img,.popup img").each((_, element) => {
       const url = absoluteUrl($(element).attr("src") || $(element).attr("data-src"), finalUrl);
       if (url) visualEvidence.add(url);

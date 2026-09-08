@@ -5,172 +5,10 @@
   const originalRenderMasterOrders = window.renderMasterOrders;
   const originalSendChatMessage = window.sendChatMessage;
   const originalRenderMasterCases = window.renderMasterCases;
-  const STAR_DEMO_PREFIX = "demo-star";
   let adminDirectoryProfiles = [];
   let adminDirectoryBusinesses = [];
   let adminDirectoryOfferings = [];
   let directorySearchBound = false;
-
-  function isStarPensionBusiness(business = window.motfCurrentBusiness) {
-    const name = [
-      business?.business_name,
-      business?.displayName,
-      business?.name,
-      mockData?.stay?.displayName,
-    ].join(" ");
-    return /별찌|byeol|star/i.test(name);
-  }
-
-  function starDemoOverrides() {
-    window.motfStarPensionDemoOverrides ||= {};
-    return window.motfStarPensionDemoOverrides;
-  }
-
-  function applyDemoOverride(item) {
-    const override = starDemoOverrides()[item.id];
-    return override ? { ...item, ...override } : item;
-  }
-
-  function buildStarPensionDemoData(business = window.motfCurrentBusiness) {
-    const businessName = business?.business_name || "별찌펜션";
-    const transactions = [
-      {
-        kind: "stay",
-        id: `${STAR_DEMO_PREFIX}-reservation-001`,
-        businessName,
-        customerName: "[시연] 중앙대 경영학회",
-        date: "2026-09-20",
-        target: "별찌 단체룸 · 32명",
-        amount: 680000,
-        status: "pending",
-        rejectReason: "",
-        refundStatus: "none",
-        refundAmount: null,
-        created_at: "2026-09-08T10:20:00+09:00",
-      },
-      {
-        kind: "stay",
-        id: `${STAR_DEMO_PREFIX}-reservation-002`,
-        businessName,
-        customerName: "[시연] 홍익대 밴드동아리",
-        date: "2026-09-27",
-        target: "전체 대관 · 38명",
-        amount: 980000,
-        status: "confirmed",
-        rejectReason: "",
-        refundStatus: "none",
-        refundAmount: null,
-        created_at: "2026-09-07T18:40:00+09:00",
-      },
-      {
-        kind: "stay",
-        id: `${STAR_DEMO_PREFIX}-reservation-003`,
-        businessName,
-        customerName: "[시연] 국민대 사진동아리",
-        date: "2026-08-24",
-        target: "별관 단체룸 · 18명",
-        amount: 420000,
-        status: "completed",
-        rejectReason: "",
-        refundStatus: "none",
-        refundAmount: null,
-        created_at: "2026-08-21T14:05:00+09:00",
-      },
-      {
-        kind: "stay",
-        id: `${STAR_DEMO_PREFIX}-reservation-004`,
-        businessName,
-        customerName: "[시연] 한양대 축구동아리",
-        date: "2026-09-14",
-        target: "별찌 단체룸 · 45명",
-        amount: 760000,
-        status: "rejected",
-        rejectReason: "최대 수용 인원 초과로 예약 진행이 어렵습니다.",
-        refundStatus: "none",
-        refundAmount: null,
-        created_at: "2026-09-06T12:10:00+09:00",
-      },
-    ].map(applyDemoOverride);
-    const chats = [
-      {
-        conversationId: `${STAR_DEMO_PREFIX}-chat-001`,
-        user: "[시연] 중앙대 경영학회",
-        status: "예약 문의",
-        preview: "바비큐장은 몇 시부터 사용할 수 있나요?",
-        messages: [
-          { type: "in", text: "안녕하세요. 바비큐장은 몇 시부터 사용할 수 있나요?" },
-          { type: "out", text: "안녕하세요. 오후 6시부터 사용 가능하고, 숯·그릴은 현장에서 준비해드립니다." },
-          { type: "in", text: "32명 기준이면 테이블은 충분할까요?" },
-        ],
-      },
-      {
-        conversationId: `${STAR_DEMO_PREFIX}-chat-002`,
-        user: "[시연] 홍익대 밴드동아리",
-        status: "예약 확정",
-        preview: "노래방 마이크 2개 맞을까요?",
-        messages: [
-          { type: "in", text: "노래방 마이크 2개 맞을까요? 공연 연습도 조금 하려고 합니다." },
-          { type: "out", text: "네, 무선 마이크 2개 준비되어 있고 23시 전까지 이용 가능합니다." },
-        ],
-      },
-    ];
-    const reviews = [
-      { id: `${STAR_DEMO_PREFIX}-review-001`, author_name: "[시연] 홍익대 밴드동아리", rating: 10, body: "단체 인원이 많았는데 공간이 넓고 바비큐 동선이 편했습니다.", tags: ["단체 MT", "바비큐", "공간 넓음"], image_urls: [], is_hidden: false, created_at: "2026-09-04T12:20:00+09:00" },
-      { id: `${STAR_DEMO_PREFIX}-review-002`, author_name: "[시연] 국민대 사진동아리", rating: 8, body: "대성리역에서 가까워 이동이 편했고 문의 답변도 빨랐습니다.", tags: ["역 근처", "친절한 응대"], image_urls: [], is_hidden: false, created_at: "2026-08-25T09:30:00+09:00" },
-      { id: `${STAR_DEMO_PREFIX}-review-003`, author_name: "[시연] 한양대 축구동아리", rating: 6, body: "시설은 좋았지만 최대 인원 기준은 조금 더 명확히 안내되면 좋겠습니다.", tags: ["인원 안내 필요"], image_urls: [], is_hidden: false, created_at: "2026-08-16T16:10:00+09:00" },
-    ];
-    const settlements = transactions.map((item, index) => {
-      const gross = Number(item.amount || 0);
-      const commissionRate = 0.1;
-      const commission = Math.round(gross * commissionRate);
-      return {
-        transaction_id: `${STAR_DEMO_PREFIX}-settlement-${String(index + 1).padStart(3, "0")}`,
-        business_id: business?.id || "star-demo-business",
-        customer_name: item.customerName,
-        target_name: item.target,
-        transaction_date: item.date,
-        created_at: item.created_at,
-        gross_amount: gross,
-        customer_paid_amount: gross,
-        platform_discount_amount: 0,
-        commission_rate: commissionRate,
-        commission_amount: commission,
-        payout_amount: gross - commission,
-        status: item.status === "completed" ? "paid" : "pending",
-        paid_at: item.status === "completed" ? item.date : null,
-      };
-    });
-    return { transactions, chats, reviews, settlements };
-  }
-
-  function demoStatusToLegacy(status) {
-    return ({ confirmed: "confirm", completed: "past", rejected: "reject", cancelled: "reject" })[status] || "pending";
-  }
-
-  function syncPartnerTransactionsToMock() {
-    mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
-      id: item.id,
-      user: item.customerName,
-      date: String(item.date || "").slice(0, 10),
-      target: item.target,
-      price: Number(item.amount || 0),
-      status: item.id?.startsWith?.(STAR_DEMO_PREFIX) ? demoStatusToLegacy(item.status) : item.status,
-      rejectReason: item.rejectReason || "",
-      refundStatus: item.refundStatus || "none",
-      refundAmount: item.refundAmount || null,
-    }));
-  }
-
-  function applyStarPensionTransactionOverlay(business = window.motfCurrentBusiness) {
-    if (!isStarPensionBusiness(business)) return;
-    partnerTransactions = [
-      ...buildStarPensionDemoData(business).transactions,
-      ...partnerTransactions.filter((item) => !String(item.id || "").startsWith(STAR_DEMO_PREFIX)),
-    ];
-  }
-
-  window.motfIsStarPensionDemoBusiness = isStarPensionBusiness;
-  window.motfBuildStarPensionDemoData = buildStarPensionDemoData;
 
   const businessSelect = [
     "id",
@@ -751,10 +589,13 @@
     if (!urls.length) {
       preview.classList.remove("active");
       preview.innerHTML = "";
+      updatePhotoBulkActions();
       return;
     }
     preview.classList.add("active");
-    preview.innerHTML = urls.map((url, index) => `<figure class="owner-photo-item">
+    preview.innerHTML = urls.map((url, index) => `<figure class="owner-photo-item" draggable="true" data-photo-index="${index}">
+      <label class="owner-photo-select" title="사진 선택"><input type="checkbox" data-photo-select="${index}" aria-label="사진 ${index + 1} 선택"></label>
+      <span class="owner-photo-drag" title="끌어서 순서 변경"><i data-lucide="grip-vertical"></i></span>
       <img src="${escapeHtml(url)}" alt="등록된 사진 ${index + 1}">
       <figcaption>${index === 0 ? "대표사진" : `사진 ${index + 1}`}</figcaption>
       <div class="owner-photo-actions">
@@ -764,8 +605,92 @@
         <button type="button" class="danger" title="사진 삭제" onclick="motfRemovePhoto(${index})"><i data-lucide="trash-2"></i></button>
       </div>
     </figure>`).join("");
+    bindPhotoSorting(preview);
+    preview.querySelectorAll("[data-photo-select]").forEach((input) => input.addEventListener("change", () => {
+      input.closest(".owner-photo-item")?.classList.toggle("is-selected", input.checked);
+      updatePhotoBulkActions();
+    }));
+    updatePhotoBulkActions();
     window.lucide?.createIcons();
   }
+
+  function updatePhotoBulkActions() {
+    const actions = document.getElementById("motfPhotoBulkActions");
+    const selected = document.querySelectorAll("#motfPhotoUploadPreview [data-photo-select]:checked").length;
+    const count = document.getElementById("motfPhotoSelectedCount");
+    if (count) count.textContent = String(selected);
+    if (actions) actions.hidden = !(window.motfGetCurrentPhotoUrls?.() || []).length;
+  }
+
+  function bindPhotoSorting(preview) {
+    let draggedIndices = [];
+    let sweepActive = false;
+    let sweepValue = true;
+    const selectedIndices = () => [...preview.querySelectorAll("[data-photo-select]:checked")].map((input) => Number(input.dataset.photoSelect)).sort((a, b) => a - b);
+    const applySweep = (card) => {
+      const input = card?.querySelector("[data-photo-select]");
+      if (!input || input.checked === sweepValue) return;
+      input.checked = sweepValue;
+      card.classList.toggle("is-selected", sweepValue);
+      updatePhotoBulkActions();
+    };
+    preview.querySelectorAll("[data-photo-index]").forEach((card) => {
+      const selector = card.querySelector(".owner-photo-select");
+      selector?.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        const input = selector.querySelector("input");
+        sweepActive = true;
+        sweepValue = !input.checked;
+        applySweep(card);
+        const stopSweep = () => { sweepActive = false; };
+        window.addEventListener("pointerup", stopSweep, { once: true });
+        window.addEventListener("pointercancel", stopSweep, { once: true });
+      });
+      card.addEventListener("pointerenter", () => { if (sweepActive) applySweep(card); });
+      card.addEventListener("dragstart", (event) => {
+        if (event.target.closest("button,input,label")) { event.preventDefault(); return; }
+        const index = Number(card.dataset.photoIndex);
+        const selected = selectedIndices();
+        draggedIndices = selected.includes(index) && selected.length > 1 ? selected : [index];
+        draggedIndices.forEach((item) => preview.querySelector(`[data-photo-index="${item}"]`)?.classList.add("is-dragging"));
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", draggedIndices.join(","));
+      });
+      card.addEventListener("dragend", () => {
+        draggedIndices = [];
+        preview.querySelectorAll(".is-dragging,.is-drag-over").forEach((item) => item.classList.remove("is-dragging", "is-drag-over"));
+      });
+      card.addEventListener("dragover", (event) => { event.preventDefault(); card.classList.add("is-drag-over"); });
+      card.addEventListener("dragleave", () => card.classList.remove("is-drag-over"));
+      card.addEventListener("drop", async (event) => {
+        event.preventDefault();
+        const targetIndex = Number(card.dataset.photoIndex);
+        card.classList.remove("is-drag-over");
+        if (!draggedIndices.length || draggedIndices.includes(targetIndex)) return;
+        const urls = [...(window.motfGetCurrentPhotoUrls?.() || [])];
+        const moving = draggedIndices.map((index) => urls[index]);
+        const remaining = urls.filter((_, index) => !draggedIndices.includes(index));
+        const removedBeforeTarget = draggedIndices.filter((index) => index < targetIndex).length;
+        const insertionIndex = Math.max(0, targetIndex - removedBeforeTarget);
+        remaining.splice(insertionIndex, 0, ...moving);
+        try { await persistCurrentPhotoUrls(remaining); } catch (error) { console.error(error); alert("사진 순서를 저장하지 못했습니다."); }
+      });
+    });
+  }
+
+  window.motfToggleAllPhotos = function toggleAllPhotos() {
+    const inputs = [...document.querySelectorAll("#motfPhotoUploadPreview [data-photo-select]")];
+    const shouldSelect = inputs.some((input) => !input.checked);
+    inputs.forEach((input) => { input.checked = shouldSelect; input.closest(".owner-photo-item")?.classList.toggle("is-selected", shouldSelect); });
+    updatePhotoBulkActions();
+  };
+
+  window.motfRemoveSelectedPhotos = async function removeSelectedPhotos() {
+    const selected = new Set([...document.querySelectorAll("#motfPhotoUploadPreview [data-photo-select]:checked")].map((input) => Number(input.dataset.photoSelect)));
+    if (!selected.size || !confirm(`선택한 사진 ${selected.size}장을 목록에서 삭제할까요?`)) return;
+    const urls = (window.motfGetCurrentPhotoUrls?.() || []).filter((_, index) => !selected.has(index));
+    try { await persistCurrentPhotoUrls(urls); } catch (error) { console.error(error); alert("선택한 사진을 삭제하지 못했습니다."); }
+  };
 
   window.motfRefreshPhotoPreview = updatePhotoPreview;
 
@@ -880,18 +805,15 @@
   window.motfAddExtraFeeRow = () => { extraFeeRows.push({ label: "", amount: null, detail: "", category: "optional" }); renderExtraFeeRows(); };
   window.motfRemoveExtraFeeRow = (index) => { extraFeeRows.splice(index, 1); renderExtraFeeRows(); };
 
-  function bindPhotoUpload() {
+  async function uploadPhotoFiles(fileList) {
     const input = document.getElementById("motfPhotoUploadInput");
-    if (!input || input.dataset.storageBound) return;
-    input.dataset.storageBound = "true";
-    input.addEventListener("change", async () => {
-      const files = [...(input.files || [])];
+      const files = [...(fileList || [])];
       const business = window.motfCurrentBusiness;
       const profile = window.motfCurrentProfile;
       const target = window.motfGetCurrentPhotoTarget?.();
       if (!files.length || !business || !profile || !target) return;
-      if (files.length > 10) {
-        alert("사진은 한 번에 최대 10장까지 업로드할 수 있습니다.");
+      if (files.length > 100) {
+        alert("사진은 한 번에 최대 100장까지 업로드할 수 있습니다.");
         input.value = "";
         return;
       }
@@ -962,7 +884,19 @@
       alert(business.approval_status === "approved"
         ? `${uploadedUrls.length}장의 사진을 추가했습니다. 변경 승인 요청을 보내야 이용자 화면에 반영됩니다.`
         : `${uploadedUrls.length}장의 사진을 비공개 초안에 저장했습니다.`);
-    });
+  }
+
+  function bindPhotoUpload() {
+    const input = document.getElementById("motfPhotoUploadInput");
+    const dropzone = document.getElementById("motfPhotoDropzone");
+    if (!input || !dropzone || input.dataset.storageBound) return;
+    input.dataset.storageBound = "true";
+    input.addEventListener("change", () => uploadPhotoFiles(input.files));
+    dropzone.addEventListener("click", (event) => { if (!event.target.closest("button")) input.click(); });
+    dropzone.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); input.click(); } });
+    ["dragenter", "dragover"].forEach((name) => dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.add("is-drag-over"); }));
+    ["dragleave", "drop"].forEach((name) => dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.remove("is-drag-over"); }));
+    dropzone.addEventListener("drop", (event) => uploadPhotoFiles(event.dataTransfer?.files));
   }
 
   window.loadMotfPartnerBusiness = function loadMotfPartnerBusiness(business) {
@@ -1585,6 +1519,8 @@
 
   async function loadStayAvailabilityData(businessId = null) {
     if (!client()) return { offerings: [], blocks: [] };
+    const cleanupResult = await client().rpc("release_expired_checkout_intents");
+    if (cleanupResult.error) console.warn("Could not clean expired checkout holds.", cleanupResult.error);
     let offeringQuery = client()
       .from("offerings")
       .select("id, business_id, name, is_active, businesses(id, business_name, business_type)")
@@ -1633,7 +1569,7 @@
     return `
       <div class="info-panel" style="margin-bottom:18px;">
         <div class="section-toolbar" style="margin-bottom:12px;">
-          <h3 style="margin:0;">수동 방막기</h3>
+          <h3 style="margin:0;">수기 예약·방 잡기</h3>
           <span>전화·외부 예약 또는 현장 오류 대응 시 객실과 기간을 골라 즉시 판매를 막습니다.</span>
         </div>
         <div class="admin-filter-row">
@@ -1641,7 +1577,7 @@
           <input id="${scope}AvailabilityStart" type="date" value="${today}" />
           <input id="${scope}AvailabilityEnd" type="date" value="${tomorrow}" />
           <input id="${scope}AvailabilityNote" placeholder="메모 예: 네이버 예약, 전화 예약" />
-          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">기간 막기</button>
+          <button class="primary-btn" type="button" onclick="motfCreateAvailabilityBlock('${scope}')">예약 잡기</button>
         </div>
         <table class="master-admin-table">
           <thead><tr><th>숙소</th><th>객실</th><th>기간</th><th>상태</th><th>메모</th><th>관리</th></tr></thead>
@@ -1730,6 +1666,7 @@
       : "id, customer_name, group_name, event_date, offering_name, total_amount, status, reject_reason, refund_status, refund_amount";
     const { data, error } = await client().from(table).select(fields).eq("business_id", business.id).order("created_at", { ascending: false });
     if (error) return console.error(error);
+    await client().rpc("release_expired_checkout_intents");
     const { data: pendingIntents, error: pendingIntentError } = await client().rpc("list_pending_payment_intents", {
       target_business_id: business.id,
     });
@@ -1757,8 +1694,17 @@
       refundAmount: item.refund_amount,
       })),
     ];
-    applyStarPensionTransactionOverlay(business);
-    syncPartnerTransactionsToMock();
+    mockData[currentOwnerType].orders = partnerTransactions.map((item) => ({
+      id: item.id,
+      user: item.customerName,
+      date: String(item.date || "").slice(0, 10),
+      target: item.target,
+      price: Number(item.amount || 0),
+      status: item.status,
+      rejectReason: item.rejectReason || "",
+      refundStatus: item.refundStatus || "none",
+      refundAmount: item.refundAmount || null,
+    }));
     const active = partnerTransactions.filter((item) => !["rejected", "cancelled"].includes(item.status));
     const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const settled = active.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -2029,32 +1975,6 @@
   };
 
   window.motfProcessTransaction = async function motfProcessTransaction(kind, id, status) {
-    if (String(id || "").startsWith(STAR_DEMO_PREFIX)) {
-      let reason = null;
-      if (["rejected", "cancelled"].includes(status)) {
-        reason = prompt(status === "cancelled" ? "취소 사유를 입력해주세요." : "거절 사유를 입력해주세요.")?.trim();
-        if (!reason) return;
-      }
-      const confirmMessage = status === "confirmed"
-        ? "이 시연 예약을 확정할까요?"
-        : status === "cancelled"
-          ? "이 시연 예약을 취소할까요?"
-          : "이 시연 예약을 거절할까요?";
-      if (!confirm(confirmMessage)) return;
-      starDemoOverrides()[id] = {
-        status,
-        rejectReason: reason || "",
-        refundStatus: "none",
-        refundAmount: null,
-      };
-      applyStarPensionTransactionOverlay(window.motfCurrentBusiness);
-      syncPartnerTransactionsToMock();
-      window.renderOrders?.();
-      window.renderCalendar?.();
-      window.motfRefreshPartnerOperations?.(true);
-      alert("시연 예약 상태가 변경되었습니다.");
-      return;
-    }
     let reason = null;
     if (["rejected", "cancelled"].includes(status)) {
       reason = prompt(status === "cancelled" ? "운영팀 취소 사유를 입력해주세요." : "거절 사유를 입력해주세요.")?.trim();
@@ -2148,10 +2068,9 @@
   }
 
   function selectedPartnerConversationId() {
-    const conversationId = mockData[currentOwnerType]?.chats
+    return mockData[currentOwnerType]?.chats
       ?.find((item) => item.user === currentSelectedChatUser)
       ?.conversationId || "";
-    return String(conversationId).startsWith(STAR_DEMO_PREFIX) ? "" : conversationId;
   }
 
   function isPartnerChatVisible() {
@@ -2249,12 +2168,7 @@
         isSupport: true,
       };
     });
-    const demoChats = isStarPensionBusiness(business) ? buildStarPensionDemoData(business).chats : [];
-    const chats = [
-      ...supportChats,
-      ...demoChats,
-      ...businessChats.filter((item) => !String(item.conversationId || "").startsWith(STAR_DEMO_PREFIX)),
-    ];
+    const chats = [...supportChats, ...businessChats];
     mockData[currentOwnerType].chats = chats;
     currentSelectedChatUser = chats.find((item) => item.conversationId === selectedConversationId)?.user
       || chats[0]?.user
@@ -2270,7 +2184,6 @@
     const text = input?.value.trim();
     if (!text) return;
     const chat = mockData[currentOwnerType].chats.find((item) => item.user === currentSelectedChatUser);
-    if (String(chat?.conversationId || "").startsWith(STAR_DEMO_PREFIX)) return originalSendChatMessage?.();
     if (!chat?.conversationId) return originalSendChatMessage?.();
     input.disabled = true;
     const { error } = await client().rpc("send_chat_message", {

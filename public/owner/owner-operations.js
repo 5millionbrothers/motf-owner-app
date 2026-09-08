@@ -17,7 +17,6 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
   const rating5 = (value) => Math.max(0, Math.min(5, Number(value || 0) / 2));
-  const isStarDemoId = (value) => String(value || "").startsWith("demo-star");
 
   function statCard(label, value, detail, tone = "") {
     return `<article class="owner-operation-stat ${tone}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small></article>`;
@@ -25,53 +24,6 @@
 
   function empty(message) {
     return `<div class="owner-empty-state"><i data-lucide="inbox"></i><p>${escapeHtml(message)}</p></div>`;
-  }
-
-  function applyStarPensionOperationsOverlay() {
-    const business = window.motfCurrentBusiness;
-    if (!window.motfIsStarPensionDemoBusiness?.(business)) return;
-    const demo = window.motfBuildStarPensionDemoData?.(business);
-    if (!demo) return;
-    transactions = [
-      ...demo.transactions.map((item) => ({
-        ...item,
-        displayName: item.customerName,
-        targetName: item.target,
-        total_amount: item.amount,
-        activityDate: item.date,
-        event_date: item.date,
-      })),
-      ...transactions.filter((item) => !isStarDemoId(item.id)),
-    ];
-    reviews = [
-      ...demo.reviews,
-      ...reviews.filter((item) => !isStarDemoId(item.id)),
-    ];
-    settlements = [
-      ...demo.settlements,
-      ...settlements.filter((item) => !isStarDemoId(item.transaction_id)),
-    ];
-    conversations = [
-      ...demo.chats.map((item, index) => ({
-        id: item.conversationId,
-        customer_name: item.user,
-        group_name: "",
-        last_message_at: index === 0 ? new Date().toISOString() : "2026-09-07T18:20:00+09:00",
-      })),
-      ...conversations.filter((item) => !isStarDemoId(item.id)),
-    ];
-    if (!offerings.some((item) => item.is_active)) {
-      offerings = [
-        { id: "demo-star-offering-main", name: "별찌 단체룸", is_active: true },
-        { id: "demo-star-offering-all", name: "전체 대관", is_active: true },
-      ];
-    }
-    if (!availabilityBlocks.length && business?.business_type === "stay") {
-      availabilityBlocks = [
-        { id: "demo-star-block-cleaning", offering_id: "demo-star-offering-main", start_date: "2026-09-10", end_date: "2026-09-10", source: "manual", status: "active", note: "청소·점검" },
-        { id: "demo-star-block-external", offering_id: "demo-star-offering-all", start_date: "2026-09-23", end_date: "2026-09-24", source: "external", status: "active", note: "외부 예약" },
-      ];
-    }
   }
 
   async function loadTransactions(business) {
@@ -131,7 +83,6 @@
       return;
     }
     reviews = data || [];
-    applyStarPensionOperationsOverlay();
     renderReviewSummary();
     renderReviews();
   };
@@ -190,7 +141,6 @@
       return;
     }
     settlements = (data || []).filter((item) => item.business_id === window.motfCurrentBusiness.id);
-    applyStarPensionOperationsOverlay();
     renderSettlementSummary();
     renderSettlements();
   };
@@ -214,7 +164,6 @@
       statCard("정산 예정", money(pending.reduce((sum, item) => sum + Number(item.payout_amount || 0), 0)), `${pending.length}건`, "is-accent"),
       statCard("정산 완료", money(paid.reduce((sum, item) => sum + Number(item.payout_amount || 0), 0)), `${paid.length}건`),
       statCard("누적 판매금액", money(settlements.reduce((sum, item) => sum + Number(item.gross_amount || 0), 0)), "할인 전 판매가"),
-      statCard("누적 수수료", money(settlements.reduce((sum, item) => sum + Number(item.commission_amount || 0), 0)), "거래별 적용률 반영"),
     ].join("");
   }
 
@@ -224,7 +173,7 @@
     const rows = filteredSettlements();
     target.innerHTML = rows.length ? rows.map((item) => `<article class="owner-settlement-row">
       <div class="owner-settlement-main"><span class="owner-settlement-status ${item.status}">${item.status === "paid" ? "정산 완료" : "정산 예정"}</span><strong>${escapeHtml(item.target_name || "거래")}</strong><p>${escapeHtml(item.customer_name || "이용자")} · ${date(item.transaction_date)}</p><small>거래번호 ${escapeHtml(item.transaction_id)}</small></div>
-      <dl><div><dt>판매금액</dt><dd>${money(item.gross_amount)}</dd></div><div><dt>모티프 부담 할인</dt><dd>${money(item.platform_discount_amount)}</dd></div><div><dt>수수료 (${(Number(item.commission_rate || 0) * 100).toFixed(1)}%)</dt><dd>-${money(item.commission_amount)}</dd></div><div class="owner-settlement-payout"><dt>지급액</dt><dd>${money(item.payout_amount)}</dd></div></dl>
+      <dl><div><dt>판매금액</dt><dd>${money(item.gross_amount)}</dd></div><div><dt>고객 결제액</dt><dd>${money(item.customer_paid_amount)}</dd></div><div><dt>모티프 부담 할인</dt><dd>${money(item.platform_discount_amount)}</dd></div><div class="owner-settlement-payout"><dt>지급액</dt><dd>${money(item.payout_amount)}</dd></div></dl>
       <div class="owner-settlement-date"><span>${item.status === "paid" ? "지급일" : "생성일"}</span><strong>${date(item.paid_at || item.created_at)}</strong></div>
     </article>`).join("") : empty("조건에 맞는 정산 내역이 없습니다.");
     window.lucide?.createIcons();
@@ -245,8 +194,8 @@
     const rows = filteredSettlements();
     if (!rows.length) return alert("내보낼 정산 내역이 없습니다.");
     downloadCsv(`motf-settlements-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["거래번호", "거래일", "이용자", "객실/상품", "판매금액", "고객결제액", "모티프부담할인", "수수료율", "수수료", "지급액", "상태", "지급일"],
-      ...rows.map((item) => [item.transaction_id, item.transaction_date, item.customer_name, item.target_name, item.gross_amount, item.customer_paid_amount, item.platform_discount_amount, Number(item.commission_rate || 0) * 100, item.commission_amount, item.payout_amount, item.status, item.paid_at || ""]),
+      ["거래번호", "거래일", "이용자", "객실/상품", "판매금액", "고객결제액", "모티프부담할인", "지급액", "상태", "지급일"],
+      ...rows.map((item) => [item.transaction_id, item.transaction_date, item.customer_name, item.target_name, item.gross_amount, item.customer_paid_amount, item.platform_discount_amount, item.payout_amount, item.status, item.paid_at || ""]),
     ]);
   };
 
@@ -331,7 +280,6 @@
       window.motfLoadPartnerSettlements(true),
     ]).then(() => {
       lastLoadedAt = Date.now();
-      applyStarPensionOperationsOverlay();
       renderOperations();
     }).catch((error) => {
       console.error("Partner operations failed", error);
