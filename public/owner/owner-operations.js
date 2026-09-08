@@ -27,6 +27,22 @@
     return `<div class="owner-empty-state"><i data-lucide="inbox"></i><p>${escapeHtml(message)}</p></div>`;
   }
 
+  function operationStatusLabel(status) {
+    return {
+      pending: "확정 대기",
+      confirmed: "예약 확정",
+      completed: "이용 완료",
+      rejected: "요청 거절",
+      cancelled: "예약 취소",
+      virtual_account_issued: "입금 대기",
+    }[status] || "상태 확인";
+  }
+
+  window.motfHandleStarDemoTaskAction = async function handleStarDemoTaskAction(id, status) {
+    await window.motfProcessTransaction?.("stay", id, status);
+    await window.motfRefreshPartnerOperations?.(true);
+  };
+
   function applyStarPensionOperationsOverlay() {
     const business = window.motfCurrentBusiness;
     if (!window.motfIsStarPensionDemoBusiness?.(business)) return;
@@ -253,6 +269,13 @@
       const dateText = String(item.activityDate || item.event_date || item.pickup_time || item.created_at || "").slice(0, 10);
       const targetText = item.targetName || item.offering_name || "요청 항목";
       const amount = Number(item.total_amount || item.amount || 0);
+      const demo = isStarDemoId(item.id);
+      const confirmAction = demo
+        ? `motfHandleStarDemoTaskAction('${escapeHtml(item.id)}','confirmed')`
+        : `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))`;
+      const rejectAction = demo
+        ? `motfHandleStarDemoTaskAction('${escapeHtml(item.id)}','rejected')`
+        : `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))`;
       return `<article class="owner-urgent-card">
         <div class="owner-urgent-main">
           <span class="owner-urgent-badge">승인 필요</span>
@@ -260,8 +283,8 @@
           <small>${escapeHtml(dateText || "날짜 확인 필요")} · ${escapeHtml(targetText)} · ${money(amount)}</small>
         </div>
         <div class="owner-urgent-actions">
-          <button type="button" class="primary-btn" onclick="motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))">확정</button>
-          <button type="button" class="motf-reject-action-btn" onclick="motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))">거절</button>
+          <button type="button" class="primary-btn" onclick="${confirmAction}">예약 확정</button>
+          <button type="button" class="motf-reject-action-btn" onclick="${rejectAction}">요청 거절</button>
         </div>
       </article>`;
     }).join("");
@@ -289,7 +312,7 @@
     $("#ownerBusinessHealth").innerHTML = checks.map(([done, label]) => `<div class="${done ? "done" : "todo"}"><i data-lucide="${done ? "check" : "circle"}"></i><span>${escapeHtml(label)}</span><b>${done ? "완료" : "확인 필요"}</b></div>`).join("");
 
     const activities = [
-      ...transactions.slice(0, 5).map((item) => ({ at: item.created_at, icon: "calendar-check", title: `${item.displayName || "이용자"} · ${item.targetName || "거래"}`, detail: `${money(item.total_amount)} · ${item.status === "pending" ? "확정 대기" : item.status}` })),
+      ...transactions.slice(0, 5).map((item) => ({ at: item.created_at, icon: "calendar-check", title: `${item.displayName || "이용자"} · ${item.targetName || "거래"}`, detail: `${money(item.total_amount)} · ${operationStatusLabel(item.status)}` })),
       ...reviews.slice(0, 4).map((review) => ({ at: review.created_at, icon: "star", title: `${review.author_name || "이용자"}님의 ${rating5(review.rating).toFixed(1)}점 리뷰`, detail: review.body })),
     ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 6);
     $("#ownerRecentActivity").innerHTML = activities.length ? activities.map((item) => `<div><i data-lucide="${item.icon}"></i><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></span><time>${date(item.at)}</time></div>`).join("") : empty("아직 표시할 운영 활동이 없습니다.");
