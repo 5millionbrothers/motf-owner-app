@@ -2410,6 +2410,12 @@
   .owner-order-status-tabs .tab-btn.active::after {
     display: none !important;
   }
+
+  .owner-order-tools {
+    margin-top: 18px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid var(--line);
+  }
 }
 
 @media (max-width: 420px) {

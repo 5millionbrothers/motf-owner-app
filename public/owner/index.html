@@ -860,13 +860,13 @@
           <button class="tab-btn" onclick="switchOrderTab('past')">지난 예약</button>
           <button class="tab-btn" onclick="switchOrderTab('reject')">거절한 예약</button>
         </div>
-        <div class="owner-list-toolbar">
+        <div id="orderListArea" class="item-list"></div>
+        <div class="owner-list-toolbar owner-order-tools">
           <label class="owner-search-field"><i data-lucide="search"></i><input id="ownerOrderSearch" type="search" placeholder="예약자·단체·객실 검색" oninput="renderOrders()"></label>
           <label><span>이용 시작</span><input id="ownerOrderDateFrom" type="date" onchange="renderOrders()"></label>
           <label><span>이용 종료</span><input id="ownerOrderDateTo" type="date" onchange="renderOrders()"></label>
           <button class="secondary-btn" type="button" onclick="motfExportPartnerOrders()"><i data-lucide="download"></i> 엑셀용 CSV</button>
         </div>
-        <div id="orderListArea" class="item-list"></div>
       </section>
 
       <section id="panel-availability" class="panel">
