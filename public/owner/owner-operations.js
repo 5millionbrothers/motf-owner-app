@@ -17,6 +17,7 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[character]);
   const rating5 = (value) => Math.max(0, Math.min(5, Number(value || 0) / 2));
+  const demoStatusMap = { pending: "pending", confirm: "confirmed", past: "completed", reject: "rejected" };
 
   function statCard(label, value, detail, tone = "") {
     return `<article class="owner-operation-stat ${tone}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small></article>`;
@@ -24,6 +25,67 @@
 
   function empty(message) {
     return `<div class="owner-empty-state"><i data-lucide="inbox"></i><p>${escapeHtml(message)}</p></div>`;
+  }
+
+  function hydrateDemoOperations() {
+    const business = window.motfCurrentBusiness || {};
+    const type = business.business_type === "market" ? "market" : "stay";
+    const data = mockData[type] || { orders: [], rooms: [], chats: [] };
+    transactions = (data.orders || []).map((item) => ({
+      id: item.id,
+      kind: type,
+      customer_name: item.user,
+      group_name: "",
+      displayName: item.user,
+      targetName: item.target,
+      total_amount: item.price,
+      status: demoStatusMap[item.status] || item.status,
+      activityDate: item.date,
+      event_date: type === "stay" ? item.date : null,
+      pickup_time: type === "market" ? item.date : null,
+      created_at: item.status === "past" ? `${item.date}T10:30:00+09:00` : "2026-09-08T10:30:00+09:00",
+    }));
+    offerings = (data.rooms || []).map((item) => ({ id: item.id || item.name, name: item.name, is_active: true }));
+    availabilityBlocks = type === "stay" ? [
+      { id: "demo-block-cleaning", offering_id: "demo-stay-room-annex", start_date: "2026-09-10", end_date: "2026-09-10", source: "manual", status: "active", note: "청소·점검" },
+      { id: "demo-block-external", offering_id: "demo-stay-room-main", start_date: "2026-09-23", end_date: "2026-09-24", source: "external", status: "active", note: "외부 예약" },
+    ] : [];
+    conversations = (data.chats || []).map((item, index) => ({
+      id: `demo-conversation-${type}-${index + 1}`,
+      customer_name: item.user,
+      group_name: "",
+      last_message_at: index === 0 ? new Date().toISOString() : "2026-09-07T18:20:00+09:00",
+    }));
+    reviews = type === "market" ? [
+      { id: "demo-market-review-1", author_name: "[시연] 숭실대 총학생회", rating: 10, body: "고기랑 일회용품을 한 번에 받을 수 있어서 준비 시간이 확 줄었습니다.", tags: ["배송 정확", "단체 주문 편함"], image_urls: [], is_hidden: false, created_at: "2026-09-02T13:20:00+09:00" },
+      { id: "demo-market-review-2", author_name: "[시연] 동국대 영화동아리", rating: 8, body: "포장 상태가 깔끔했고 추가 수량 문의 답변도 빨랐습니다.", tags: ["빠른 답변", "포장 깔끔"], image_urls: [], is_hidden: false, created_at: "2026-08-28T19:10:00+09:00" },
+      { id: "demo-market-review-3", author_name: "[시연] 서울여대 과학생회", rating: 6, body: "배송은 좋았는데 일부 과자 구성은 사전에 더 자세히 알 수 있으면 좋겠습니다.", tags: ["구성 안내 필요"], image_urls: [], is_hidden: false, created_at: "2026-08-18T15:40:00+09:00" },
+    ] : [
+      { id: "demo-stay-review-1", author_name: "[시연] 홍익대 밴드동아리", rating: 10, body: "단체 인원이 많았는데 공간이 넓고 바비큐 동선이 편했습니다.", tags: ["단체 MT", "바비큐", "공간 넓음"], image_urls: [], is_hidden: false, created_at: "2026-09-04T12:20:00+09:00" },
+      { id: "demo-stay-review-2", author_name: "[시연] 국민대 사진동아리", rating: 8, body: "대성리역에서 가까워 이동이 편했고 문의 답변도 빨랐습니다.", tags: ["역 근처", "친절한 응대"], image_urls: [], is_hidden: false, created_at: "2026-08-25T09:30:00+09:00" },
+      { id: "demo-stay-review-3", author_name: "[시연] 한양대 축구동아리", rating: 6, body: "시설은 좋았지만 최대 인원 기준은 조금 더 명확히 안내되면 좋겠습니다.", tags: ["인원 안내 필요"], image_urls: [], is_hidden: false, created_at: "2026-08-16T16:10:00+09:00" },
+    ];
+    settlements = transactions.map((item, index) => {
+      const gross = Number(item.total_amount || 0);
+      const commissionRate = type === "market" ? 0.08 : 0.1;
+      const commission = Math.round(gross * commissionRate);
+      return {
+        transaction_id: `DEMO-${type.toUpperCase()}-${String(index + 1).padStart(3, "0")}`,
+        business_id: business.id,
+        customer_name: item.displayName,
+        target_name: item.targetName,
+        transaction_date: item.activityDate,
+        created_at: item.created_at,
+        gross_amount: gross,
+        customer_paid_amount: gross,
+        platform_discount_amount: 0,
+        commission_rate: commissionRate,
+        commission_amount: commission,
+        payout_amount: gross - commission,
+        status: item.status === "completed" ? "paid" : "pending",
+        paid_at: item.status === "completed" ? item.activityDate : null,
+      };
+    });
   }
 
   async function loadTransactions(business) {
@@ -71,6 +133,12 @@
 
   window.motfLoadPartnerReviews = async function loadPartnerReviews(force = false) {
     const business = window.motfCurrentBusiness;
+    if (window.motfDemoMode && business && window.motfCurrentProfile?.role === "partner") {
+      hydrateDemoOperations();
+      renderReviewSummary();
+      renderReviews();
+      return;
+    }
     if (!client() || !business || window.motfCurrentProfile?.role !== "partner") return;
     if (!force && reviews.length) return renderReviews();
     const target = $("#ownerReviewList");
@@ -131,6 +199,12 @@
   window.motfRenderPartnerReviews = renderReviews;
 
   window.motfLoadPartnerSettlements = async function loadPartnerSettlements(force = false) {
+    if (window.motfDemoMode && window.motfCurrentBusiness && window.motfCurrentProfile?.role === "partner") {
+      hydrateDemoOperations();
+      renderSettlementSummary();
+      renderSettlements();
+      return;
+    }
     if (!client() || !window.motfCurrentBusiness || window.motfCurrentProfile?.role !== "partner") return;
     if (!force && settlements.length) return renderSettlements();
     const target = $("#ownerSettlementList");
@@ -164,6 +238,7 @@
       statCard("정산 예정", money(pending.reduce((sum, item) => sum + Number(item.payout_amount || 0), 0)), `${pending.length}건`, "is-accent"),
       statCard("정산 완료", money(paid.reduce((sum, item) => sum + Number(item.payout_amount || 0), 0)), `${paid.length}건`),
       statCard("누적 판매금액", money(settlements.reduce((sum, item) => sum + Number(item.gross_amount || 0), 0)), "할인 전 판매가"),
+      statCard("누적 수수료", money(settlements.reduce((sum, item) => sum + Number(item.commission_amount || 0), 0)), "거래별 적용률 반영"),
     ].join("");
   }
 
@@ -173,7 +248,7 @@
     const rows = filteredSettlements();
     target.innerHTML = rows.length ? rows.map((item) => `<article class="owner-settlement-row">
       <div class="owner-settlement-main"><span class="owner-settlement-status ${item.status}">${item.status === "paid" ? "정산 완료" : "정산 예정"}</span><strong>${escapeHtml(item.target_name || "거래")}</strong><p>${escapeHtml(item.customer_name || "이용자")} · ${date(item.transaction_date)}</p><small>거래번호 ${escapeHtml(item.transaction_id)}</small></div>
-      <dl><div><dt>판매금액</dt><dd>${money(item.gross_amount)}</dd></div><div><dt>고객 결제액</dt><dd>${money(item.customer_paid_amount)}</dd></div><div><dt>모티프 부담 할인</dt><dd>${money(item.platform_discount_amount)}</dd></div><div class="owner-settlement-payout"><dt>지급액</dt><dd>${money(item.payout_amount)}</dd></div></dl>
+      <dl><div><dt>판매금액</dt><dd>${money(item.gross_amount)}</dd></div><div><dt>모티프 부담 할인</dt><dd>${money(item.platform_discount_amount)}</dd></div><div><dt>수수료 (${(Number(item.commission_rate || 0) * 100).toFixed(1)}%)</dt><dd>-${money(item.commission_amount)}</dd></div><div class="owner-settlement-payout"><dt>지급액</dt><dd>${money(item.payout_amount)}</dd></div></dl>
       <div class="owner-settlement-date"><span>${item.status === "paid" ? "지급일" : "생성일"}</span><strong>${date(item.paid_at || item.created_at)}</strong></div>
     </article>`).join("") : empty("조건에 맞는 정산 내역이 없습니다.");
     window.lucide?.createIcons();
@@ -194,8 +269,8 @@
     const rows = filteredSettlements();
     if (!rows.length) return alert("내보낼 정산 내역이 없습니다.");
     downloadCsv(`motf-settlements-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["거래번호", "거래일", "이용자", "객실/상품", "판매금액", "고객결제액", "모티프부담할인", "지급액", "상태", "지급일"],
-      ...rows.map((item) => [item.transaction_id, item.transaction_date, item.customer_name, item.target_name, item.gross_amount, item.customer_paid_amount, item.platform_discount_amount, item.payout_amount, item.status, item.paid_at || ""]),
+      ["거래번호", "거래일", "이용자", "객실/상품", "판매금액", "고객결제액", "모티프부담할인", "수수료율", "수수료", "지급액", "상태", "지급일"],
+      ...rows.map((item) => [item.transaction_id, item.transaction_date, item.customer_name, item.target_name, item.gross_amount, item.customer_paid_amount, item.platform_discount_amount, Number(item.commission_rate || 0) * 100, item.commission_amount, item.payout_amount, item.status, item.paid_at || ""]),
     ]);
   };
 
@@ -269,6 +344,13 @@
 
   window.motfRefreshPartnerOperations = async function refreshPartnerOperations(force = false) {
     const business = window.motfCurrentBusiness;
+    if (window.motfDemoMode && business && window.motfCurrentProfile?.role === "partner") {
+      hydrateDemoOperations();
+      renderReviewSummary();
+      renderSettlements();
+      renderOperations();
+      return;
+    }
     if (!client() || !business || window.motfCurrentProfile?.role !== "partner") return;
     if (loadingPromise) return loadingPromise;
     if (!force && Date.now() - lastLoadedAt < 30000) return renderOperations();
