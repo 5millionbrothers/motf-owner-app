@@ -164,7 +164,6 @@
       statCard("정산 예정", money(pending.reduce((sum, item) => sum + Number(item.payout_amount || 0), 0)), `${pending.length}건`, "is-accent"),
       statCard("정산 완료", money(paid.reduce((sum, item) => sum + Number(item.payout_amount || 0), 0)), `${paid.length}건`),
       statCard("누적 판매금액", money(settlements.reduce((sum, item) => sum + Number(item.gross_amount || 0), 0)), "할인 전 판매가"),
-      statCard("누적 수수료", money(settlements.reduce((sum, item) => sum + Number(item.commission_amount || 0), 0)), "거래별 적용률 반영"),
     ].join("");
   }
 
@@ -174,7 +173,7 @@
     const rows = filteredSettlements();
     target.innerHTML = rows.length ? rows.map((item) => `<article class="owner-settlement-row">
       <div class="owner-settlement-main"><span class="owner-settlement-status ${item.status}">${item.status === "paid" ? "정산 완료" : "정산 예정"}</span><strong>${escapeHtml(item.target_name || "거래")}</strong><p>${escapeHtml(item.customer_name || "이용자")} · ${date(item.transaction_date)}</p><small>거래번호 ${escapeHtml(item.transaction_id)}</small></div>
-      <dl><div><dt>판매금액</dt><dd>${money(item.gross_amount)}</dd></div><div><dt>모티프 부담 할인</dt><dd>${money(item.platform_discount_amount)}</dd></div><div><dt>수수료 (${(Number(item.commission_rate || 0) * 100).toFixed(1)}%)</dt><dd>-${money(item.commission_amount)}</dd></div><div class="owner-settlement-payout"><dt>지급액</dt><dd>${money(item.payout_amount)}</dd></div></dl>
+      <dl><div><dt>판매금액</dt><dd>${money(item.gross_amount)}</dd></div><div><dt>고객 결제액</dt><dd>${money(item.customer_paid_amount)}</dd></div><div><dt>모티프 부담 할인</dt><dd>${money(item.platform_discount_amount)}</dd></div><div class="owner-settlement-payout"><dt>지급액</dt><dd>${money(item.payout_amount)}</dd></div></dl>
       <div class="owner-settlement-date"><span>${item.status === "paid" ? "지급일" : "생성일"}</span><strong>${date(item.paid_at || item.created_at)}</strong></div>
     </article>`).join("") : empty("조건에 맞는 정산 내역이 없습니다.");
     window.lucide?.createIcons();
@@ -195,8 +194,8 @@
     const rows = filteredSettlements();
     if (!rows.length) return alert("내보낼 정산 내역이 없습니다.");
     downloadCsv(`motf-settlements-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ["거래번호", "거래일", "이용자", "객실/상품", "판매금액", "고객결제액", "모티프부담할인", "수수료율", "수수료", "지급액", "상태", "지급일"],
-      ...rows.map((item) => [item.transaction_id, item.transaction_date, item.customer_name, item.target_name, item.gross_amount, item.customer_paid_amount, item.platform_discount_amount, Number(item.commission_rate || 0) * 100, item.commission_amount, item.payout_amount, item.status, item.paid_at || ""]),
+      ["거래번호", "거래일", "이용자", "객실/상품", "판매금액", "고객결제액", "모티프부담할인", "지급액", "상태", "지급일"],
+      ...rows.map((item) => [item.transaction_id, item.transaction_date, item.customer_name, item.target_name, item.gross_amount, item.customer_paid_amount, item.platform_discount_amount, item.payout_amount, item.status, item.paid_at || ""]),
     ]);
   };
 

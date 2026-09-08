@@ -76,6 +76,23 @@
     return ({ pending: "검토 대기", approved: "승인 완료", rejected: "반려", cancelled: "취소" })[status] || status;
   }
 
+  function reviewField(label, value) {
+    const shown = Array.isArray(value) ? value.join(", ") : value;
+    return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(shown || "미입력")}</dd></div>`;
+  }
+
+  function fullRequestDetail(request, current) {
+    const proposed = request.proposed_business || {};
+    const rooms = Array.isArray(request.proposed_offerings) ? request.proposed_offerings : [];
+    const photos = [...new Set([proposed.cover_image_url, ...(proposed.gallery_image_urls || [])].filter(Boolean))];
+    return `<details class="listing-review-full"><summary>신청 내용 전체 보기</summary>
+      ${request.request_type === "update" ? `<section><h4>현재 공개 정보와 비교</h4><div class="listing-review-compare"><div><b>현재</b><p>${escapeHtml(current?.business_name || "-")}<br>${escapeHtml(current?.address || "-")}<br>${escapeHtml(current?.phone || "-")}</p></div><div><b>변경 신청</b><p>${escapeHtml(proposed.business_name || "-")}<br>${escapeHtml([proposed.address, proposed.address_detail].filter(Boolean).join(" ") || "-")}<br>${escapeHtml(proposed.phone || "-")}</p></div></div></section>` : ""}
+      <section><h4>숙소 기본 정보</h4><dl class="listing-review-fields">${reviewField("숙소명", proposed.business_name)}${reviewField("대표자", proposed.representative_name)}${reviewField("사업자등록번호", proposed.business_registration_number)}${reviewField("연락처", proposed.phone)}${reviewField("주소", [proposed.address, proposed.address_detail].filter(Boolean).join(" "))}${reviewField("지역", proposed.region)}${reviewField("소개", proposed.description)}${reviewField("짧은 소개", proposed.short_description)}${reviewField("시설", proposed.facilities)}${reviewField("특징", proposed.highlight_summary)}${reviewField("추가 요금", (proposed.extra_fees || []).map((fee) => `${fee.label || "항목"} ${money(fee.amount)} ${fee.detail || ""}`))}</dl></section>
+      <section><h4>숙소 사진 ${photos.length}장</h4><div class="listing-review-gallery">${photos.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(url)}" alt="숙소 등록 사진"></a>`).join("") || "등록된 사진 없음"}</div></section>
+      <section><h4>객실 ${rooms.length}개</h4><div class="listing-review-rooms">${rooms.map((room, index) => `<article><b>${index + 1}. ${escapeHtml(room.name || "객실명 미입력")}</b><dl>${reviewField("가격", money(room.offseason_weekday_price ?? room.price))}${reviewField("비수기 주말", money(room.offseason_weekend_price))}${reviewField("준성수기 평일/주말", `${money(room.shoulder_weekday_price)} / ${money(room.shoulder_weekend_price)}`)}${reviewField("성수기 평일/주말", `${money(room.peak_weekday_price)} / ${money(room.peak_weekend_price)}`)}${reviewField("기준/최대 인원", `${room.base_people || 0}명 / ${room.max_people || 0}명`)}${reviewField("추가 인원 요금", money(room.extra_person_fee))}${reviewField("화장실", `${room.bathroom_count || 0}개`)}${reviewField("특징", room.feature_summary)}${reviewField("설명", room.description)}</dl><div class="listing-review-gallery">${[room.image_url, ...(room.image_urls || [])].filter(Boolean).map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(url)}" alt="객실 사진"></a>`).join("")}</div></article>`).join("") || "객실 정보 없음"}</div></section>
+    </details>`;
+  }
+
   window.motfLoadListingReviews = async function loadListingReviews() {
     if (window.motfCurrentProfile?.role !== "admin") return;
     const area = $("#motfListingReviewList");
@@ -88,7 +105,7 @@
     if (error) { area.innerHTML = `<div class="admin-control-empty">${escapeHtml(error.message)}</div>`; return; }
     const businessIds = [...new Set((requests || []).map((item) => item.business_id))];
     const { data: businesses } = businessIds.length
-      ? await client().from("businesses").select("id,business_name,approval_status,owner_id,import_job_id").in("id", businessIds)
+      ? await client().from("businesses").select("*").in("id", businessIds)
       : { data: [] };
     const byId = new Map((businesses || []).map((item) => [item.id, item]));
     area.innerHTML = (requests || []).map((request) => {
@@ -99,6 +116,12 @@
       const pending = request.status === "pending";
       return `<article class="listing-review-card"><div class="listing-review-card-head"><div><span class="listing-review-type">${request.request_type === "new_listing" ? "신규 입점" : "정보 변경"}</span><h3>${escapeHtml(proposed.business_name || business?.business_name || "숙소명 미확인")}</h3><p>${new Date(request.created_at).toLocaleString("ko-KR")} 신청 · 객실 ${offerings.length}개</p></div><span class="listing-review-status is-${request.status}">${requestStatus(request.status)}</span></div><div class="listing-review-summary"><span>주소 <b>${escapeHtml(proposed.address || "미입력")}</b></span><span>대표 연락처 <b>${escapeHtml(proposed.phone || "미입력")}</b></span><span>사진 <b>${(proposed.gallery_image_urls || []).length}장</b></span><span>최저 객실가 <b>${offerings.length ? money(Math.min(...offerings.map((item) => Number(item.price || 0)))) : "객실 없음"}</b></span></div>${missing.length ? `<div class="listing-review-missing"><b>확인 권장 ${missing.length}개</b>${missing.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : '<div class="listing-review-ready">주요 항목 입력 완료</div>'}${request.review_note ? `<p class="listing-review-note">처리 메모: ${escapeHtml(request.review_note)}</p>` : ""}${pending ? `<div class="listing-review-card-actions"><button class="secondary-btn" onclick="motfReviewListing('${request.id}','rejected')"><i data-lucide="x"></i> 반려</button><button class="primary-btn" onclick="motfReviewListing('${request.id}','approved')"><i data-lucide="check"></i> 승인·반영</button></div>` : ""}</article>`;
     }).join("") || '<div class="admin-control-empty">해당 상태의 심사 요청이 없습니다.</div>';
+    Array.from(area.querySelectorAll(".listing-review-card")).forEach((card, index) => {
+      const request = (requests || [])[index];
+      if (!request) return;
+      const actions = card.querySelector(".listing-review-card-actions");
+      (actions || card).insertAdjacentHTML(actions ? "beforebegin" : "beforeend", fullRequestDetail(request, byId.get(request.business_id)));
+    });
     window.lucide?.createIcons();
   };
 

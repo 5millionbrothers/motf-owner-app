@@ -3310,3 +3310,97 @@ input[type="range"] {
     font-size: 13px;
   }
 }
+/* 2026-09-08 admin and owner workflow additions */
+.motf-photo-dropzone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px dashed #aeb8a6;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+.motf-photo-dropzone:hover,
+.motf-photo-dropzone.is-drag-over { border-color: var(--teal); background: var(--olive-soft); }
+.motf-photo-dropzone > svg { width: 22px; color: var(--teal-dark); }
+.motf-photo-dropzone > div { display: grid; flex: 1; gap: 2px; }
+.motf-photo-dropzone strong { font-size: 13px; }
+.motf-photo-dropzone span { color: var(--muted); font-size: 11px; }
+.motf-photo-bulk-actions { display: flex; align-items: center; gap: 7px; margin-top: 12px; }
+.motf-photo-bulk-actions > span { margin-right: auto; color: var(--muted); font-size: 12px; }
+.motf-photo-bulk-actions .danger { color: #a3453f; }
+.owner-photo-item[draggable="true"] { cursor: grab; }
+.owner-photo-item.is-dragging { opacity: .5; }
+.owner-photo-item.is-drag-over { border-color: var(--teal); box-shadow: inset 0 0 0 2px var(--teal); }
+.owner-photo-item.is-selected { outline: 3px solid var(--olive, #61734a); outline-offset: -3px; }
+.owner-photo-select { touch-action: none; cursor: crosshair; }
+
+#panel-mypage input[type="checkbox"],
+#panel-mypage input[type="radio"] {
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
+  padding: 0 !important;
+  margin: 0 7px 0 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  accent-color: var(--olive, #61734a);
+  flex: 0 0 17px;
+}
+
+.admin-content-row.content-kind-card_news { border-left: 4px solid #5d764d; }
+.admin-content-row.content-kind-promotion { border-left: 4px solid #d8783d; }
+.admin-content-row.content-kind-hero { border-left: 4px solid #3f6f8d; }
+.admin-community-detail { margin-top: 18px; }
+.admin-community-detail > article { padding: 20px; border: 1px solid var(--border, #ddd); background: #fff; }
+.admin-community-body { white-space: pre-wrap; }
+.admin-comment-list > div { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding: 14px 0; border-top: 1px solid var(--border, #e5e5e5); }
+.admin-comment-list span { color: #777; font-size: 12px; }
+.admin-comment-list p { grid-column: 1; margin: 0; white-space: pre-wrap; }
+.admin-comment-list button { grid-column: 2; grid-row: 1 / span 2; }
+
+.listing-review-full { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border, #ddd); }
+.listing-review-full summary { cursor: pointer; font-weight: 700; }
+.listing-review-fields,
+.listing-review-rooms dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; }
+.listing-review-fields div,
+.listing-review-rooms dl div { min-width: 0; }
+.listing-review-fields dt,
+.listing-review-rooms dt { color: #777; font-size: 12px; }
+.listing-review-fields dd,
+.listing-review-rooms dd { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.listing-review-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.listing-review-gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.listing-review-rooms > article { padding: 16px 0; border-top: 1px solid var(--border, #e5e5e5); }
+.listing-review-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.listing-review-compare > div { padding: 12px; background: #f7f7f5; }
+
+.owner-revenue-controls { display: flex; align-items: end; gap: 10px; margin: 14px 0 20px; }
+.owner-revenue-controls label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.owner-revenue-table-head,
+.owner-revenue-table > div { display: grid; grid-template-columns: minmax(160px, 1.5fr) .5fr 1fr 1fr; gap: 12px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.owner-revenue-table-head { color: var(--muted); font-size: 12px; font-weight: 700; }
+.owner-revenue-summary { display: flex; gap: 14px; align-items: baseline; margin-bottom: 12px; }
+.owner-revenue-summary strong { font-size: 24px; }
+.owner-revenue-summary span { color: var(--muted); }
+.owner-revenue-chart { display: flex; align-items: end; gap: 7px; min-height: 250px; padding: 24px 8px 0; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.owner-revenue-chart > div { display: grid; grid-template-rows: 200px auto; align-items: end; min-width: 34px; height: 225px; text-align: center; }
+.owner-revenue-chart span { display: block; width: 24px; max-height: 100%; margin: 0 auto; background: var(--olive, #61734a); }
+.owner-revenue-chart small { padding-top: 8px; color: var(--muted); font-size: 10px; }
+
+@media (max-width: 760px) {
+  .motf-photo-dropzone { align-items: flex-start; flex-wrap: wrap; }
+  .motf-photo-dropzone > div { min-width: calc(100% - 40px); }
+  .listing-review-fields,
+  .listing-review-rooms dl,
+  .listing-review-compare { grid-template-columns: 1fr; }
+  .owner-revenue-controls { align-items: stretch; flex-direction: column; }
+  .owner-revenue-table { overflow-x: auto; }
+  .owner-revenue-table-head,
+  .owner-revenue-table > div { min-width: 640px; }
+}
