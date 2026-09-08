@@ -104,7 +104,33 @@
         ],
       },
     ];
-    return { transactions, chats };
+    const reviews = [
+      { id: `${STAR_DEMO_PREFIX}-review-001`, author_name: "[시연] 홍익대 밴드동아리", rating: 10, body: "단체 인원이 많았는데 공간이 넓고 바비큐 동선이 편했습니다.", tags: ["단체 MT", "바비큐", "공간 넓음"], image_urls: [], is_hidden: false, created_at: "2026-09-04T12:20:00+09:00" },
+      { id: `${STAR_DEMO_PREFIX}-review-002`, author_name: "[시연] 국민대 사진동아리", rating: 8, body: "대성리역에서 가까워 이동이 편했고 문의 답변도 빨랐습니다.", tags: ["역 근처", "친절한 응대"], image_urls: [], is_hidden: false, created_at: "2026-08-25T09:30:00+09:00" },
+      { id: `${STAR_DEMO_PREFIX}-review-003`, author_name: "[시연] 한양대 축구동아리", rating: 6, body: "시설은 좋았지만 최대 인원 기준은 조금 더 명확히 안내되면 좋겠습니다.", tags: ["인원 안내 필요"], image_urls: [], is_hidden: false, created_at: "2026-08-16T16:10:00+09:00" },
+    ];
+    const settlements = transactions.map((item, index) => {
+      const gross = Number(item.amount || 0);
+      const commissionRate = 0.1;
+      const commission = Math.round(gross * commissionRate);
+      return {
+        transaction_id: `${STAR_DEMO_PREFIX}-settlement-${String(index + 1).padStart(3, "0")}`,
+        business_id: business?.id || "star-demo-business",
+        customer_name: item.customerName,
+        target_name: item.target,
+        transaction_date: item.date,
+        created_at: item.status === "completed" ? `${item.date}T10:30:00+09:00` : "2026-09-08T10:30:00+09:00",
+        gross_amount: gross,
+        customer_paid_amount: gross,
+        platform_discount_amount: 0,
+        commission_rate: commissionRate,
+        commission_amount: commission,
+        payout_amount: gross - commission,
+        status: item.status === "completed" ? "paid" : "pending",
+        paid_at: item.status === "completed" ? item.date : null,
+      };
+    });
+    return { transactions, chats, reviews, settlements };
   }
 
   function demoStatusToLegacy(status) {

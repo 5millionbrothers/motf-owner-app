@@ -69,6 +69,14 @@
       })),
       ...conversations.filter((item) => !isStarDemoId(item.id)),
     ];
+    reviews = [
+      ...(demo.reviews || []),
+      ...reviews.filter((item) => !isStarDemoId(item.id)),
+    ];
+    settlements = [
+      ...(demo.settlements || []),
+      ...settlements.filter((item) => !isStarDemoId(item.transaction_id)),
+    ];
   }
 
   async function loadTransactions(business) {
@@ -128,6 +136,7 @@
       return;
     }
     reviews = data || [];
+    applyStarPensionOperationsOverlay();
     renderReviewSummary();
     renderReviews();
   };
@@ -186,6 +195,7 @@
       return;
     }
     settlements = (data || []).filter((item) => item.business_id === window.motfCurrentBusiness.id);
+    applyStarPensionOperationsOverlay();
     renderSettlementSummary();
     renderSettlements();
   };
