@@ -788,6 +788,14 @@
     };
     preview.querySelectorAll("[data-photo-index]").forEach((card) => {
       const selector = card.querySelector(".owner-photo-select");
+      card.addEventListener("click", (event) => {
+        if (event.target.closest("button,input,label") || card.classList.contains("is-dragging")) return;
+        const input = card.querySelector("[data-photo-select]");
+        if (!input) return;
+        input.checked = !input.checked;
+        card.classList.toggle("is-selected", input.checked);
+        updatePhotoBulkActions();
+      });
       selector?.addEventListener("pointerdown", (event) => {
         event.preventDefault();
         const input = selector.querySelector("input");
@@ -2479,6 +2487,21 @@
       return `<div style="align-self:${incoming ? "flex-start" : "flex-end"};max-width:72%;"><div class="admin-chat-meta">${escapeHtml(sender)}</div><div class="chat-bubble ${incoming ? "received" : "sent"}" style="max-width:100%;">${escapeHtml(message.text)}</div></div>`;
     }).join("");
     messageArea.scrollTop = messageArea.scrollHeight;
+  };
+
+  window.motfSendAdminChatMessage = async function sendAdminChatMessage(event) {
+    event?.preventDefault?.();
+    if (window.motfCurrentProfile?.role !== "admin" || !masterSelectedChatUser) return alert("답장할 대화를 먼저 선택해주세요.");
+    const input = document.getElementById("masterChatMessageInput");
+    const body = String(input?.value || "").trim();
+    if (!body) return;
+    input.disabled = true;
+    const { error } = await client().rpc("send_chat_message", { target_conversation_id: masterSelectedChatUser, message_body: body });
+    input.disabled = false;
+    if (error) return alert(`메시지를 보내지 못했습니다.\n${error.message}`);
+    input.value = "";
+    await window.loadMotfAdminChats();
+    input.focus();
   };
 
   window.loadMotfAdminSupportCases = async function loadMotfAdminSupportCases() {

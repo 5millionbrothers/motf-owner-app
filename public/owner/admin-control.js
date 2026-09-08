@@ -160,18 +160,48 @@
     if (error) return el.textContent = error.message;
     const query = $("#adminDiscoverySearch")?.value.trim().toLowerCase() || "";
     const rows = (data || []).filter((item) => String(item.business_name || "").toLowerCase().includes(query));
-    el.innerHTML = rows.map((item) => `<article class="admin-control-row"><div><strong>${escapeHtml(item.business_name)}</strong><span>${item.business_type === "stay" ? "숙소" : "마트"} · ${escapeHtml(item.approval_status)}</span></div><label>노출 순서${discoverySelect(item.display_order, "data-business-order", item.id, ["가장 먼저", "앞쪽", "보통", "뒤쪽"])}</label><label>랜덤 가중치${discoverySelect(item.discovery_weight, "data-business-weight", item.id, ["랜덤 제외", "보통", "자주", "우선"])}</label><label>개별 수수료(%)<input type="number" step="0.1" value="${item.commission_rate_override == null ? "" : Number(item.commission_rate_override) * 100}" data-business-rate="${item.id}"></label><label class="admin-inline-check"><input type="checkbox" ${item.is_featured ? "checked" : ""} data-business-featured="${item.id}">홈 추천</label><button class="secondary-btn" type="button" data-save-discovery="${item.id}">저장</button></article>`).join("") || '<div class="admin-control-empty">검색 결과가 없습니다.</div>';
+    el.innerHTML = rows.length ? `<div class="admin-discovery-toolbar">
+      <label class="admin-inline-check"><input type="checkbox" id="adminDiscoverySelectAll"> 전체 선택</label>
+      <label>선택 순서<select id="adminDiscoveryBulkOrder"><option value="">유지</option>${[0,1,2,3].map((value) => `<option value="${value}">${value}</option>`).join("")}</select></label>
+      <label>선택 가중치<select id="adminDiscoveryBulkWeight"><option value="">유지</option>${[0,1,2,3].map((value) => `<option value="${value}">${value}</option>`).join("")}</select></label>
+      <label>홈 추천<select id="adminDiscoveryBulkFeatured"><option value="">유지</option><option value="true">추천</option><option value="false">해제</option></select></label>
+      <button class="secondary-btn" type="button" id="adminDiscoveryApplyBulk">선택 항목 적용</button>
+      <button class="primary-btn" type="button" id="adminDiscoverySaveAll">전체 저장</button>
+    </div>${rows.map((item) => `<article class="admin-control-row" data-discovery-row="${item.id}"><label class="admin-discovery-selector" title="선택"><input type="checkbox" data-discovery-select="${item.id}"></label><div><strong>${escapeHtml(item.business_name)}</strong><span>${item.business_type === "stay" ? "숙소" : "마트"} · ${escapeHtml(item.approval_status)}</span></div><label>노출 순서${discoverySelect(item.display_order, "data-business-order", item.id, ["가장 먼저", "앞쪽", "보통", "뒤쪽"])}</label><label>랜덤 가중치${discoverySelect(item.discovery_weight, "data-business-weight", item.id, ["랜덤 제외", "보통", "자주", "우선"])}</label><label>개별 수수료(%)<input type="number" step="0.1" value="${item.commission_rate_override == null ? "" : Number(item.commission_rate_override) * 100}" data-business-rate="${item.id}"></label><label class="admin-inline-check"><input type="checkbox" ${item.is_featured ? "checked" : ""} data-business-featured="${item.id}">홈 추천</label><button class="secondary-btn" type="button" data-save-discovery="${item.id}">저장</button></article>`).join("")}` : '<div class="admin-control-empty">검색 결과가 없습니다.</div>';
     el.querySelectorAll("[data-save-discovery]").forEach((button) => button.addEventListener("click", () => saveDiscoveryV2(button.dataset.saveDiscovery)));
+    $("#adminDiscoverySelectAll")?.addEventListener("change", (event) => el.querySelectorAll("[data-discovery-select]").forEach((input) => { input.checked = event.target.checked; }));
+    $("#adminDiscoveryApplyBulk")?.addEventListener("click", () => {
+      const ids = [...el.querySelectorAll("[data-discovery-select]:checked")].map((input) => input.dataset.discoverySelect);
+      if (!ids.length) return alert("먼저 변경할 업장을 선택해주세요.");
+      const order = $("#adminDiscoveryBulkOrder").value;
+      const weight = $("#adminDiscoveryBulkWeight").value;
+      const featured = $("#adminDiscoveryBulkFeatured").value;
+      ids.forEach((id) => {
+        if (order !== "") $(`[data-business-order="${id}"]`).value = order;
+        if (weight !== "") $(`[data-business-weight="${id}"]`).value = weight;
+        if (featured !== "") $(`[data-business-featured="${id}"]`).checked = featured === "true";
+      });
+    });
+    $("#adminDiscoverySaveAll")?.addEventListener("click", () => saveDiscoveryRows(rows.map((item) => item.id), true));
+  }
+
+  async function saveDiscoveryRows(ids, reload = false) {
+    const button = $("#adminDiscoverySaveAll");
+    if (button) { button.disabled = true; button.textContent = "저장 중..."; }
+    const results = await Promise.all(ids.map((id) => {
+      const order = Number($(`[data-business-order="${id}"]`).value);
+      const weight = Number($(`[data-business-weight="${id}"]`).value);
+      const rateValue = $(`[data-business-rate="${id}"]`).value;
+      return client().rpc("admin_update_business_commerce", { target_business_id:id, commission_rate:rateValue === "" ? null : Number(rateValue) / 100, featured:$(`[data-business-featured="${id}"]`).checked, target_display_order:order, target_discovery_weight:weight });
+    }));
+    const failed = results.filter((result) => result.error);
+    if (failed.length) { if (button) button.disabled = false; return alert(`${failed.length}개 항목을 저장하지 못했습니다.\n${failed[0].error.message}`); }
+    if (reload) await loadDiscoveryV2();
+    alert(`${ids.length}개 업장의 노출 설정을 저장했습니다.`);
   }
 
   async function saveDiscoveryV2(id) {
-    const order = Number($(`[data-business-order="${id}"]`).value);
-    const weight = Number($(`[data-business-weight="${id}"]`).value);
-    const rateValue = $(`[data-business-rate="${id}"]`).value;
-    const { error } = await client().rpc("admin_update_business_commerce", { target_business_id:id, commission_rate:rateValue === "" ? null : Number(rateValue) / 100, featured:$(`[data-business-featured="${id}"]`).checked, target_display_order:order, target_discovery_weight:weight });
-    if (error) return alert(error.message);
-    await loadDiscoveryV2();
-    alert("노출 설정을 저장하고 다시 확인했습니다.");
+    await saveDiscoveryRows([id], true);
   }
 
   function contentRow(item, label, table, actions, kind = "") {

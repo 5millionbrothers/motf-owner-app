@@ -60,7 +60,9 @@ function validateDraft(input: unknown): StayImportDraft {
     seasonRanges: {
       shoulder: (Array.isArray(value.seasonRanges?.shoulder) ? value.seasonRanges.shoulder : []).filter((range) => /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate)).slice(0, 30),
       peak: (Array.isArray(value.seasonRanges?.peak) ? value.seasonRanges.peak : []).filter((range) => /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate)).slice(0, 30),
-    }, warnings: [], evidence: [],
+    }, latitude: Number.isFinite(Number(value.latitude)) ? Number(value.latitude) : null,
+    longitude: Number.isFinite(Number(value.longitude)) ? Number(value.longitude) : null,
+    warnings: [], evidence: [],
   };
 }
 
@@ -73,8 +75,8 @@ function credentials(name: string) {
 }
 
 async function geocode(address: string) {
-  const keyId = env("NAVER_MAP_KEY_ID") || env("NAVER_CLOUD_ACCESS_KEY_ID");
-  const secret = env("NAVER_MAP_SECRET_KEY") || env("NAVER_CLOUD_SECRET_KEY");
+  const keyId = env("NAVER_MAP_KEY_ID") || env("NAVER_MAP_CLIENT_ID") || env("NEXT_PUBLIC_NAVER_MAP_CLIENT_ID") || env("NAVER_CLOUD_ACCESS_KEY_ID");
+  const secret = env("NAVER_MAP_SECRET_KEY") || env("NAVER_MAP_CLIENT_SECRET") || env("NAVER_CLOUD_SECRET_KEY");
   if (!keyId || !secret) return null;
   const response = await fetch(`https://maps.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(address)}`, {
     headers: { "x-ncp-apigw-api-key-id": keyId, "x-ncp-apigw-api-key": secret, Accept: "application/json" }, cache: "no-store",
@@ -115,8 +117,15 @@ export async function POST(request: NextRequest) {
     }, { onConflict: "id" });
     if (profileError) throw profileError;
 
-    const locationAddress = [draft.address, draft.addressDetail].filter(Boolean).join(" ");
-    const location = locationAddress ? await geocode(locationAddress).catch(() => null) : null;
+    const crawledLocation = Number.isFinite(draft.latitude) && Number.isFinite(draft.longitude)
+      ? { latitude: Number(draft.latitude), longitude: Number(draft.longitude) }
+      : null;
+    const locationCandidates = [[draft.address, draft.addressDetail].filter(Boolean).join(" "), draft.address].filter(Boolean) as string[];
+    let location = crawledLocation;
+    for (const candidate of locationCandidates) {
+      if (location) break;
+      location = await geocode(candidate).catch(() => null);
+    }
     const amenityDetails = draft.facilities.map((item) => ({ key: item.key, label: item.key, available: true, params: {}, detail: item.detail }));
     const { data: business, error: businessError } = await service.from("businesses").insert({
       owner_id: createdUserId, business_type: "stay", business_name: draft.businessName,

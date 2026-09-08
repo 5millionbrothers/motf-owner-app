@@ -16,6 +16,8 @@ export type CrawledSite = {
   pages: Array<{ url: string; title: string; text: string; structuredData: string[]; imageUrls?: string[] }>;
   imageUrls: string[];
   visualEvidenceUrls?: string[];
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type FetchOptions = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
@@ -285,34 +287,111 @@ function naverPlaceId(url: URL) {
 async function crawlNaverPlace(seed: URL): Promise<CrawledSite | null> {
   const placeId = naverPlaceId(seed);
   if (!placeId) return null;
-  const apiUrl = `https://map.naver.com/p/api/place/summary/${placeId}?lang=ko`;
-  const { response } = await safeFetch(apiUrl, "application/json", { headers: { Referer: seed.toString() } });
-  const payload = await response.json() as Record<string, unknown>;
-  const data = (payload.data || payload) as Record<string, unknown>;
-  const result = (data.result || data) as Record<string, unknown>;
-  const place = (result.placeDetail || result.place || result) as Record<string, unknown>;
-  const imageBlock = (place.images || {}) as Record<string, unknown>;
-  const imageItems = (Array.isArray(imageBlock.images) ? imageBlock.images : Array.isArray(place.images) ? place.images : []) as Array<Record<string, unknown>>;
-  const imageUrls = imageItems.map((item) => String(item.origin || item.url || "")).filter(Boolean).slice(0, MAX_IMAGES);
-  let supplementalPhone = "";
+  const base = `https://pcmap.place.naver.com/accommodation/${placeId}`;
+  const tabs = [
+    ["홈", "home"], ["소식", "feed"], ["객실", "room?entry=bmp"],
+    ["리뷰", "review?entry=bmp"], ["사진", "photo?entry=bmp&filterType=업체"], ["정보", "information?entry=bmp"],
+  ] as const;
+  const pages: CrawledSite["pages"] = [];
+  const images = new Map<string, number>();
+  let latitude: number | null = null;
+  let longitude: number | null = null;
+
+  const assignedJson = (script: string, marker: string) => {
+    const markerIndex = script.indexOf(marker);
+    const start = markerIndex < 0 ? -1 : script.indexOf("{", markerIndex + marker.length);
+    if (start < 0) return null;
+    let depth = 0, quoted = false, escaped = false;
+    for (let index = start; index < script.length; index += 1) {
+      const character = script[index];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (character === "\\") escaped = true;
+        else if (character === '"') quoted = false;
+        continue;
+      }
+      if (character === '"') quoted = true;
+      else if (character === "{") depth += 1;
+      else if (character === "}" && --depth === 0) return script.slice(start, index + 1);
+    }
+    return null;
+  };
+  const parseState = ($: cheerio.CheerioAPI) => {
+    const script = $("script").map((_, element) => $(element).html() || "").get().find((value) => value.includes("window.__APOLLO_STATE__"));
+    const json = script ? assignedJson(script, "window.__APOLLO_STATE__") : null;
+    if (!json) return null;
+    try { return JSON.parse(json) as Record<string, unknown>; } catch { return null; }
+  };
+  const relevantState = (state: Record<string, unknown> | null) => {
+    if (!state) return [] as unknown[];
+    return Object.entries(state).filter(([key, value]) => {
+      if (!value || typeof value !== "object") return false;
+      return key === "ROOT_QUERY" || /(Accommodation|Booking|PlaceDetail|Business|Image|Facility|Menu|Room)/i.test(key)
+        || Object.keys(value as Record<string, unknown>).some((field) => /(accommodationBookingDetails|pension|roadAddress|bookingBusinessId)/i.test(field));
+    }).sort(([left]) => left === "ROOT_QUERY" ? -1 : 1).map(([key, value]) => ({ key, value })).slice(0, 30);
+  };
+
+  for (const [label, path] of tabs) {
+    const url = `${base}/${path}`;
+    try {
+      const { html, finalUrl } = await readHtml(url, { headers: { Referer: seed.toString() } });
+      const $ = cheerio.load(html);
+      const state = parseState($);
+      const evidence = relevantState(state);
+      const stateText = JSON.stringify(evidence);
+      const x = Number(html.match(/"x"\s*:\s*"?([0-9.]+)"?/)?.[1]);
+      const y = Number(html.match(/"y"\s*:\s*"?([0-9.]+)"?/)?.[1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) { longitude = x; latitude = y; }
+      const officialUrls = new Set<string>();
+      for (const match of html.matchAll(/https?:(?:\\u002F|\/)[^"'<>\s]+?(?:\.jpg|\.jpeg|\.png|\.webp)(?:[^"'<>\s]*)?/gi)) {
+        const decoded = match[0].replaceAll("\\u002F", "/").replaceAll("\\/", "/");
+        if (!/(?:ldb|naverbooking)-phinf\.pstatic\.net/i.test(decoded) || /pup-review|profile/i.test(decoded)) continue;
+        officialUrls.add(decoded);
+        addImage(images, decoded, finalUrl, label === "객실" ? 120 : 100, `naver-${label}`);
+      }
+      const contacts = contactText($);
+      $("script,style,noscript,iframe,svg,nav,footer").remove();
+      const visible = compactText($("body").text(), label === "리뷰" ? 8_000 : 18_000);
+      pushPage(pages, {
+        url: finalUrl,
+        title: `네이버 플레이스 ${label} · ${compactText($("title").text(), 120)}`,
+        text: compactText(`${visible}\n${contacts}\n${latitude && longitude ? `공식 지도 좌표: ${latitude}, ${longitude}` : ""}`, 22_000),
+        structuredData: stateText.length > 4 ? [stateText.slice(0, 90_000)] : [],
+        imageUrls: [...officialUrls].slice(0, 80),
+      });
+    } catch { /* A missing optional tab must not discard the remaining place data. */ }
+  }
   try {
-    const homeUrl = `https://pcmap.place.naver.com/accommodation/${placeId}/home`;
-    const { html } = await readHtml(homeUrl, { headers: { Referer: seed.toString() } });
-    supplementalPhone = html.match(/"(?:virtualPhone|phone)"\s*:\s*"([^"]+)"/)?.[1] || "";
-  } catch { /* Summary data remains useful when the rendered place page changes. */ }
-  const categoryBlock = (place.category || {}) as Record<string, unknown>;
-  const addressBlock = (place.address || {}) as Record<string, unknown>;
-  const priceBlock = (place.reprPrice || {}) as Record<string, unknown>;
-  const coordinate = (place.coordinate || {}) as Record<string, unknown>;
-  const category = Array.isArray(place.category) ? place.category.join(", ") : String(categoryBlock.category || place.businessType || "");
-  const facts = [
-    `업체명: ${String(place.name || "")}`, `업종: ${category}`,
-    `도로명주소: ${String(addressBlock.roadAddress || place.roadAddress || "")}`, `지번주소: ${String(addressBlock.address || "")}`,
-    `대표 전화: ${String(place.virtualPhone || place.phone || supplementalPhone)}`, `표시 가격: ${String(priceBlock.displayText || priceBlock.price || place.price || "")}`,
-    coordinate.longitude && coordinate.latitude ? `좌표: ${String(coordinate.longitude)}, ${String(coordinate.latitude)}` : "",
-    "네이버 플레이스 공식 업체 요약 정보이며 방문자 리뷰와 방문자 사진은 수집하지 않았습니다.",
-  ].filter((line) => !/: $/.test(line));
-  return { canonicalUrl: seed.toString(), pages: [{ url: apiUrl, title: String(place.name || "네이버 플레이스 숙소"), text: facts.join("\n"), structuredData: [], imageUrls }], imageUrls };
+    const query = `query bookingDetails($input: AccommodationBookingDetailsInput) {
+      accommodationBookingDetails(input: $input) { roomTotal agencyName rooms {
+        reprUrl resrvUrl resocId resocName resocDesc cond2Val cond3Val subImage excptMsg minPrice maxPrice discountText
+        drtOptionList { iconName optionName }
+        accommodationAdditionalProperty { checkInTime checkOutTime roomType roomCompositions {
+          name bedroomCompositions { name type bunkBed kingBed queenBed doubleBed singleBed beddingSet familyBed sofaBed isStudioRoom }
+          bathroomCompositions { name isPrivate }
+        } }
+      } }
+    }`;
+    const { response } = await safeFetch("https://pcmap-api.place.naver.com/graphql", "application/json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://pcmap.place.naver.com", Referer: `${base}/room?entry=bmp` },
+      body: JSON.stringify({ operationName: "bookingDetails", variables: { input: { businessId: placeId, isNx: false, size: 50 } }, query }),
+    });
+    const payload = await response.json() as Record<string, unknown>;
+    const details = (payload.data as Record<string, unknown> | undefined)?.accommodationBookingDetails as Record<string, unknown> | undefined;
+    const rooms = Array.isArray(details?.rooms) ? details.rooms as Array<Record<string, unknown>> : [];
+    rooms.flatMap((room) => [room.reprUrl, ...(Array.isArray(room.subImage) ? room.subImage : [])]).forEach((url) => addImage(images, String(url || ""), base, 130, "naver-room"));
+    if (rooms.length) pushPage(pages, {
+      url: "https://pcmap-api.place.naver.com/graphql#all-room-details",
+      title: `네이버 플레이스 전체 객실 ${rooms.length}개`,
+      text: `네이버 객실 탭에서 불러온 전체 객실 상세 정보입니다. 등록 객실 수: ${rooms.length}`,
+      structuredData: [JSON.stringify(details).slice(0, 120_000)],
+      imageUrls: rooms.flatMap((room) => [room.reprUrl, ...(Array.isArray(room.subImage) ? room.subImage : [])]).map(String).filter(Boolean).slice(0, 200),
+    });
+  } catch { /* Naver may rate-limit server IPs; SSR tab evidence remains available. */ }
+  if (!pages.length) throw new Error("네이버 플레이스의 상세 탭을 읽지 못했습니다.");
+  const imageUrls = [...images.entries()].sort((a, b) => b[1] - a[1]).map(([url]) => url).slice(0, MAX_IMAGES);
+  return { canonicalUrl: seed.toString(), pages, imageUrls, latitude, longitude };
 }
 
 export async function crawlStaySite(rawUrl: string): Promise<CrawledSite> {

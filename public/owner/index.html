@@ -694,7 +694,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="/owner/owner-data.css?v=20260908-v13">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260908-v14">
   <link rel="stylesheet" href="/owner/stay-import.css?v=20260907-stayimport2">
   <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport5">
   <link rel="stylesheet" href="/owner/listing-review.css?v=20260907-review1">
@@ -1211,7 +1211,7 @@
 
       <section id="panel-master-chat-monitor" class="panel">
         <h2 class="panel-title">사장님별 전체 채팅 모니터링</h2>
-        <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:20px;">파트너 업장을 먼저 선택한 뒤, 해당 사장님이 이용자들과 나눈 모든 대화를 읽기 전용으로 확인합니다.</p>
+        <p style="font-size:14px; color:var(--muted); margin-top:-16px; margin-bottom:20px;">업장과 대화를 선택하면 모티프 운영팀 계정으로 바로 답장할 수 있습니다.</p>
         <div class="master-chat-search-wrap">
           <i data-lucide="search"></i>
           <input id="masterChatSearch" type="search" placeholder="업장명·이용자·단체명·대화 내용 검색" autocomplete="off">
@@ -1228,7 +1228,10 @@
               <div style="border-right:1px solid var(--line);" id="masterChatUserList"></div>
               <div>
                 <div class="admin-chat-readonly" id="masterChatMessageArea"><p style="color:var(--muted);">확인할 대화를 선택해 주세요.</p></div>
-                <div style="padding:12px 20px; border-top:1px solid var(--line); font-size:12px; color:var(--muted);">운영팀 모니터링 화면 · 메시지 전송은 사장님 계정에서만 가능합니다.</div>
+                <form class="admin-chat-composer" onsubmit="motfSendAdminChatMessage(event)">
+                  <input id="masterChatMessageInput" type="text" maxlength="1000" placeholder="모티프 운영팀 메시지 입력" autocomplete="off">
+                  <button class="primary-btn" type="submit"><i data-lucide="send"></i><span>전송</span></button>
+                </form>
               </div>
             </div>
           </div>
@@ -3300,11 +3303,11 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260908-v13"></script>
+  <script src="/owner/owner-data.js?v=20260908-v14"></script>
   <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
-  <script src="/owner/admin-control.js?v=20260908-merged-admin3"></script>
+  <script src="/owner/admin-control.js?v=20260908-merged-admin4"></script>
   <script src="/owner/stay-import.js?v=20260907-review1"></script>
-  <script src="/owner/listing-review.js?v=20260908-merged-admin3"></script>
+  <script src="/owner/listing-review.js?v=20260908-merged-admin4"></script>
   <script src="/owner/owner-revenue.js?v=20260908-merged-admin3"></script>
   <script src="/owner/admin-review-fixes.js?v=20260902-admin-loop1"></script>
   <script src="/owner/owner-operations.js?v=20260908-v13"></script>

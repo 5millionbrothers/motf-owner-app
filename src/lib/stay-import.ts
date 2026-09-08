@@ -38,6 +38,8 @@ export type StayImportDraft = {
   extraFees: Array<{ label: string; amount: number | null; detail: string | null; category: "confirmed" | "optional" | "onsite" | "deposit" }>;
   rooms: StayImportRoom[];
   imageUrls: string[];
+  latitude?: number | null;
+  longitude?: number | null;
   seasonRanges: {
     shoulder: Array<{ startDate: string; endDate: string }>;
     peak: Array<{ startDate: string; endDate: string }>;
@@ -161,6 +163,8 @@ function cleanDraft(value: Omit<StayImportDraft, "sourceUrl" | "imageUrls">, sit
     extraFees: (value.extraFees || []).filter((item) => String(item.label || "").trim()).map((item) => ({ ...item, amount: item.amount == null ? null : clampInteger(item.amount) })),
     rooms,
     imageUrls: site.imageUrls,
+    latitude: Number.isFinite(site.latitude) ? site.latitude : null,
+    longitude: Number.isFinite(site.longitude) ? site.longitude : null,
     seasonRanges: {
       shoulder: (value.seasonRanges?.shoulder || []).filter((range) => /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate)).slice(0, 30),
       peak: (value.seasonRanges?.peak || []).filter((range) => /^\d{4}-\d{2}-\d{2}$/.test(range.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(range.endDate)).slice(0, 30),

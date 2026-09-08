@@ -271,6 +271,32 @@
   border-radius: 7px;
 }
 
+.admin-control-row[data-discovery-row] {
+  grid-template-columns: 24px minmax(190px, 1fr) repeat(3, minmax(105px, 145px)) auto auto;
+}
+
+.admin-discovery-selector { align-self: center !important; }
+.admin-discovery-selector input { width: 18px; min-height: 18px; }
+.admin-discovery-toolbar {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  backdrop-filter: blur(10px);
+}
+.admin-discovery-toolbar label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.admin-discovery-toolbar select { min-width: 100px; min-height: 38px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+
+.admin-chat-composer { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+.admin-chat-composer input { min-width: 0; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; }
+
 .admin-control-row.admin-content-row {
   grid-template-columns: minmax(220px, 1fr) auto;
   align-items: center;
