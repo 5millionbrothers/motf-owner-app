@@ -694,7 +694,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="/owner/owner-data.css?v=20260908-v14">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260911-v2">
   <link rel="stylesheet" href="/owner/stay-import.css?v=20260907-stayimport2">
   <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport5">
   <link rel="stylesheet" href="/owner/listing-review.css?v=20260907-review1">
@@ -785,7 +785,7 @@
           <li class="owner-desktop-only-menu"><button class="menu-item active" onclick="switchPanel('operations')"><i data-lucide="layout-dashboard"></i> 운영홈</button></li>
           <li><button class="menu-item" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
           <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
-          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
+          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> <span id="menu-availability-text">수동 방막기</span></button></li>
           <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
           <li><button class="menu-item" onclick="switchPanel('reviews')"><i data-lucide="star"></i> 리뷰 관리</button></li>
           <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출·정산</button></li>
@@ -819,7 +819,7 @@
         <div id="ownerOperationsStats" class="owner-operations-stats" aria-live="polite"></div>
         <div class="owner-operations-layout">
           <section class="owner-operations-card owner-operations-card-wide">
-            <div class="owner-section-head"><div><h3>바로 처리할 일</h3><p>승인, 문의, 공실 상태를 놓치지 않도록 모았습니다.</p></div></div>
+            <div class="owner-section-head"><div><h3>바로 처리할 일</h3><p id="ownerOperationsTaskHelp">승인, 문의, 공실 상태를 놓치지 않도록 모았습니다.</p></div></div>
             <div id="ownerOperationsTasks" class="owner-task-list"></div>
           </section>
           <section class="owner-operations-card">
@@ -827,14 +827,14 @@
             <div id="ownerBusinessHealth" class="owner-health-list"></div>
           </section>
           <section class="owner-operations-card">
-            <div class="owner-section-head"><div><h3>최근 활동</h3><p>최근 예약과 리뷰 변화를 확인하세요.</p></div></div>
+            <div class="owner-section-head"><div><h3>최근 활동</h3><p id="ownerRecentActivityHelp">최근 예약과 리뷰 변화를 확인하세요.</p></div></div>
             <div id="ownerRecentActivity" class="owner-activity-list"></div>
           </section>
         </div>
       </section>
 
       <section id="panel-calendar" class="panel">
-        <h2 class="panel-title">월간 스케줄 현황</h2>
+        <h2 class="panel-title" id="calendar-panel-main-title">월간 스케줄 현황</h2>
         <div class="calendar-controls">
           <button class="secondary-btn" onclick="adjustMonth(-1)"><i data-lucide="chevron-left"></i> 이전 달</button>
           <h3 id="calendar-month-title" style="margin:0; font-size:18px;">2026년 6월</h3>
@@ -871,8 +871,8 @@
       </section>
 
       <section id="panel-availability" class="panel">
-        <h2 class="panel-title">수동 방막기 관리</h2>
-        <p style="margin-top:-8px; margin-bottom:18px; color:var(--muted); font-size:14px;">전화 예약, 외부 예약, 임시 점검처럼 moTF 예약을 받으면 안 되는 날짜를 직접 막아둘 수 있습니다.</p>
+        <h2 class="panel-title" id="availability-panel-main-title">수동 방막기 관리</h2>
+        <p id="availability-panel-help" style="margin-top:-8px; margin-bottom:18px; color:var(--muted); font-size:14px;">전화 예약, 외부 예약, 임시 점검처럼 moTF 예약을 받으면 안 되는 날짜를 직접 막아둘 수 있습니다.</p>
         <div id="partnerAvailabilityManager"></div>
       </section>
 
@@ -991,6 +991,40 @@
             <input id="motfSettlementHolder" maxlength="50" placeholder="사업자 또는 대표자명과 동일하게 입력" />
           </label>
           <p class="motf-field-wide" style="margin:0; color:var(--muted); font-size:12px; line-height:1.5;">정산 계좌는 변경사항 저장 시 함께 보관됩니다. 예금주는 사업자 또는 대표자명과 일치하게 입력해주세요.</p>
+        </div>
+
+        <div id="motfMarketOrderPolicyFields" class="motf-market-policy-card" hidden>
+          <div class="owner-section-row">
+            <div>
+              <h3 style="margin:0;">공판장 주문 승인 시간 설정</h3>
+              <p class="owner-field-help">영업시간 안 주문은 접수 후 승인 제한시간을 적용하고, 마감 1시간 전 이후 주문은 다음 영업시작 후로 넘겨 계산합니다.</p>
+            </div>
+          </div>
+          <div class="motf-business-fields">
+            <label>영업 시작
+              <input id="motfMarketOpenTime" type="time" value="09:00" />
+            </label>
+            <label>일~목 마감
+              <input id="motfMarketCloseTimeDefault" type="time" value="19:00" />
+            </label>
+            <label>금요일 마감
+              <input id="motfMarketCloseTimeFriday" type="time" value="20:00" />
+            </label>
+            <label>토요일 마감
+              <input id="motfMarketCloseTimeSaturday" type="time" value="20:00" />
+            </label>
+            <label class="motf-field-wide">주문 승인 제한시간
+              <select id="motfMarketApprovalMinutes">
+                <option value="30">30분</option>
+                <option value="60" selected>1시간</option>
+                <option value="90">1시간 30분</option>
+                <option value="120">2시간</option>
+              </select>
+            </label>
+            <p class="motf-field-wide" style="margin:0;color:var(--muted);font-size:12px;line-height:1.5;">
+              예: 금요일 17:00 주문은 18:00까지, 금요일 19:30 주문은 토요일 10:00까지 승인·거절 시간이 표시됩니다.
+            </p>
+          </div>
         </div>
 
         <h3>서비스 제공 유저화면 미리보기</h3>
@@ -2033,18 +2067,75 @@
     }
 
     /* ================= 기존 사장님 전용 핵심 데이터 렌더링 스크립트 ================= */
+    function applyOwnerTypeInterfaceCopy() {
+      const isMarket = currentOwnerType === 'market';
+      const copy = isMarket
+        ? {
+            orderMenu: '주문 관리',
+            availabilityMenu: '재고·품절 관리',
+            operationsGreeting: '주문, 픽업, 문의, 리뷰, 정산 상태를 한 번에 확인하세요.',
+            taskHelp: '주문 승인, 문의, 판매 상품 상태를 놓치지 않도록 모았습니다.',
+            recentHelp: '최근 주문과 리뷰 변화를 확인하세요.',
+            calendarTitle: '월간 주문·픽업 현황',
+            calendarHelp: '날짜를 누르면 해당 일자의 주문·픽업 예정 내역을 확인할 수 있습니다.',
+            orderTitle: '주문 및 승인 관리',
+            orderSearch: '주문자·단체·상품 검색',
+            availabilityTitle: '재고·품절 관리',
+            availabilityHelp: '품절된 상품이나 일시 판매 중단이 필요한 상품을 바로 관리합니다.',
+            tabs: ['승인 대기', '주문 확정', '지난 주문', '거절한 주문'],
+          }
+        : {
+            orderMenu: '예약 관리',
+            availabilityMenu: '수동 방막기',
+            operationsGreeting: '예약과 문의, 리뷰, 정산 상태를 한 번에 확인하세요.',
+            taskHelp: '승인, 문의, 공실 상태를 놓치지 않도록 모았습니다.',
+            recentHelp: '최근 예약과 리뷰 변화를 확인하세요.',
+            calendarTitle: '월간 스케줄 현황',
+            calendarHelp: '날짜를 누르면 객실별 예약·입금 대기·수동 방막기 상태를 확인하고 바로 관리할 수 있습니다.',
+            orderTitle: '예약 및 승인 관리',
+            orderSearch: '예약자·단체·객실 검색',
+            availabilityTitle: '수동 방막기 관리',
+            availabilityHelp: '전화 예약, 외부 예약, 임시 점검처럼 moTF 예약을 받으면 안 되는 날짜를 직접 막아둘 수 있습니다.',
+            tabs: ['확정 대기', '예약 확정', '지난 예약', '거절한 예약'],
+          };
+
+      const setText = (id, value) => {
+        const node = document.getElementById(id);
+        if (node) node.textContent = value;
+      };
+      setText('menu-order-text', copy.orderMenu);
+      setText('menu-availability-text', copy.availabilityMenu);
+      setText('ownerOperationsGreeting', copy.operationsGreeting);
+      setText('ownerOperationsTaskHelp', copy.taskHelp);
+      setText('ownerRecentActivityHelp', copy.recentHelp);
+      setText('calendar-panel-main-title', copy.calendarTitle);
+      setText('calendarLayerDynamicContent', copy.calendarHelp);
+      setText('order-panel-main-title', copy.orderTitle);
+      setText('availability-panel-main-title', copy.availabilityTitle);
+      setText('availability-panel-help', copy.availabilityHelp);
+
+      const search = document.getElementById('ownerOrderSearch');
+      if (search) search.placeholder = copy.orderSearch;
+      document.querySelectorAll('.owner-order-status-tabs .tab-btn').forEach((button, index) => {
+        if (copy.tabs[index]) button.textContent = copy.tabs[index];
+      });
+    }
+
     function initDashboard() {
       const data = mockData[currentOwnerType];
       const rate = COMMISSION_RATES[currentOwnerType];
       document.querySelector('.mobile-header-mypage-btn')?.removeAttribute('hidden');
+      const isMarket = currentOwnerType === 'market';
+      const orderMenuLabel = isMarket ? '주문 관리' : '예약 관리';
+      const availabilityMenuLabel = isMarket ? '재고·품절 관리' : '수동 방막기';
       
       const menuBox = document.getElementById('dynamic-sidebar-menu-target-box');
       menuBox.innerHTML = `
         <ul class="sidebar-menu">
           <li class="owner-desktop-only-menu"><button class="menu-item active" onclick="switchPanel('operations')"><i data-lucide="layout-dashboard"></i> 운영홈</button></li>
           <li><button class="menu-item" onclick="switchPanel('calendar')"><i data-lucide="calendar"></i> 캘린더</button></li>
-          <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">예약 관리</span></button></li>
-          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> 수동 방막기</button></li>
+          <li><button class="menu-item" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i> <span id="menu-order-text">${orderMenuLabel}</span></button></li>
+          <li><button class="menu-item" onclick="switchPanel('availability')"><i data-lucide="calendar-x"></i> <span id="menu-availability-text">${availabilityMenuLabel}</span></button></li>
           <li><button class="menu-item" onclick="switchPanel('chat')"><i data-lucide="message-square"></i> 채팅 문의</button></li>
           <li><button class="menu-item" onclick="switchPanel('reviews')"><i data-lucide="star"></i> 리뷰 관리</button></li>
           <li><button class="menu-item" onclick="switchPanel('revenue')"><i data-lucide="trending-up"></i> 매출·정산</button></li>
@@ -2055,6 +2146,7 @@
       if (topManageLabel) topManageLabel.innerText = '마이페이지';
       const manageTitle = document.getElementById('partner-manage-title');
       if (manageTitle) manageTitle.innerText = '마이페이지';
+      applyOwnerTypeInterfaceCopy();
 
       switchPanel('operations');
 
@@ -2078,7 +2170,9 @@
       document.getElementById('editDescInput').value = data.desc;
       
       currentSelectedPhotoIndex = 0; 
-      document.getElementById('calendarLayerDynamicContent').innerHTML = "캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보 레이아웃이 로드됩니다.";
+      document.getElementById('calendarLayerDynamicContent').innerHTML = isMarket
+        ? "캘린더의 주문 배너를 클릭하면 해당 주문과 픽업 정보를 확인할 수 있습니다."
+        : "캘린더의 예약자 배너를 클릭하시면 해당 일자 예약 데이터 정보 레이아웃이 로드됩니다.";
 
       rebuildPhotoTabsArray();
       renderRoomPriceTable();
@@ -2425,6 +2519,7 @@
 
     function switchPanel(panelId) {
       currentActivePanel = panelId;
+      applyOwnerTypeInterfaceCopy();
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
       const targetPanel = document.getElementById(`panel-${panelId}`);
       if (!targetPanel) return;
@@ -2438,8 +2533,8 @@
       const mobileTitleMap = {
         operations: '운영 홈',
         calendar: '캘린더',
-        orders: '예약 관리',
-        availability: '수동 방막기',
+        orders: currentOwnerType === 'market' ? '주문 관리' : '예약 관리',
+        availability: currentOwnerType === 'market' ? '재고·품절 관리' : '수동 방막기',
         chat: '채팅 문의',
         reviews: '리뷰 관리',
         settlements: '정산 내역',
@@ -2534,7 +2629,7 @@
             const b = document.createElement('div');
             const isConfirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
             b.className = `cal-badge ${isConfirmed ? 'confirm' : 'pending'}`;
-            b.innerText = `${String(order.user || '예약자').split(' ')[0]} (${isConfirmed ? '확정' : '대기'})`;
+            b.innerText = `${String(order.user || (currentOwnerType === 'market' ? '주문자' : '예약자')).split(' ')[0]} (${isConfirmed ? '확정' : '대기'})`;
             
             b.onclick = (e) => {
               e.stopPropagation();
@@ -2568,6 +2663,22 @@
 
     function showCalendarDayDetail(dayStr, blocks = [], offerings = []) {
       const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
+      if (currentOwnerType === 'market') {
+        const data = mockData[currentOwnerType];
+        const dayOrders = data.orders.filter(order => String(order.date || '').slice(0, 10) === dayStr && !['reject', 'rejected', 'cancelled'].includes(order.status));
+        sidebarLayer.innerHTML = `
+        <div class="calendar-selected-date"><strong>${dayStr}</strong><span>${dayOrders.length ? `${dayOrders.length}건 주문·픽업 예정` : '등록된 주문 없음'}</span></div>
+        <div class="calendar-room-status-list">
+          ${dayOrders.length ? dayOrders.map(order => {
+            const confirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
+            return `<div class="calendar-room-status ${confirmed ? 'open' : 'blocked'}"><span><strong>${escapeDashboardHtml(order.user || '주문자')}</strong><small>${escapeDashboardHtml(order.target || '주문 상품')} · ${confirmed ? '주문 확정' : '승인 대기'}</small></span><button type="button" onclick="showCalendarDetailPopup(mockData[currentOwnerType].orders.find(item => String(item.id) === '${String(order.id)}'))">상세</button></div>`;
+          }).join('') : '<p>이 날짜에는 등록된 주문이 없습니다.</p>'}
+        </div>
+        <button type="button" class="secondary-btn" style="width:100%;justify-content:center;margin-top:12px;" onclick="switchPanel('orders')"><i data-lucide="clipboard-list"></i>주문 관리로 이동</button>
+      `;
+        lucide.createIcons();
+        return;
+      }
       const blockByOffering = new Map(blocks.map(block => [String(block.offering_id), block]));
       sidebarLayer.innerHTML = `
         <div class="calendar-selected-date"><strong>${dayStr}</strong><span>${blocks.length ? `${blocks.length}개 객실 일정 있음` : '등록된 일정 없음'}</span></div>
@@ -2589,17 +2700,19 @@
     };
 
     function showCalendarDetailPopup(order) {
+      if (!order) return;
       const sidebarLayer = document.getElementById('calendarLayerDynamicContent');
+      const isMarket = currentOwnerType === 'market';
       const isConfirmed = ['confirm', 'confirmed', 'completed', 'past'].includes(order.status);
 
       sidebarLayer.innerHTML = `
         <div style="margin-bottom:10px; background:var(--olive-soft); padding:8px; border-radius:6px;">
-          <strong>👤 고객명/단체명:</strong><br>${order.user}
+          <strong>👤 ${isMarket ? '주문자/단체명' : '고객명/단체명'}:</strong><br>${order.user}
         </div>
-        <div style="margin-bottom:8px;"><strong>📅 이용 일정일:</strong> ${order.date}</div>
-        <div style="margin-bottom:8px;"><strong>🎯 매칭 항목:</strong> ${order.target}</div>
+        <div style="margin-bottom:8px;"><strong>📅 ${isMarket ? '주문·픽업일' : '이용 일정일'}:</strong> ${order.date}</div>
+        <div style="margin-bottom:8px;"><strong>🎯 ${isMarket ? '주문 상품' : '매칭 항목'}:</strong> ${order.target}</div>
         <div style="margin-bottom:12px; font-weight:700; color:var(--teal-dark); font-size:15px;"><strong>💵 총 금액:</strong> ${order.price.toLocaleString()}원</div>
-        <div style="margin-bottom:12px;"><strong>🚦 상태:</strong> <span style="font-weight:700;">${isConfirmed ? '확정 완료' : '확정 대기중'}</span></div>
+        <div style="margin-bottom:12px;"><strong>🚦 상태:</strong> <span style="font-weight:700;">${isConfirmed ? (isMarket ? '주문 확정' : '확정 완료') : '확정 대기중'}</span></div>
         <button class="primary-btn" style="width:100%; justify-content:center; font-size:12px; padding:6px;" onclick="goToUserChat('${order.user}')">
           <i data-lucide="message-square" style="width:14px;"></i> 이 고객과 채팅 소통하기
         </button>
@@ -2609,9 +2722,12 @@
 
     function switchOrderTab(tab) {
       currentOrderTab = tab;
+      const labelMap = currentOwnerType === 'market'
+        ? { pending: '승인 대기', confirm: '주문 확정', past: '지난 주문', reject: '거절한 주문' }
+        : { pending: '확정 대기', confirm: '예약 확정', past: '지난 예약', reject: '거절한 예약' };
       document.querySelectorAll('.owner-order-status-tabs .tab-btn').forEach(btn => {
         btn.classList.remove('active');
-        if(btn.innerText.includes(tab==='pending'?'확정 대기':tab==='confirm'?'예약 확정':tab==='past'?'지난 예약':'거절한 예약')) {
+        if(btn.innerText.includes(labelMap[tab])) {
           btn.classList.add('active');
         }
       });
@@ -2632,12 +2748,13 @@
       targetOrders.forEach(o => {
         const card = document.createElement('div');
         card.className = 'item-card';
+        const isMarket = currentOwnerType === 'market';
         
         let actionsHtml = '';
         if(o.status === 'pending') {
           actionsHtml = `
             <div class="item-actions">
-              <button class="mypage-btn" style="background:var(--olive-soft); color:var(--teal-dark);" onclick="processOrder(${o.id}, 'confirm')">확정하기</button>
+              <button class="mypage-btn" style="background:var(--olive-soft); color:var(--teal-dark);" onclick="processOrder(${o.id}, 'confirm')">${isMarket ? '주문 확정' : '확정하기'}</button>
               <button class="motf-reject-action-btn" onclick="showRejectInput(${o.id})">거절하기</button>
             </div>
           `;
@@ -2654,7 +2771,7 @@
         card.innerHTML = `
           <div style="flex:1;">
             <h4>${o.user}</h4>
-            <p>날짜: ${o.date} | 대상 항목: ${o.target} | 금액: ${o.price.toLocaleString()}원</p>
+            <p>${isMarket ? '주문·픽업일' : '날짜'}: ${o.date} | ${isMarket ? '주문 상품' : '대상 항목'}: ${o.target} | 금액: ${o.price.toLocaleString()}원</p>
             <div id="reject-box-${o.id}" class="reject-box" style="display:none;">
               <input type="text" id="reason-input-${o.id}" placeholder="거절 사유를 명시하세요">
               <button class="primary-btn" style="padding:4px 8px; font-size:12px;" onclick="submitReject(${o.id})">완료</button>
@@ -3165,7 +3282,7 @@
         if (business) {
           const { data: extendedBusiness, error: extendedError } = await supabaseClient
             .from('businesses')
-            .select('id, address_detail, postal_code, gallery_image_urls, short_description, highlight_summary, highlight_keys, nearby_tags, room_count, bath_count, shared_bathroom_count, shared_bathroom_gender_separated, shared_bathroom_note, shoulder_season_ranges, peak_season_ranges, amenity_details, extra_fees, station_distance_m, convenience_distance_m, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at')
+            .select('id, address_detail, postal_code, gallery_image_urls, short_description, highlight_summary, highlight_keys, nearby_tags, room_count, bath_count, shared_bathroom_count, shared_bathroom_gender_separated, shared_bathroom_note, shoulder_season_ranges, peak_season_ranges, amenity_details, extra_fees, station_distance_m, convenience_distance_m, location_verified_at, business_number_verification_status, business_number_status_checked_at, business_number_verified_at, market_open_time, market_close_time_default, market_close_time_friday, market_close_time_saturday, market_approval_minutes')
             .eq('id', business.id)
             .maybeSingle();
           if (!extendedError && extendedBusiness) business = { ...business, ...extendedBusiness };
@@ -3303,13 +3420,13 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260908-v14"></script>
+  <script src="/owner/owner-data.js?v=20260911-v2"></script>
   <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
   <script src="/owner/admin-control.js?v=20260908-merged-admin4"></script>
   <script src="/owner/stay-import.js?v=20260907-review1"></script>
   <script src="/owner/listing-review.js?v=20260908-merged-admin4"></script>
   <script src="/owner/owner-revenue.js?v=20260908-merged-admin3"></script>
   <script src="/owner/admin-review-fixes.js?v=20260902-admin-loop1"></script>
-  <script src="/owner/owner-operations.js?v=20260908-v13"></script>
+  <script src="/owner/owner-operations.js?v=20260911-v2"></script>
 </body>
 </html>

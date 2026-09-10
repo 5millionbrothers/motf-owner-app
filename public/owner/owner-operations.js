@@ -38,6 +38,18 @@
     }[status] || "상태 확인";
   }
 
+  function operationStatusLabelForBusiness(status, isMarket = false) {
+    if (!isMarket) return operationStatusLabel(status);
+    return {
+      pending: "승인 대기",
+      confirmed: "주문 확정",
+      completed: "픽업 완료",
+      rejected: "주문 거절",
+      cancelled: "주문 취소",
+      virtual_account_issued: "입금 대기",
+    }[status] || "상태 확인";
+  }
+
   window.motfHandleStarDemoTaskAction = async function handleStarDemoTaskAction(id, status) {
     await window.motfProcessTransaction?.("stay", id, status);
     await window.motfRefreshPartnerOperations?.(true);
@@ -83,7 +95,7 @@
     const isMarket = business.business_type === "market";
     const table = isMarket ? "market_orders" : "reservations";
     const fields = isMarket
-      ? "id,customer_name,total_amount,status,created_at,pickup_time"
+      ? "id,customer_name,total_amount,status,created_at,pickup_time,market_order_items(item_name,quantity)"
       : "id,customer_name,group_name,offering_name,total_amount,status,event_date,created_at";
     const { data, error } = await client().from(table).select(fields)
       .eq("business_id", business.id).order("created_at", { ascending: false }).limit(300);
@@ -92,8 +104,11 @@
       ...item,
       kind: isMarket ? "market" : "stay",
       displayName: item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name,
-      targetName: isMarket ? "공판장 주문" : item.offering_name,
+      targetName: isMarket
+        ? (item.market_order_items || []).map((row) => `${row.item_name || "상품"} ${row.quantity || 1}개`).join(", ") || "공판장 주문"
+        : item.offering_name,
       activityDate: isMarket ? item.created_at : item.event_date,
+      createdAt: item.created_at,
     }));
   }
 
@@ -257,6 +272,7 @@
   function renderOperations() {
     const business = window.motfCurrentBusiness;
     if (!business) return;
+    const isMarket = business.business_type === "market";
     const today = new Date().toISOString().slice(0, 10);
     const pending = transactions.filter((item) => item.status === "pending");
     const upcoming = transactions.filter((item) => item.status === "confirmed" && String(item.activityDate || "").slice(0, 10) >= today);
@@ -267,8 +283,8 @@
 
     $("#ownerOperationsGreeting").textContent = `${business.business_name} 운영 현황입니다. 중요한 항목부터 확인하세요.`;
     $("#ownerOperationsStats").innerHTML = [
-      statCard("확정 대기", `${pending.length}건`, "승인 또는 거절 필요", pending.length ? "is-warning" : ""),
-      statCard("다가오는 일정", `${upcoming.length}건`, "확정된 예약/주문"),
+      statCard(isMarket ? "승인 대기 주문" : "확정 대기", `${pending.length}건`, "승인 또는 거절 필요", pending.length ? "is-warning" : ""),
+      statCard(isMarket ? "다가오는 픽업" : "다가오는 일정", `${upcoming.length}건`, isMarket ? "확정된 주문" : "확정된 예약/주문"),
       statCard("최근 24시간 문의", `${recentChats.length}건`, `전체 채팅 ${conversations.length}개`),
       statCard("이용자 평점", visibleReviews.length ? `${average.toFixed(1)} / 5` : "리뷰 없음", `${visibleReviews.length}개 리뷰`),
       statCard("정산 예정", money(pendingPayout), `${settlements.filter((item) => item.status === "pending").length}건`, "is-accent"),
@@ -279,6 +295,7 @@
       const dateText = String(item.activityDate || item.event_date || item.pickup_time || item.created_at || "").slice(0, 10);
       const targetText = item.targetName || item.offering_name || "요청 항목";
       const amount = Number(item.total_amount || item.amount || 0);
+      const deadlineHtml = isMarket ? (window.motfMarketDeadlineHtml?.(item.createdAt || item.created_at, business) || "") : "";
       const demo = isStarDemoId(item.id);
       const confirmAction = demo
         ? `motfHandleStarDemoTaskAction('${escapeHtml(item.id)}','confirmed')`
@@ -291,18 +308,20 @@
           <span class="owner-urgent-badge">승인 필요</span>
           <strong>${escapeHtml(item.displayName || item.customer_name || "이용자")}</strong>
           <small>${escapeHtml(dateText || "날짜 확인 필요")} · ${escapeHtml(targetText)} · ${money(amount)}</small>
+          ${deadlineHtml}
         </div>
         <div class="owner-urgent-actions">
-          <button type="button" class="primary-btn" onclick="${confirmAction}">예약 확정</button>
+          <button type="button" class="primary-btn" onclick="${confirmAction}">${isMarket ? "주문 확정" : "예약 확정"}</button>
           <button type="button" class="motf-reject-action-btn" onclick="${rejectAction}">요청 거절</button>
         </div>
       </article>`;
     }).join("");
 
     const tasks = [];
-    if (pending.length) tasks.push({ icon: "clipboard-check", title: `확정 대기 ${pending.length}건`, body: "일정과 객실을 확인한 뒤 승인 또는 거절해주세요.", panel: "orders", action: "예약 확인" });
+    if (pending.length) tasks.push({ icon: "clipboard-check", title: `${isMarket ? "승인 대기 주문" : "확정 대기"} ${pending.length}건`, body: isMarket ? "상품 구성과 픽업 가능 여부를 확인한 뒤 승인 또는 거절해주세요." : "일정과 객실을 확인한 뒤 승인 또는 거절해주세요.", panel: "orders", action: isMarket ? "주문 확인" : "예약 확인" });
     if (recentChats.length) tasks.push({ icon: "message-circle", title: `최근 문의 ${recentChats.length}건`, body: "답변을 기다리는 이용자가 있는지 확인해주세요.", panel: "chat", action: "채팅 열기" });
     if (business.business_type === "stay" && availabilityBlocks.length) tasks.push({ icon: "calendar-x", title: `현재 방막기 ${availabilityBlocks.length}건`, body: "외부 예약과 수동 차단 날짜가 정확한지 확인해주세요.", panel: "calendar", action: "캘린더 보기" });
+    if (isMarket && offerings.some((item) => item.is_active === false)) tasks.push({ icon: "package-x", title: `품절·숨김 상품 ${offerings.filter((item) => item.is_active === false).length}개`, body: "판매 재개가 가능한 상품이 있으면 재고·품절 관리에서 상태를 바꿔주세요.", panel: "availability", action: "상품 상태 보기" });
     const lowReviews = visibleReviews.filter((review) => rating5(review.rating) <= 3);
     if (lowReviews.length) tasks.push({ icon: "message-square-warning", title: `확인이 필요한 리뷰 ${lowReviews.length}건`, body: "3점 이하 후기를 살펴보고 운영 개선에 반영해보세요.", panel: "reviews", action: "리뷰 보기" });
     const taskLinks = tasks.filter((task) => task.panel !== "orders").map((task) => `<button type="button" class="owner-task-row" onclick="switchPanel('${task.panel}')"><i data-lucide="${task.icon}"></i><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.body)}</small></span><b>${escapeHtml(task.action)} <i data-lucide="chevron-right"></i></b></button>`).join("");
@@ -322,7 +341,7 @@
     $("#ownerBusinessHealth").innerHTML = checks.map(([done, label]) => `<div class="${done ? "done" : "todo"}"><i data-lucide="${done ? "check" : "circle"}"></i><span>${escapeHtml(label)}</span><b>${done ? "완료" : "확인 필요"}</b></div>`).join("");
 
     const activities = [
-      ...transactions.slice(0, 5).map((item) => ({ at: item.created_at, icon: "calendar-check", title: `${item.displayName || "이용자"} · ${item.targetName || "거래"}`, detail: `${money(item.total_amount)} · ${operationStatusLabel(item.status)}` })),
+      ...transactions.slice(0, 5).map((item) => ({ at: item.created_at, icon: "calendar-check", title: `${item.displayName || "이용자"} · ${item.targetName || "거래"}`, detail: `${money(item.total_amount)} · ${operationStatusLabelForBusiness(item.status, isMarket)}` })),
       ...reviews.slice(0, 4).map((review) => ({ at: review.created_at, icon: "star", title: `${review.author_name || "이용자"}님의 ${rating5(review.rating).toFixed(1)}점 리뷰`, detail: review.body })),
     ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 6);
     $("#ownerRecentActivity").innerHTML = activities.length ? activities.map((item) => `<div><i data-lucide="${item.icon}"></i><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></span><time>${date(item.at)}</time></div>`).join("") : empty("아직 표시할 운영 활동이 없습니다.");

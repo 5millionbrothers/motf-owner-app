@@ -203,6 +203,11 @@
     "approval_status",
     "rejection_reason",
     "import_job_id",
+    "market_open_time",
+    "market_close_time_default",
+    "market_close_time_friday",
+    "market_close_time_saturday",
+    "market_approval_minutes",
   ].join(", ");
 
   function client() {
@@ -227,6 +232,100 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
   }
+
+  function normalizeTimeValue(value, fallback) {
+    const text = String(value || "").slice(0, 5);
+    return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+  }
+
+  function readMarketPolicyFromBusiness(business = window.motfCurrentBusiness || {}) {
+    return {
+      openTime: normalizeTimeValue(business.market_open_time, "09:00"),
+      closeTimeDefault: normalizeTimeValue(business.market_close_time_default, "19:00"),
+      closeTimeFriday: normalizeTimeValue(business.market_close_time_friday, "20:00"),
+      closeTimeSaturday: normalizeTimeValue(business.market_close_time_saturday, "20:00"),
+      approvalMinutes: Math.max(10, Number(business.market_approval_minutes || 60)),
+    };
+  }
+
+  function readMarketPolicyFromInputs() {
+    return {
+      market_open_time: normalizeTimeValue(document.getElementById("motfMarketOpenTime")?.value, "09:00"),
+      market_close_time_default: normalizeTimeValue(document.getElementById("motfMarketCloseTimeDefault")?.value, "19:00"),
+      market_close_time_friday: normalizeTimeValue(document.getElementById("motfMarketCloseTimeFriday")?.value, "20:00"),
+      market_close_time_saturday: normalizeTimeValue(document.getElementById("motfMarketCloseTimeSaturday")?.value, "20:00"),
+      market_approval_minutes: Math.max(10, Number(document.getElementById("motfMarketApprovalMinutes")?.value || 60)),
+    };
+  }
+
+  function minutesFromTime(value) {
+    const [hours, minutes] = normalizeTimeValue(value, "00:00").split(":").map(Number);
+    return hours * 60 + minutes;
+  }
+
+  function setDateMinutes(date, minutes) {
+    const next = new Date(date);
+    next.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+    return next;
+  }
+
+  function marketCloseMinutesForDate(date, policy) {
+    const day = date.getDay();
+    if (day === 5) return minutesFromTime(policy.closeTimeFriday);
+    if (day === 6) return minutesFromTime(policy.closeTimeSaturday);
+    return minutesFromTime(policy.closeTimeDefault);
+  }
+
+  function marketApprovalDeadline(orderCreatedAt, business = window.motfCurrentBusiness || {}) {
+    const created = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
+    if (Number.isNaN(created.getTime())) return null;
+    const policy = readMarketPolicyFromBusiness(business);
+    const openMinutes = minutesFromTime(policy.openTime);
+    const closeMinutes = marketCloseMinutesForDate(created, policy);
+    const cutoffMinutes = Math.max(openMinutes, closeMinutes - policy.approvalMinutes);
+    const createdMinutes = created.getHours() * 60 + created.getMinutes();
+
+    if (createdMinutes < openMinutes) {
+      return setDateMinutes(created, openMinutes + policy.approvalMinutes);
+    }
+    if (createdMinutes >= cutoffMinutes) {
+      const nextBusinessDay = new Date(created);
+      nextBusinessDay.setDate(nextBusinessDay.getDate() + 1);
+      return setDateMinutes(nextBusinessDay, openMinutes + policy.approvalMinutes);
+    }
+    return new Date(created.getTime() + policy.approvalMinutes * 60 * 1000);
+  }
+
+  function relativeDeadlineText(deadline) {
+    if (!deadline) return "";
+    const diffMinutes = Math.ceil((deadline.getTime() - Date.now()) / 60000);
+    if (diffMinutes <= 0) return `마감 초과 ${Math.abs(diffMinutes).toLocaleString("ko-KR")}분`;
+    if (diffMinutes < 60) return `남은 시간 ${diffMinutes}분`;
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+    return `남은 시간 ${hours}시간${minutes ? ` ${minutes}분` : ""}`;
+  }
+
+  function deadlineDateText(deadline) {
+    if (!deadline) return "";
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const sameDay = deadline.toDateString() === today.toDateString();
+    const tomorrowDay = deadline.toDateString() === tomorrow.toDateString();
+    const dayLabel = sameDay ? "오늘" : tomorrowDay ? "내일" : deadline.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+    return `${dayLabel} ${deadline.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+  }
+
+  function marketDeadlineHtml(createdAt, business = window.motfCurrentBusiness || {}) {
+    const deadline = marketApprovalDeadline(createdAt, business);
+    if (!deadline) return "";
+    const overdue = deadline.getTime() < Date.now();
+    return `<div class="motf-market-deadline ${overdue ? "is-overdue" : ""}"><i data-lucide="timer"></i><span>${escapeHtml(relativeDeadlineText(deadline))}</span><small>결정 기한 ${escapeHtml(deadlineDateText(deadline))}</small></div>`;
+  }
+
+  window.motfMarketApprovalDeadline = marketApprovalDeadline;
+  window.motfMarketDeadlineHtml = marketDeadlineHtml;
 
   function normalizeBusinessRegion(region = "", address = "") {
     const regionText = String(region || "").trim();
@@ -716,16 +815,24 @@
     const profile = window.motfCurrentProfile || {};
     const business = window.motfCurrentBusiness || {};
     const settlement = window.motfCurrentSettlementAccount || {};
+    const marketPolicy = readMarketPolicyFromBusiness(business);
+    const marketPolicyFields = document.getElementById("motfMarketOrderPolicyFields");
+    if (marketPolicyFields) marketPolicyFields.hidden = business.business_type !== "market";
     const values = {
       motfOwnerEmail: profile.email || "",
       motfOwnerPhone: profile.phone || business.phone || "",
       motfSettlementBank: settlement.bank_name || "",
       motfSettlementAccount: settlement.account_number || "",
       motfSettlementHolder: settlement.account_holder || business.representative_name || profile.full_name || "",
+      motfMarketOpenTime: marketPolicy.openTime,
+      motfMarketCloseTimeDefault: marketPolicy.closeTimeDefault,
+      motfMarketCloseTimeFriday: marketPolicy.closeTimeFriday,
+      motfMarketCloseTimeSaturday: marketPolicy.closeTimeSaturday,
+      motfMarketApprovalMinutes: String(marketPolicy.approvalMinutes),
     };
     Object.entries(values).forEach(([id, value]) => {
       const input = document.getElementById(id);
-      if (input && !input.value) input.value = value || "";
+      if (input && (id.startsWith("motfMarket") || !input.value)) input.value = value || "";
     });
   }
 
@@ -1220,6 +1327,9 @@
       account_holder: document.getElementById("motfSettlementHolder")?.value.trim() || "",
       updated_at: new Date().toISOString(),
     };
+    const marketPolicyPayload = business.business_type === "market"
+      ? { ...readMarketPolicyFromInputs(), updated_at: new Date().toISOString() }
+      : null;
     const hasSettlementValue = Boolean(settlementPayload.bank_name || settlementPayload.account_number || settlementPayload.account_holder);
 
     const offeringItems = (window.motfReadOfferingsFromDashboard?.() || []).map((item, index) => ({
@@ -1264,7 +1374,7 @@
 
       if (saveButton) saveButton.textContent = "저장 중...";
       if (business.approval_status === "approved") {
-        const [reviewResult, profileResult, settlementResult] = await Promise.all([
+        const [reviewResult, profileResult, settlementResult, marketPolicyResult] = await Promise.all([
           client().rpc("submit_business_listing_review", {
             target_business_id: business.id,
             proposed_business: payload,
@@ -1277,11 +1387,15 @@
           hasSettlementValue
             ? client().from("business_settlement_accounts").upsert(settlementPayload, { onConflict: "business_id" })
             : Promise.resolve({ error: null }),
+          marketPolicyPayload
+            ? client().from("businesses").update(marketPolicyPayload).eq("id", business.id)
+            : Promise.resolve({ error: null }),
         ]);
-        if (reviewResult.error || profileResult.error || settlementResult.error) {
-          throw reviewResult.error || profileResult.error || settlementResult.error;
+        if (reviewResult.error || profileResult.error || settlementResult.error || marketPolicyResult.error) {
+          throw reviewResult.error || profileResult.error || settlementResult.error || marketPolicyResult.error;
         }
         if (hasSettlementValue) window.motfCurrentSettlementAccount = settlementPayload;
+        if (marketPolicyPayload) window.motfCurrentBusiness = { ...window.motfCurrentBusiness, ...marketPolicyPayload };
         if (window.motfCurrentProfile && ownerPhone) window.motfCurrentProfile.phone = ownerPhone;
         alert("변경 승인 요청을 보냈습니다. 운영팀 승인 전까지 현재 공개 정보가 유지됩니다.");
         await window.motfUpdateListingReviewUi?.();
@@ -1293,7 +1407,7 @@
         .select(businessSelect)
         .single();
       if (businessResult.error) throw businessResult.error;
-      const [offeringResult, profileResult, settlementResult] = await Promise.all([
+      const [offeringResult, profileResult, settlementResult, marketPolicyResult] = await Promise.all([
         offeringItems.length ? client().rpc("save_business_offerings", {
           target_business_id: business.id,
           items: offeringItems,
@@ -1304,9 +1418,12 @@
         hasSettlementValue
           ? client().from("business_settlement_accounts").upsert(settlementPayload, { onConflict: "business_id" })
           : Promise.resolve({ error: null }),
+        marketPolicyPayload
+          ? client().from("businesses").update(marketPolicyPayload).eq("id", business.id)
+          : Promise.resolve({ error: null }),
       ]);
-      if (offeringResult.error || profileResult.error || settlementResult.error) {
-        throw offeringResult.error || profileResult.error || settlementResult.error;
+      if (offeringResult.error || profileResult.error || settlementResult.error || marketPolicyResult.error) {
+        throw offeringResult.error || profileResult.error || settlementResult.error || marketPolicyResult.error;
       }
       await Promise.all([
         client().rpc("refresh_business_nearby_distances", { target_business_id: business.id }),
@@ -1582,6 +1699,15 @@
   function transactionDisplayStatus(item) {
     if (item.refundStatus && item.refundStatus !== "none") return refundStatus[item.refundStatus] || item.refundStatus;
     if (item.status === "virtual_account_issued") return "입금 대기";
+    if (item.kind === "market" || item.sourceKind === "market") {
+      return {
+        pending: "승인 대기",
+        confirmed: "주문 확정",
+        completed: "픽업 완료",
+        rejected: "주문 거절",
+        cancelled: "주문 취소",
+      }[item.status] || transactionStatus[item.status] || item.status;
+    }
     return transactionStatus[item.status] || item.status;
   }
 
@@ -1598,25 +1724,30 @@
     const pending = item.status === "pending";
     const refundLabel = item.refundStatus && item.refundStatus !== "none" ? refundStatus[item.refundStatus] || item.refundStatus : "";
     const readOnlyPaymentIntent = item.kind === "payment_intent" || item.status === "virtual_account_issued";
+    const marketLike = item.kind === "market" || item.sourceKind === "market";
+    const confirmedLabel = marketLike ? "주문 확정" : "예약 확정";
+    const marketStatus = { ...transactionStatus, pending: "승인 대기", confirmed: "주문 확정", completed: "픽업 완료", rejected: "주문 거절", cancelled: "주문 취소" };
+    const deadlineHtml = pending && marketLike ? marketDeadlineHtml(item.createdAt || item.created_at, window.motfCurrentBusiness) : "";
     const actions = readOnlyPaymentIntent ? `
       <span class="master-status-badge master-badge-waiting">입금 대기</span>
     ` : pending ? `
       <div class="item-actions">
-        <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}확정</button>
+        <button class="mypage-btn" style="background:var(--olive-soft);color:var(--teal-dark);" onclick="motfProcessTransaction('${item.kind}','${item.id}','confirmed')">${admin ? "운영팀 " : ""}${marketLike ? "주문 확정" : "예약 확정"}</button>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','rejected')">${admin ? "운영팀 " : ""}거절</button>
       </div>
     ` : item.status === "confirmed" && admin ? `
       <div class="item-actions">
-        <span class="master-status-badge master-badge-active">예약 확정</span>
+        <span class="master-status-badge master-badge-active">${confirmedLabel}</span>
         <button class="motf-reject-action-btn" onclick="motfProcessTransaction('${item.kind}','${item.id}','cancelled')">운영팀 취소·환불</button>
       </div>
-    ` : `<div class="item-actions"><span class="master-status-badge ${["rejected", "cancelled"].includes(item.status) ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || transactionStatus[item.status] || item.status}</span></div>`;
+    ` : `<div class="item-actions"><span class="master-status-badge ${["rejected", "cancelled"].includes(item.status) ? "master-badge-terminated" : "master-badge-active"}">${refundLabel || (marketLike ? marketStatus : transactionStatus)[item.status] || item.status}</span></div>`;
     return `
       <div class="item-card">
         <div style="flex:1;">
           <div style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:5px;">${escapeHtml(item.businessName)}</div>
           <h4>${escapeHtml(item.customerName)}</h4>
           <p>${escapeHtml(item.date)} · ${escapeHtml(item.target)} · ${Number(item.amount).toLocaleString()}원</p>
+          ${deadlineHtml}
           ${item.rejectReason ? `<p style="color:#b91c1c;">거절 사유: ${escapeHtml(item.rejectReason)}</p>` : ""}
           ${refundLabel ? `<p style="color:#b45309;">${escapeHtml(refundLabel)}${item.refundAmount ? ` · ${Number(item.refundAmount).toLocaleString()}원` : ""}</p>` : ""}
         </div>
@@ -1655,6 +1786,8 @@
       businessId: pendingIntentBusinessId(item),
       businessName,
       customerName,
+      createdAt: item.created_at || item.virtual_account_issued_at,
+      created_at: item.created_at || item.virtual_account_issued_at,
       date: item.kind === "market"
         ? `${issuedDate} ${pickupTime}`.trim()
         : draft.event_date || issuedDate,
@@ -1747,6 +1880,54 @@
     `;
   }
 
+  async function loadMarketInventoryData(businessId = null) {
+    if (!client() || !businessId) return [];
+    const { data, error } = await client()
+      .from("offerings")
+      .select("id, business_id, name, description, price, unit, category, stock_quantity, is_active, image_url, businesses(id, business_name, business_type)")
+      .eq("business_id", businessId)
+      .order("sort_order");
+    if (error) {
+      console.warn("Could not load market inventory data.", error);
+      return [];
+    }
+    return (data || []).filter((item) => item.businesses?.business_type === "market");
+  }
+
+  function marketInventoryBoxHtml(products) {
+    const rows = products.length
+      ? products.map((item) => {
+          const active = item.is_active !== false;
+          const stockText = item.stock_quantity == null ? "재고 수량 미입력" : `${Number(item.stock_quantity).toLocaleString()}개`;
+          return `<article class="motf-market-stock-card ${active ? "" : "is-sold-out"}">
+            <div class="motf-market-stock-thumb">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : '<i data-lucide="package"></i>'}</div>
+            <div class="motf-market-stock-main">
+              <div class="motf-market-stock-head">
+                <strong>${escapeHtml(item.name || "상품명 미입력")}</strong>
+                <span class="${active ? "master-status-badge master-badge-active" : "master-status-badge master-badge-terminated"}">${active ? "판매 중" : "품절·숨김"}</span>
+              </div>
+              <p>${escapeHtml([item.category, item.unit, stockText].filter(Boolean).join(" · "))}</p>
+              <small>${Number(item.price || 0).toLocaleString()}원${item.description ? ` · ${escapeHtml(String(item.description).slice(0, 60))}` : ""}</small>
+            </div>
+            <div class="motf-market-stock-actions">
+              <button class="secondary-btn" type="button" ${active ? "" : "disabled"} onclick="motfSetMarketProductAvailability('${item.id}', false)">품절 처리</button>
+              <button class="primary-btn" type="button" ${active ? "disabled" : ""} onclick="motfSetMarketProductAvailability('${item.id}', true)">판매 재개</button>
+            </div>
+          </article>`;
+        }).join("")
+      : '<div class="owner-empty-state"><i data-lucide="package-open"></i><p>등록된 판매 상품이 없습니다. 마이페이지에서 상품을 먼저 등록해주세요.</p></div>';
+
+    return `
+      <div class="info-panel motf-market-inventory-panel">
+        <div class="section-toolbar">
+          <h3 style="margin:0;">상품 재고·품절 처리</h3>
+          <span>상품 정보 자체는 건드리지 않고, 이용자 화면 노출 여부만 빠르게 전환합니다.</span>
+        </div>
+        <div class="motf-market-stock-list">${rows}</div>
+      </div>
+    `;
+  }
+
   async function renderAvailabilityManager(scope, businessId = null) {
     const targetId = scope === "master" ? "masterOrderListArea" : "orderListArea";
     const list = document.getElementById(targetId);
@@ -1757,12 +1938,38 @@
       box.id = `${scope}AvailabilityManager`;
       list.parentElement?.insertBefore(box, list);
     }
+    if (scope === "partner" && window.motfCurrentBusiness?.business_type === "market") {
+      const products = await loadMarketInventoryData(businessId);
+      box.innerHTML = marketInventoryBoxHtml(products);
+      window.motfApplyAvailabilityCalendarData?.({ offerings: [], blocks: [] });
+      window.lucide?.createIcons();
+      return;
+    }
     const { offerings, blocks } = await loadStayAvailabilityData(businessId);
     box.innerHTML = availabilityBoxHtml(scope, offerings, blocks);
     if (scope === "partner") window.motfApplyAvailabilityCalendarData?.({ offerings, blocks });
   }
 
   window.motfRenderAvailabilityManager = renderAvailabilityManager;
+
+  window.motfSetMarketProductAvailability = async function motfSetMarketProductAvailability(offeringId, isActive) {
+    if (!client() || window.motfCurrentBusiness?.business_type !== "market") return;
+    const message = isActive ? "이 상품을 다시 판매 상태로 바꿀까요?" : "이 상품을 품절·숨김 처리할까요?";
+    if (!confirm(message)) return;
+    const { error } = await client()
+      .from("offerings")
+      .update({ is_active: Boolean(isActive) })
+      .eq("id", offeringId)
+      .eq("business_id", window.motfCurrentBusiness.id);
+    if (error) {
+      console.error(error);
+      alert(error.message || "상품 판매 상태를 변경하지 못했습니다.");
+      return;
+    }
+    await renderAvailabilityManager("partner", window.motfCurrentBusiness.id);
+    await window.motfRefreshPartnerOperations?.(true);
+    alert(isActive ? "판매 재개 처리했습니다." : "품절·숨김 처리했습니다.");
+  };
 
   window.motfOpenAvailabilityForDate = async function openAvailabilityForDate(date, offeringId = "") {
     window.switchPanel?.("availability");
@@ -1841,6 +2048,8 @@
       id: item.id,
       businessName: business.business_name,
       customerName: item.group_name ? `${item.customer_name} (${item.group_name})` : item.customer_name,
+      createdAt: item.created_at,
+      created_at: item.created_at,
       date: business.business_type === "market"
         ? `${String(item.created_at || "").slice(0, 10)} ${String(item.pickup_time || "").slice(0, 5)}`.trim()
         : item.event_date,
@@ -1874,6 +2083,8 @@
     if (business.business_type === "stay") {
       const availability = await loadStayAvailabilityData(business.id);
       window.motfApplyAvailabilityCalendarData?.(availability);
+    } else {
+      window.motfApplyAvailabilityCalendarData?.({ offerings: [], blocks: [] });
     }
     window.renderCalendar?.();
     window.renderOrders();
