@@ -18,6 +18,7 @@
   })[character]);
   const rating5 = (value) => Math.max(0, Math.min(5, Number(value || 0) / 2));
   const isStarDemoId = (value) => String(value || "").startsWith("demo-star");
+  const isMarketDemoId = (value) => window.motfIsMarketOrderDemoId?.(value) || String(value || "").startsWith("demo-market-order");
 
   function statCard(label, value, detail, tone = "") {
     return `<article class="owner-operation-stat ${tone}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small></article>`;
@@ -110,6 +111,20 @@
       activityDate: isMarket ? item.created_at : item.event_date,
       createdAt: item.created_at,
     }));
+    if (isMarket) {
+      const demoRows = window.motfBuildMarketOrderDemoData?.(business) || [];
+      transactions = [
+        ...demoRows.map((item) => ({
+          ...item,
+          displayName: item.customerName,
+          targetName: item.target,
+          total_amount: item.amount,
+          activityDate: item.date,
+          created_at: item.createdAt || item.created_at,
+        })),
+        ...transactions.filter((item) => !isMarketDemoId(item.id)),
+      ];
+    }
   }
 
   async function loadOfferingsAndAvailability(business) {
@@ -296,12 +311,12 @@
       const targetText = item.targetName || item.offering_name || "요청 항목";
       const amount = Number(item.total_amount || item.amount || 0);
       const deadlineHtml = isMarket ? (window.motfMarketDeadlineHtml?.(item.createdAt || item.created_at, business) || "") : "";
-      const demo = isStarDemoId(item.id);
+      const demo = isStarDemoId(item.id) || isMarketDemoId(item.id);
       const confirmAction = demo
-        ? `motfHandleStarDemoTaskAction('${escapeHtml(item.id)}','confirmed')`
+        ? `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))`
         : `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))`;
       const rejectAction = demo
-        ? `motfHandleStarDemoTaskAction('${escapeHtml(item.id)}','rejected')`
+        ? `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))`
         : `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))`;
       return `<article class="owner-urgent-card">
         <div class="owner-urgent-main">

@@ -6,6 +6,8 @@
   const originalSendChatMessage = window.sendChatMessage;
   const originalRenderMasterCases = window.renderMasterCases;
   const STAR_DEMO_PREFIX = "demo-star";
+  const MARKET_DEMO_PREFIX = "demo-market-order";
+  const MARKET_ORDER_DEMO_ENABLED = true;
   let adminDirectoryProfiles = [];
   let adminDirectoryBusinesses = [];
   let adminDirectoryOfferings = [];
@@ -20,9 +22,115 @@
     return window.motfStarPensionDemoOverrides;
   }
 
+  function marketDemoOverrides() {
+    window.motfMarketOrderDemoOverrides ||= {};
+    return window.motfMarketOrderDemoOverrides;
+  }
+
+  function isMarketDemoId(value) {
+    return String(value || "").startsWith(MARKET_DEMO_PREFIX);
+  }
+
+  function isDemoTransactionId(value) {
+    const id = String(value || "");
+    return id.startsWith(STAR_DEMO_PREFIX) || id.startsWith(MARKET_DEMO_PREFIX);
+  }
+
   function applyDemoOverride(item) {
     const override = starDemoOverrides()[item.id];
     return override ? { ...item, ...override } : item;
+  }
+
+  function applyMarketDemoOverride(item) {
+    const override = marketDemoOverrides()[item.id];
+    return override ? { ...item, ...override } : item;
+  }
+
+  function dateKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function timeKey(date) {
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function marketDemoLateCreatedAt(business = window.motfCurrentBusiness) {
+    const policy = readMarketPolicyFromBusiness(business);
+    const now = new Date();
+    const openDeadlineToday = setDateMinutes(now, minutesFromTime(policy.openTime) + policy.approvalMinutes);
+    const base = new Date(now);
+    if (now < openDeadlineToday) base.setDate(base.getDate() - 1);
+    const closeMinutes = marketCloseMinutesForDate(base, policy);
+    const lateMinutes = Math.max(minutesFromTime(policy.openTime), closeMinutes - Math.min(30, Math.floor(policy.approvalMinutes / 2)));
+    return setDateMinutes(base, lateMinutes);
+  }
+
+  function buildMarketOrderDemoData(business = window.motfCurrentBusiness) {
+    if (!MARKET_ORDER_DEMO_ENABLED || business?.business_type !== "market") return [];
+    const businessName = business?.business_name || "공판장";
+    const now = new Date();
+    const recentCreatedAt = new Date(now.getTime() - 15 * 60 * 1000);
+    const lateCreatedAt = marketDemoLateCreatedAt(business);
+    const confirmedCreatedAt = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const rows = [
+      {
+        kind: "market",
+        id: `${MARKET_DEMO_PREFIX}-pending-normal`,
+        businessId: business?.id || "market-demo-business",
+        businessName,
+        customerName: "[데모] 한양대 축구부",
+        date: `${dateKey(recentCreatedAt)} ${timeKey(recentCreatedAt)}`,
+        target: "돼지고기 목살 8kg, 생수 24개, 쌈채소 5팩",
+        amount: 248000,
+        status: "pending",
+        rejectReason: "",
+        refundStatus: "none",
+        refundAmount: null,
+        createdAt: recentCreatedAt.toISOString(),
+        created_at: recentCreatedAt.toISOString(),
+      },
+      {
+        kind: "market",
+        id: `${MARKET_DEMO_PREFIX}-pending-late`,
+        businessId: business?.id || "market-demo-business",
+        businessName,
+        customerName: "[데모] 마감 이후 접수 테스트",
+        date: `${dateKey(lateCreatedAt)} ${timeKey(lateCreatedAt)}`,
+        target: "소주 2박스, 맥주 3박스, 안주류",
+        amount: 186000,
+        status: "pending",
+        rejectReason: "",
+        refundStatus: "none",
+        refundAmount: null,
+        createdAt: lateCreatedAt.toISOString(),
+        created_at: lateCreatedAt.toISOString(),
+      },
+      {
+        kind: "market",
+        id: `${MARKET_DEMO_PREFIX}-confirmed`,
+        businessId: business?.id || "market-demo-business",
+        businessName,
+        customerName: "[데모] 중앙대 새내기 MT",
+        date: `${dateKey(confirmedCreatedAt)} ${timeKey(confirmedCreatedAt)}`,
+        target: "삼겹살 10kg, 라면 2박스, 종이컵 2줄",
+        amount: 315000,
+        status: "confirmed",
+        rejectReason: "",
+        refundStatus: "none",
+        refundAmount: null,
+        createdAt: confirmedCreatedAt.toISOString(),
+        created_at: confirmedCreatedAt.toISOString(),
+      },
+    ].map(applyMarketDemoOverride);
+    return rows;
+  }
+
+  function applyMarketOrderDemoOverlay(business = window.motfCurrentBusiness) {
+    if (!MARKET_ORDER_DEMO_ENABLED || business?.business_type !== "market") return;
+    partnerTransactions = [
+      ...buildMarketOrderDemoData(business),
+      ...partnerTransactions.filter((item) => !isMarketDemoId(item.id)),
+    ];
   }
 
   function buildStarPensionDemoData(business = window.motfCurrentBusiness) {
@@ -144,7 +252,7 @@
       date: String(item.date || "").slice(0, 10),
       target: item.target,
       price: Number(item.amount || 0),
-      status: String(item.id || "").startsWith(STAR_DEMO_PREFIX) ? demoStatusToLegacy(item.status) : item.status,
+      status: isDemoTransactionId(item.id) ? demoStatusToLegacy(item.status) : item.status,
       rejectReason: item.rejectReason || "",
       refundStatus: item.refundStatus || "none",
       refundAmount: item.refundAmount || null,
@@ -161,6 +269,8 @@
 
   window.motfIsStarPensionDemoBusiness = isStarPensionBusiness;
   window.motfBuildStarPensionDemoData = buildStarPensionDemoData;
+  window.motfIsMarketOrderDemoId = isMarketDemoId;
+  window.motfBuildMarketOrderDemoData = buildMarketOrderDemoData;
 
   const businessSelect = [
     "id",
@@ -2064,8 +2174,9 @@
       })),
     ];
     applyStarPensionTransactionOverlay(business);
+    applyMarketOrderDemoOverlay(business);
     syncPartnerTransactionsToMock();
-    const active = partnerTransactions.filter((item) => !String(item.id || "").startsWith(STAR_DEMO_PREFIX) && !["rejected", "cancelled"].includes(item.status));
+    const active = partnerTransactions.filter((item) => !isDemoTransactionId(item.id) && !["rejected", "cancelled"].includes(item.status));
     const rawTotal = active.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const settled = active.filter((item) => item.status === "completed").reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const expected = active.filter((item) => ["pending", "confirmed"].includes(item.status)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -2337,6 +2448,32 @@
   };
 
   window.motfProcessTransaction = async function motfProcessTransaction(kind, id, status) {
+    if (isMarketDemoId(id)) {
+      let reason = null;
+      if (["rejected", "cancelled"].includes(status)) {
+        reason = prompt(status === "cancelled" ? "취소 사유를 입력해주세요." : "거절 사유를 입력해주세요.")?.trim();
+        if (!reason) return;
+      }
+      const confirmMessage = status === "confirmed"
+        ? "이 데모 주문을 확정할까요?"
+        : status === "cancelled"
+          ? "이 데모 주문을 취소할까요?"
+          : "이 데모 주문을 거절할까요?";
+      if (!confirm(confirmMessage)) return;
+      marketDemoOverrides()[id] = {
+        status,
+        rejectReason: reason || "",
+        refundStatus: "none",
+        refundAmount: null,
+      };
+      applyMarketOrderDemoOverlay(window.motfCurrentBusiness);
+      syncPartnerTransactionsToMock();
+      window.renderOrders?.();
+      window.renderCalendar?.();
+      window.motfRefreshPartnerOperations?.(true);
+      alert("데모 주문 상태가 변경되었습니다.");
+      return;
+    }
     if (String(id || "").startsWith(STAR_DEMO_PREFIX)) {
       let reason = null;
       if (["rejected", "cancelled"].includes(status)) {
