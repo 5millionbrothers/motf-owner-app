@@ -1107,6 +1107,7 @@
         business.gallery_image_urls = urls;
       }
       updatePhotoPreview();
+      if (target.type === "offering") window.renderRoomPriceTable?.();
       return;
     }
     if (target.type === "business") {
@@ -1125,6 +1126,7 @@
       if (result.error) throw result.error;
     }
     updatePhotoPreview();
+    if (target.type === "offering") window.renderRoomPriceTable?.();
   }
 
   window.motfMovePhoto = async function movePhoto(index, direction) {
@@ -1258,6 +1260,7 @@
         return;
       }
       updatePhotoPreview();
+      if (target.type === "offering") window.renderRoomPriceTable?.();
       alert(business.approval_status === "approved"
         ? `${uploadedUrls.length}장의 사진을 추가했습니다. 변경 승인 요청을 보내야 이용자 화면에 반영됩니다.`
         : `${uploadedUrls.length}장의 사진을 비공개 초안에 저장했습니다.`);

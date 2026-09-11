@@ -56,6 +56,11 @@
     await window.motfRefreshPartnerOperations?.(true);
   };
 
+  window.motfHandleOwnerUrgentAction = async function handleOwnerUrgentAction(kind, id, status) {
+    await window.motfProcessTransaction?.(kind, id, status);
+    await window.motfRefreshPartnerOperations?.(true);
+  };
+
   function applyStarPensionOperationsOverlay() {
     const business = window.motfCurrentBusiness;
     if (!window.motfIsStarPensionDemoBusiness?.(business)) return;
@@ -311,13 +316,10 @@
       const targetText = item.targetName || item.offering_name || "요청 항목";
       const amount = Number(item.total_amount || item.amount || 0);
       const deadlineHtml = isMarket ? (window.motfMarketDeadlineHtml?.(item.createdAt || item.created_at, business) || "") : "";
-      const demo = isStarDemoId(item.id) || isMarketDemoId(item.id);
-      const confirmAction = demo
-        ? `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))`
-        : `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'confirmed').then(() => motfRefreshPartnerOperations(true))`;
-      const rejectAction = demo
-        ? `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))`
-        : `motfProcessTransaction(${JSON.stringify(kind)}, ${JSON.stringify(String(item.id))}, 'rejected').then(() => motfRefreshPartnerOperations(true))`;
+      const actionKind = escapeHtml(kind);
+      const actionId = escapeHtml(String(item.id));
+      const confirmAction = `motfHandleOwnerUrgentAction('${actionKind}', '${actionId}', 'confirmed')`;
+      const rejectAction = `motfHandleOwnerUrgentAction('${actionKind}', '${actionId}', 'rejected')`;
       return `<article class="owner-urgent-card">
         <div class="owner-urgent-main">
           <span class="owner-urgent-badge">승인 필요</span>

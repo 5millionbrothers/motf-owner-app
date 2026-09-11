@@ -1905,6 +1905,7 @@
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .owner-urgent-actions {
@@ -1966,6 +1967,7 @@
     border-radius: 18px;
     background: #fff;
     box-shadow: 0 8px 22px rgba(70, 87, 57, .055);
+    overflow: hidden;
   }
 
   .owner-urgent-main strong {
@@ -1975,6 +1977,7 @@
 
   .owner-urgent-main small {
     font-size: 12px;
+    word-break: keep-all;
   }
 
   .owner-urgent-actions {
@@ -1988,6 +1991,19 @@
     min-height: 44px;
     justify-content: center;
     border-radius: 13px;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+
+  .owner-urgent-card .motf-market-deadline {
+    max-width: 100%;
+    align-items: flex-start;
+  }
+
+  .owner-urgent-card .motf-market-deadline span,
+  .owner-urgent-card .motf-market-deadline small {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   #panel-chat {

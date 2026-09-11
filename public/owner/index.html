@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="/owner/assets/motf-favicon.svg?v=20260904">
   <link rel="icon" type="image/png" sizes="32x32" href="/owner/assets/motf-favicon-32.png?v=20260904">
   <link rel="apple-touch-icon" sizes="180x180" href="/owner/assets/motf-apple-touch-icon.png?v=20260904">
-  <link rel="stylesheet" href="/owner/styles.css?v=20260908-merged-admin3">
+  <link rel="stylesheet" href="/owner/styles.css?v=20260911-v1">
   <link rel="stylesheet" href="/owner/loading.css?v=20260904-logo2">
   <script src="/owner/loading.js?v=20260904-loader1"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -694,7 +694,7 @@
       .motf-location-actions { align-items: flex-start; flex-direction: column; }
     }
   </style>
-  <link rel="stylesheet" href="/owner/owner-data.css?v=20260911-v3">
+  <link rel="stylesheet" href="/owner/owner-data.css?v=20260911-v1">
   <link rel="stylesheet" href="/owner/stay-import.css?v=20260907-stayimport2">
   <link rel="stylesheet" href="/owner/stay-import-images.css?v=20260907-stayimport5">
   <link rel="stylesheet" href="/owner/listing-review.css?v=20260907-review1">
@@ -2220,6 +2220,10 @@
         if (currentOwnerType !== 'stay') {
           const categories = ['식재료', '주류/음료', '일회용품', '냉동식품', '기타'];
           const category = room.category || '식재료';
+          const productPhotos = room.image_urls?.length ? room.image_urls : room.image_url ? [room.image_url] : [];
+          const productPhotoPreview = productPhotos.length
+            ? productPhotos.slice(0, 4).map((url, photoIndex) => `<img src="${attr(url)}" alt="${attr(room.name || '상품')} 사진 ${photoIndex + 1}">`).join('')
+            : '<div class="market-product-photo-empty"><i data-lucide="image-plus"></i><span>등록된 사진 없음</span></div>';
           card.innerHTML = `
             <div class="owner-room-editor-head"><input type="text" value="${attr(room.name)}" oninput="syncRoomName(${idx}, this.value)" placeholder="상품명" aria-label="상품명"><button class="motf-reject-action-btn" onclick="removeTableRow(${idx})">상품 삭제</button></div>
             <div class="owner-room-editor-body owner-market-product-grid">
@@ -2233,6 +2237,17 @@
               <label><span>보관 방법</span><input type="text" value="${attr(room.detail_sections?.storage || '')}" oninput="syncRoomObjectText(${idx}, 'detail_sections', 'storage', this.value)" placeholder="예: 냉장 보관"></label>
               <label><span>판매자 안내</span><input type="text" value="${attr(room.detail_sections?.sellerNote || '')}" oninput="syncRoomObjectText(${idx}, 'detail_sections', 'sellerNote', this.value)" placeholder="예: 재고에 따라 브랜드 변경 가능"></label>
               <label><span>영양·알레르기 정보</span><input type="text" value="${attr(room.nutrition_info?.description || '')}" oninput="syncRoomObjectText(${idx}, 'nutrition_info', 'description', this.value)" placeholder="포장지 표기 또는 주요 정보를 입력"></label>
+              <div class="market-product-photo-field market-product-wide">
+                <div class="market-product-photo-head">
+                  <span>상품 사진</span>
+                  <small>${productPhotos.length ? `${productPhotos.length}장 등록됨` : '상품별 대표 사진을 등록하세요.'}</small>
+                </div>
+                <div class="market-product-photo-preview">${productPhotoPreview}</div>
+                <div class="market-product-photo-actions">
+                  <button type="button" class="secondary-btn" onclick="openMarketProductPhotoInput(${idx})"><i data-lucide="image-up"></i> 사진 선택</button>
+                  <button type="button" class="secondary-btn" onclick="focusMarketProductPhotoManager(${idx})"><i data-lucide="images"></i> 사진 관리</button>
+                </div>
+              </div>
             </div>`;
           tbody.appendChild(card);
           return;
@@ -2287,6 +2302,26 @@
         container.appendChild(btn);
       });
       lucide.createIcons();
+    }
+
+    function selectMarketProductPhotoTarget(idx) {
+      if (currentOwnerType !== 'market') return;
+      currentSelectedPhotoIndex = idx + 1;
+      const tabName = mockData[currentOwnerType].photoTabs[currentSelectedPhotoIndex] || mockData[currentOwnerType].rooms[idx]?.name || '상품 사진';
+      renderPhotoTabs();
+      const label = document.getElementById('currentSelectedTabLabelInfo');
+      if (label) label.innerText = `선택된 사진 영역: ${tabName}`;
+      window.motfRefreshPhotoPreview?.();
+    }
+
+    function openMarketProductPhotoInput(idx) {
+      selectMarketProductPhotoTarget(idx);
+      document.getElementById('motfPhotoUploadInput')?.click();
+    }
+
+    function focusMarketProductPhotoManager(idx) {
+      selectMarketProductPhotoTarget(idx);
+      document.getElementById('motfPhotoManager')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     function renderFacilityChips() {
@@ -2749,13 +2784,15 @@
         const card = document.createElement('div');
         card.className = 'item-card';
         const isMarket = currentOwnerType === 'market';
+        const orderIdArg = JSON.stringify(String(o.id));
+        const orderIdHtml = escapeDashboardHtml(String(o.id));
         
         let actionsHtml = '';
         if(o.status === 'pending') {
           actionsHtml = `
             <div class="item-actions">
-              <button class="mypage-btn" style="background:var(--olive-soft); color:var(--teal-dark);" onclick="processOrder(${o.id}, 'confirm')">${isMarket ? '주문 확정' : '확정하기'}</button>
-              <button class="motf-reject-action-btn" onclick="showRejectInput(${o.id})">거절하기</button>
+              <button class="mypage-btn" style="background:var(--olive-soft); color:var(--teal-dark);" onclick="processOrder(${orderIdArg}, 'confirm')">${isMarket ? '주문 확정' : '확정하기'}</button>
+              <button class="motf-reject-action-btn" onclick="showRejectInput(${orderIdArg})">거절하기</button>
             </div>
           `;
         } else if(o.status === 'reject') {
@@ -2772,9 +2809,9 @@
           <div style="flex:1;">
             <h4>${o.user}</h4>
             <p>${isMarket ? '주문·픽업일' : '날짜'}: ${o.date} | ${isMarket ? '주문 상품' : '대상 항목'}: ${o.target} | 금액: ${o.price.toLocaleString()}원</p>
-            <div id="reject-box-${o.id}" class="reject-box" style="display:none;">
-              <input type="text" id="reason-input-${o.id}" placeholder="거절 사유를 명시하세요">
-              <button class="primary-btn" style="padding:4px 8px; font-size:12px;" onclick="submitReject(${o.id})">완료</button>
+            <div id="reject-box-${orderIdHtml}" class="reject-box" style="display:none;">
+              <input type="text" id="reason-input-${orderIdHtml}" placeholder="거절 사유를 명시하세요">
+              <button class="primary-btn" style="padding:4px 8px; font-size:12px;" onclick="submitReject(${orderIdArg})">완료</button>
             </div>
           </div>
           ${actionsHtml}
@@ -2786,7 +2823,7 @@
 
     function processOrder(id, newStatus) {
       const data = mockData[currentOwnerType];
-      const o = data.orders.find(item => item.id === id);
+      const o = data.orders.find(item => String(item.id) === String(id));
       if(o) {
         o.status = newStatus;
         alert('성공적으로 변경 처리가 완료되었습니다.');
@@ -2803,7 +2840,7 @@
       const reason = document.getElementById(`reason-input-${id}`).value.trim();
       if(!reason) { alert('거절 사유를 작성해 주세요.'); return; }
       const data = mockData[currentOwnerType];
-      const o = data.orders.find(item => item.id === id);
+      const o = data.orders.find(item => String(item.id) === String(id));
       if(o) {
         o.status = 'reject';
         o.rejectReason = reason;
@@ -3420,13 +3457,13 @@
       }, 0);
     })();
   </script>
-  <script src="/owner/owner-data.js?v=20260911-v3"></script>
+  <script src="/owner/owner-data.js?v=20260911-v1"></script>
   <script src="/owner/owner-identity.js?v=20260829-ownerops1"></script>
   <script src="/owner/admin-control.js?v=20260908-merged-admin4"></script>
   <script src="/owner/stay-import.js?v=20260907-review1"></script>
   <script src="/owner/listing-review.js?v=20260908-merged-admin4"></script>
   <script src="/owner/owner-revenue.js?v=20260908-merged-admin3"></script>
   <script src="/owner/admin-review-fixes.js?v=20260902-admin-loop1"></script>
-  <script src="/owner/owner-operations.js?v=20260911-v3"></script>
+  <script src="/owner/owner-operations.js?v=20260911-v1"></script>
 </body>
 </html>

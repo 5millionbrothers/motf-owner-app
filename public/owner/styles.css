@@ -161,6 +161,68 @@
 .owner-market-product-grid textarea { width: 100%; min-width: 0; }
 .owner-market-product-grid textarea { resize: vertical; line-height: 1.55; }
 .owner-market-product-grid .market-product-alcohol { min-height: 40px; align-self: end; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.market-product-photo-field {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.market-product-photo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.market-product-photo-head span {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+.market-product-photo-head small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.market-product-photo-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 72px));
+  gap: 7px;
+  align-items: stretch;
+}
+.market-product-photo-preview img,
+.market-product-photo-empty {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--cream);
+}
+.market-product-photo-preview img {
+  object-fit: cover;
+}
+.market-product-photo-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 70px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.market-product-photo-empty svg {
+  width: 17px;
+  height: 17px;
+}
+.market-product-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.market-product-photo-actions button {
+  min-height: 36px;
+}
 
 .facility-row-item { padding: 0 !important; overflow: hidden; }
 .facility-header-interactive { padding: 14px 16px; }
