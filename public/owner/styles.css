@@ -124,6 +124,38 @@
 }
 
 .owner-room-editor-list { display: grid; gap: 14px; }
+.market-product-category-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfaf7;
+}
+.market-product-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+.market-product-category-head strong {
+  display: block;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+}
+.market-product-category-head small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.market-product-category-list {
+  display: grid;
+  gap: 12px;
+}
 .owner-room-editor {
   border: 1px solid var(--line);
   border-radius: 8px;

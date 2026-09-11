@@ -2008,26 +2008,44 @@
   }
 
   function marketInventoryBoxHtml(products) {
+    const categories = ["식재료", "주류/음료", "일회용품", "냉동식품", "기타"];
+    const categoryLabel = (value) => categories.includes(value) ? value : "기타";
+    const stockCardHtml = (item) => {
+      const active = item.is_active !== false;
+      const stockText = item.stock_quantity == null ? "재고 수량 미입력" : `${Number(item.stock_quantity).toLocaleString()}개`;
+      return `<article class="motf-market-stock-card ${active ? "" : "is-sold-out"}">
+        <div class="motf-market-stock-thumb">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : '<i data-lucide="package"></i>'}</div>
+        <div class="motf-market-stock-main">
+          <div class="motf-market-stock-head">
+            <strong>${escapeHtml(item.name || "상품명 미입력")}</strong>
+            <span class="${active ? "master-status-badge master-badge-active" : "master-status-badge master-badge-terminated"}">${active ? "판매 중" : "품절·숨김"}</span>
+          </div>
+          <p>${escapeHtml([item.category, item.unit, stockText].filter(Boolean).join(" · "))}</p>
+          <small>${Number(item.price || 0).toLocaleString()}원${item.description ? ` · ${escapeHtml(String(item.description).slice(0, 60))}` : ""}</small>
+        </div>
+        <div class="motf-market-stock-actions">
+          <button class="secondary-btn" type="button" ${active ? "" : "disabled"} onclick="motfSetMarketProductAvailability('${item.id}', false)">품절 처리</button>
+          <button class="primary-btn" type="button" ${active ? "disabled" : ""} onclick="motfSetMarketProductAvailability('${item.id}', true)">판매 재개</button>
+        </div>
+      </article>`;
+    };
     const rows = products.length
-      ? products.map((item) => {
-          const active = item.is_active !== false;
-          const stockText = item.stock_quantity == null ? "재고 수량 미입력" : `${Number(item.stock_quantity).toLocaleString()}개`;
-          return `<article class="motf-market-stock-card ${active ? "" : "is-sold-out"}">
-            <div class="motf-market-stock-thumb">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : '<i data-lucide="package"></i>'}</div>
-            <div class="motf-market-stock-main">
-              <div class="motf-market-stock-head">
-                <strong>${escapeHtml(item.name || "상품명 미입력")}</strong>
-                <span class="${active ? "master-status-badge master-badge-active" : "master-status-badge master-badge-terminated"}">${active ? "판매 중" : "품절·숨김"}</span>
+      ? categories
+          .map((category) => {
+            const items = products.filter((item) => categoryLabel(item.category) === category);
+            if (!items.length) return "";
+            const activeCount = items.filter((item) => item.is_active !== false).length;
+            return `<section class="motf-market-stock-category">
+              <div class="motf-market-stock-category-head">
+                <div>
+                  <strong>${escapeHtml(category)}</strong>
+                  <small>${items.length}개 상품 · 판매 중 ${activeCount}개</small>
+                </div>
               </div>
-              <p>${escapeHtml([item.category, item.unit, stockText].filter(Boolean).join(" · "))}</p>
-              <small>${Number(item.price || 0).toLocaleString()}원${item.description ? ` · ${escapeHtml(String(item.description).slice(0, 60))}` : ""}</small>
-            </div>
-            <div class="motf-market-stock-actions">
-              <button class="secondary-btn" type="button" ${active ? "" : "disabled"} onclick="motfSetMarketProductAvailability('${item.id}', false)">품절 처리</button>
-              <button class="primary-btn" type="button" ${active ? "disabled" : ""} onclick="motfSetMarketProductAvailability('${item.id}', true)">판매 재개</button>
-            </div>
-          </article>`;
-        }).join("")
+              <div class="motf-market-stock-list">${items.map(stockCardHtml).join("")}</div>
+            </section>`;
+          })
+          .join("")
       : '<div class="owner-empty-state"><i data-lucide="package-open"></i><p>등록된 판매 상품이 없습니다. 마이페이지에서 상품을 먼저 등록해주세요.</p></div>';
 
     return `
@@ -2036,7 +2054,7 @@
           <h3 style="margin:0;">상품 재고·품절 처리</h3>
           <span>상품 정보 자체는 건드리지 않고, 이용자 화면 노출 여부만 빠르게 전환합니다.</span>
         </div>
-        <div class="motf-market-stock-list">${rows}</div>
+        <div class="motf-market-stock-category-list">${rows}</div>
       </div>
     `;
   }

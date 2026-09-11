@@ -2495,6 +2495,43 @@
   gap: 12px;
 }
 
+.motf-market-stock-category-list {
+  display: grid;
+  gap: 14px;
+}
+
+.motf-market-stock-category {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfaf7;
+}
+
+.motf-market-stock-category-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+
+.motf-market-stock-category-head strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.motf-market-stock-category-head small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .motf-market-stock-card {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) auto;
