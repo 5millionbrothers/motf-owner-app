@@ -114,10 +114,15 @@
     .confirmation-resend-btn:hover { color:var(--teal); }
     .confirmation-resend-btn:disabled { color:var(--muted); cursor:not-allowed; text-decoration:none; }
     .login-help { font-size:12px; color:var(--muted); margin-top:16px; line-height:1.6; }
-    .owner-remember-login-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 0 14px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.72); text-align:left; cursor:pointer; }
-    .owner-remember-login-row input { width:16px; height:16px; flex:0 0 16px; accent-color:var(--teal); }
+    .owner-remember-login-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 0 14px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.72); text-align:left; cursor:pointer; outline:0; -webkit-tap-highlight-color:transparent; }
+    .owner-remember-login-row:focus,
+    .owner-remember-login-row:focus-within,
+    .owner-remember-login-row:active { outline:0; box-shadow:none; }
+    .owner-remember-login-row input { width:16px; height:16px; flex:0 0 16px; accent-color:var(--teal); outline:0; box-shadow:none; }
+    .owner-remember-login-row input:focus,
+    .owner-remember-login-row input:focus-visible,
+    .owner-remember-login-row input:active { outline:0; box-shadow:none; }
     .owner-remember-login-row span { display:block; color:var(--ink); font-size:13px; font-weight:700; }
-    .owner-remember-login-row small { display:block; margin-top:2px; color:var(--muted); font-size:11px; line-height:1.35; }
     @media (max-width: 520px) { .owner-remember-login-row { align-items:flex-start; } }
     .auth-modal { position:fixed; inset:0; z-index:200; background:rgba(25,38,35,.48); display:none; align-items:center; justify-content:center; padding:20px; }
     .auth-modal.active { display:flex; }
@@ -727,7 +732,7 @@
           <input type="password" id="ownerPw" placeholder="비밀번호를 입력하세요" required autocomplete="current-password">
         </div>
         <label class="owner-remember-login-row" for="ownerRememberLogin">
-          <span>로그인 상태 유지<small>개인 휴대폰이나 PC에서는 다음 접속 때 자동으로 들어갑니다.</small></span>
+          <span>로그인 상태 유지</span>
           <input type="checkbox" id="ownerRememberLogin" checked>
         </label>
         <button type="submit" class="primary-btn" style="width: 100%; justify-content: center; padding: 14px;">로그인</button>
@@ -3079,6 +3084,7 @@
       const loginSubmit = document.querySelector('#loginForm button[type="submit"]');
       const rememberLoginInput = document.getElementById('ownerRememberLogin');
       const OWNER_REMEMBER_LOGIN_KEY = 'motf-owner-remember-login';
+      let rememberWarningShown = false;
       const setLoginRuntimeStatus = (message, state = 'loading') => {
         if (!loginStatus) return;
         loginStatus.textContent = message;
@@ -3090,7 +3096,13 @@
       };
       if (rememberLoginInput) {
         rememberLoginInput.checked = rememberLoginEnabled();
-        rememberLoginInput.addEventListener('change', () => setRememberLoginPreference(rememberLoginInput.checked));
+        rememberLoginInput.addEventListener('change', () => {
+          setRememberLoginPreference(rememberLoginInput.checked);
+          if (rememberLoginInput.checked && !rememberWarningShown) {
+            rememberWarningShown = true;
+            alert('로그인 상태 유지는 개인 휴대폰이나 개인 PC에서만 사용해주세요. 공용 PC나 다른 사람이 함께 쓰는 기기에서는 체크를 해제하는 것이 안전합니다.');
+          }
+        });
       }
       window.handleLogin = function(event) {
         event.preventDefault();
