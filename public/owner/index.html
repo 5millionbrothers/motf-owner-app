@@ -114,6 +114,11 @@
     .confirmation-resend-btn:hover { color:var(--teal); }
     .confirmation-resend-btn:disabled { color:var(--muted); cursor:not-allowed; text-decoration:none; }
     .login-help { font-size:12px; color:var(--muted); margin-top:16px; line-height:1.6; }
+    .owner-remember-login-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 0 14px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.72); text-align:left; cursor:pointer; }
+    .owner-remember-login-row input { width:16px; height:16px; flex:0 0 16px; accent-color:var(--teal); }
+    .owner-remember-login-row span { display:block; color:var(--ink); font-size:13px; font-weight:700; }
+    .owner-remember-login-row small { display:block; margin-top:2px; color:var(--muted); font-size:11px; line-height:1.35; }
+    @media (max-width: 520px) { .owner-remember-login-row { align-items:flex-start; } }
     .auth-modal { position:fixed; inset:0; z-index:200; background:rgba(25,38,35,.48); display:none; align-items:center; justify-content:center; padding:20px; }
     .auth-modal.active { display:flex; }
     .auth-modal-card { width:100%; max-width:520px; max-height:90vh; overflow-y:auto; background:var(--paper); border-radius:16px; box-shadow:var(--shadow); border:1px solid var(--line); padding:30px; }
@@ -721,6 +726,10 @@
           <label for="ownerPw" style="display:block; text-align:left; margin-bottom:6px; font-size:13px; font-weight:600;">비밀번호</label>
           <input type="password" id="ownerPw" placeholder="비밀번호를 입력하세요" required autocomplete="current-password">
         </div>
+        <label class="owner-remember-login-row" for="ownerRememberLogin">
+          <span>로그인 상태 유지<small>개인 휴대폰이나 PC에서는 다음 접속 때 자동으로 들어갑니다.</small></span>
+          <input type="checkbox" id="ownerRememberLogin" checked>
+        </label>
         <button type="submit" class="primary-btn" style="width: 100%; justify-content: center; padding: 14px;">로그인</button>
       </form>
       <p id="loginRuntimeStatus" class="login-runtime-status" role="status" aria-live="polite">로그인 서비스를 준비하고 있습니다.</p>
@@ -3068,11 +3077,21 @@
     (async () => {
       const loginStatus = document.getElementById('loginRuntimeStatus');
       const loginSubmit = document.querySelector('#loginForm button[type="submit"]');
+      const rememberLoginInput = document.getElementById('ownerRememberLogin');
+      const OWNER_REMEMBER_LOGIN_KEY = 'motf-owner-remember-login';
       const setLoginRuntimeStatus = (message, state = 'loading') => {
         if (!loginStatus) return;
         loginStatus.textContent = message;
         loginStatus.dataset.state = state;
       };
+      const rememberLoginEnabled = () => localStorage.getItem(OWNER_REMEMBER_LOGIN_KEY) !== 'off';
+      const setRememberLoginPreference = (enabled) => {
+        localStorage.setItem(OWNER_REMEMBER_LOGIN_KEY, enabled ? 'on' : 'off');
+      };
+      if (rememberLoginInput) {
+        rememberLoginInput.checked = rememberLoginEnabled();
+        rememberLoginInput.addEventListener('change', () => setRememberLoginPreference(rememberLoginInput.checked));
+      }
       window.handleLogin = function(event) {
         event.preventDefault();
         setLoginRuntimeStatus('로그인 서비스를 준비하고 있습니다. 잠시만 기다려주세요.');
@@ -3122,12 +3141,61 @@
         return;
       }
 
+      const ownerAuthStorage = {
+        getItem(key) {
+          return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+        },
+        setItem(key, value) {
+          if (rememberLoginEnabled()) {
+            localStorage.setItem(key, value);
+            sessionStorage.removeItem(key);
+          } else {
+            sessionStorage.setItem(key, value);
+            localStorage.removeItem(key);
+          }
+        },
+        removeItem(key) {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+        },
+      };
       const supabaseClient = window.supabase.createClient(
         'https://izbwcqnvwsdijoognoag.supabase.co',
-        'sb_publishable_dPivJzpG1ZQWNyTupQ4HRw_dbo5sl9X'
+        'sb_publishable_dPivJzpG1ZQWNyTupQ4HRw_dbo5sl9X',
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storage: ownerAuthStorage,
+          },
+        }
       );
       window.motfSupabase = supabaseClient;
       let confirmationResendAvailableAt = 0;
+      function requestedPanelFromUrl(role = 'partner') {
+        const params = new URLSearchParams(window.location.search);
+        const raw = String(params.get('open') || params.get('panel') || '').trim();
+        if (!raw) return '';
+        const normalized = raw.replace(/^panel-/, '').replace(/^master-/, '');
+        if (role === 'admin') {
+          const adminPanels = new Set(['stats', 'partners', 'chats', 'cases', 'orders', 'content', 'revenue', 'settlement', 'discovery', 'commerce', 'customer-care', 'stay-import']);
+          return adminPanels.has(normalized) ? `master-${normalized}` : '';
+        }
+        const partnerPanels = new Set(['operations', 'calendar', 'orders', 'availability', 'chat', 'reviews', 'revenue', 'settlements', 'mypage']);
+        return partnerPanels.has(normalized) ? normalized : '';
+      }
+      function openRequestedPanelAfterLogin(role = 'partner') {
+        const targetPanel = requestedPanelFromUrl(role);
+        if (!targetPanel) return;
+        window.setTimeout(() => {
+          if (role === 'admin' && typeof window.switchMasterPanel === 'function') {
+            window.switchMasterPanel(targetPanel);
+            return;
+          }
+          if (typeof window.switchPanel === 'function') window.switchPanel(targetPanel);
+        }, 250);
+      }
       window.motfApplyBusinessToDashboard = function(business) {
         if (!business || currentOwnerType === 'admin') return;
         mockData[currentOwnerType].name = `${business.business_name} 님 홈`;
@@ -3335,6 +3403,7 @@
           window.loadMotfAdminChats?.();
           window.loadMotfAdminSupportCases?.();
           window.loadMotfAdminModeration?.();
+          openRequestedPanelAfterLogin('admin');
           return;
         }
 
@@ -3384,6 +3453,7 @@
         window.loadMotfPartnerTransactions?.(business);
         window.loadMotfPartnerChats?.(business);
         window.motfRefreshPartnerOperations?.(true);
+        openRequestedPanelAfterLogin('partner');
       }
 
       window.handleLogin = async function(event) {
@@ -3391,6 +3461,7 @@
         const inputId = document.getElementById('ownerId').value.trim();
         const password = document.getElementById('ownerPw').value;
         const submitButton = event.submitter || event.target.querySelector('button[type="submit"]');
+        if (rememberLoginInput) setRememberLoginPreference(rememberLoginInput.checked);
         if (submitButton) { submitButton.disabled = true; submitButton.textContent = '로그인 중...'; }
 
         try {
@@ -3476,10 +3547,12 @@
       };
 
       setTimeout(async () => {
+        setLoginRuntimeStatus('저장된 로그인을 확인하고 있습니다.', 'loading');
         const { data } = await supabaseClient.auth.getSession();
         if (data.session?.user) {
           try {
             await openDashboardForUser(data.session.user);
+            setLoginRuntimeStatus('자동 로그인되었습니다.', 'ready');
           } catch (error) {
             await supabaseClient.auth.signOut();
             document.getElementById('admin-main').style.display = 'none';
@@ -3487,8 +3560,11 @@
             window.motfCurrentProfile = null;
             window.motfCurrentBusiness = null;
             window.motfCurrentSettlementAccount = null;
+            setLoginRuntimeStatus('로그인 준비가 완료되었습니다.', 'ready');
             console.warn(error.message);
           }
+        } else {
+          setLoginRuntimeStatus('로그인 준비가 완료되었습니다.', 'ready');
         }
       }, 0);
     })();
