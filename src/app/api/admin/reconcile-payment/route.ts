@@ -6,6 +6,11 @@ function supabaseUrl() { return firstEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_U
 function publicKey() { return firstEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY"); }
 function serviceKey() { return firstEnv("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"); }
 function json(status: number, body: Record<string, unknown>) { return NextResponse.json(body, { status }); }
+function tossSecretKey(kind: unknown) {
+  return kind === "market"
+    ? env("TOSS_MARKET_SECRET_KEY")
+    : firstEnv("TOSS_STAY_SECRET_KEY", "TOSS_SECRET_KEY");
+}
 
 async function readJson(response: Response) {
   const text = await response.text();
@@ -36,9 +41,9 @@ async function authenticatedAdmin(authorization: string) {
   return user;
 }
 
-async function tossPaymentByOrderId(orderId: string) {
+async function tossPaymentByOrderId(orderId: string, secretKey: string) {
   const response = await fetch(`https://api.tosspayments.com/v1/payments/orders/${encodeURIComponent(orderId)}`, {
-    headers: { Authorization: `Basic ${Buffer.from(`${env("TOSS_SECRET_KEY")}:`).toString("base64")}` },
+    headers: { Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}` },
     cache: "no-store",
   });
   const data = await readJson(response);
@@ -71,7 +76,6 @@ export async function POST(request: NextRequest) {
     !supabaseUrl() && "Supabase URL",
     !publicKey() && "Supabase Publishable Key",
     !serviceKey() && "Supabase Service Role 또는 Secret Key",
-    !env("TOSS_SECRET_KEY") && "Toss Secret Key",
   ].filter(Boolean);
   if (missing.length) return json(503, { ok: false, message: `환경변수가 없습니다: ${missing.join(", ")}` });
 
@@ -94,7 +98,14 @@ export async function POST(request: NextRequest) {
       return json(200, { ok: true, alreadyRecovered: true, transactionId: intent.transaction_id, message: "이미 정상적으로 예약·주문이 생성된 결제입니다." });
     }
 
-    const tossPayment = await tossPaymentByOrderId(orderId);
+    const secretKey = tossSecretKey(intent.kind);
+    if (!secretKey) {
+      const variableName = intent.kind === "market"
+        ? "TOSS_MARKET_SECRET_KEY"
+        : "TOSS_STAY_SECRET_KEY 또는 TOSS_SECRET_KEY";
+      return json(503, { ok: false, message: `환경변수가 없습니다: ${variableName}` });
+    }
+    const tossPayment = await tossPaymentByOrderId(orderId, secretKey);
     if (tossPayment?.orderId !== orderId || Number(tossPayment?.totalAmount) !== Number(intent.amount)) {
       return json(409, { ok: false, message: "토스 결제 금액과 우리 결제 원장이 일치하지 않습니다. 자동 복구를 중단했습니다." });
     }

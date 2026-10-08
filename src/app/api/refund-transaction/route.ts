@@ -9,6 +9,11 @@ function assertKind(value: unknown): TransactionKind | null { return value === "
 function supabaseUrl() { return firstEnv("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_URL").replace(/\/$/, ""); }
 function publicKey() { return firstEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY"); }
 function serviceKey() { return firstEnv("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"); }
+function tossSecretKey(kind: TransactionKind) {
+  return kind === "market"
+    ? env("TOSS_MARKET_SECRET_KEY")
+    : firstEnv("TOSS_STAY_SECRET_KEY", "TOSS_SECRET_KEY");
+}
 
 async function readJson(response: Response) {
   const text = await response.text();
@@ -79,11 +84,11 @@ async function writeAudit(userId: string, actionType: string, kind: TransactionK
   }
 }
 
-async function tossCancel(paymentKey: string, reason: string, amount: number, idempotencyKey: string) {
+async function tossCancel(paymentKey: string, reason: string, amount: number, idempotencyKey: string, secretKey: string) {
   const response = await fetch(`https://api.tosspayments.com/v1/payments/${encodeURIComponent(paymentKey)}/cancel`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${Buffer.from(`${env("TOSS_SECRET_KEY")}:`).toString("base64")}`,
+      Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}`,
       "Content-Type": "application/json",
       "TossPayments-Idempotency-Key": idempotencyKey,
     },
@@ -100,7 +105,6 @@ export async function POST(request: NextRequest) {
     !supabaseUrl() && "Supabase URL",
     !publicKey() && "Supabase Publishable Key",
     !serviceKey() && "Supabase Service Role 또는 Secret Key",
-    !env("TOSS_SECRET_KEY") && "Toss Secret Key",
   ].filter(Boolean);
   if (missing.length) return json(503, { ok: false, message: `환경변수가 없습니다: ${missing.join(", ")}` });
   try {
@@ -139,8 +143,15 @@ export async function POST(request: NextRequest) {
 
     const externalAmount = Number(intent.amount || 0);
     const pointAmount = Number(intent.points_used || 0);
+    const secretKey = tossSecretKey(kind);
+    if (externalAmount > 0 && !secretKey) {
+      const variableName = kind === "market"
+        ? "TOSS_MARKET_SECRET_KEY"
+        : "TOSS_STAY_SECRET_KEY 또는 TOSS_SECRET_KEY";
+      return json(503, { ok: false, message: `환경변수가 없습니다: ${variableName}` });
+    }
     const result = externalAmount > 0
-      ? await tossCancel(intent.payment_key, reason, externalAmount, `motf-${action}-${kind}-${id}`)
+      ? await tossCancel(intent.payment_key, reason, externalAmount, `motf-${action}-${kind}-${id}`, secretKey)
       : { status: "POINT_ONLY_REFUND" };
 
     await supabaseRequest("/rest/v1/rpc/record_toss_refund", serviceKey(), {

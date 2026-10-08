@@ -21,7 +21,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://프로젝트.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=Supabase publishable key
 SUPABASE_SERVICE_ROLE_KEY=Supabase service_role key
 DATA_GO_KR_SERVICE_KEY=공공데이터포털 국세청 사업자 진위확인 일반 인증키
-TOSS_SECRET_KEY=토스 시크릿 키
+TOSS_SECRET_KEY=숙소 MID 토스 시크릿 키(기존 변수명, 계속 사용 가능)
+TOSS_MARKET_SECRET_KEY=장보기 MID 토스 시크릿 키
 ```
 
 KCP 본인확인 API는 이용자 앱의 `https://motf.co.kr/api/identity-*`를 공용으로 사용합니다. 이용자 앱과 KCP 어댑터가 먼저 배포되어야 사장님 가입이 동작합니다.
